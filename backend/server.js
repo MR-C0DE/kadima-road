@@ -15,12 +15,12 @@ import { errorHandler } from "./src/middlewares/errorMiddleware.js";
 
 // Routes (à décommenter au fur et à mesure)
 import authRoutes from "./src/routes/authRoutes.js";
-// import userRoutes from "./src/routes/userRoutes.js";
+import userRoutes from "./src/routes/userRoutes.js";
 import sosRoutes from "./src/routes/sosRoutes.js";
 import diagnosticRoutes from "./src/routes/diagnosticRoutes.js";
-// import helperRoutes from "./src/routes/helperRoutes.js";
-// import interventionRoutes from "./src/routes/interventionRoutes.js";
-// import paymentRoutes from "./src/routes/paymentRoutes.js";
+import helperRoutes from "./src/routes/helperRoutes.js";
+import interventionRoutes from "./src/routes/interventionRoutes.js";
+import paymentRoutes from "./src/routes/paymentRoutes.js";
 
 const app = express();
 
@@ -37,12 +37,12 @@ app.use(morgan("combined", { stream: { write: (message) => logger.info(message.t
 
 // Routes API
 app.use("/api/auth", authRoutes);
-// app.use("/api/users", userRoutes);
+app.use("/api/users", userRoutes);
 app.use("/api/sos", sosRoutes);
 app.use("/api/diagnostic", diagnosticRoutes);
-// app.use("/api/helpers", helperRoutes);
-// app.use("/api/interventions", interventionRoutes);
-// app.use("/api/payments", paymentRoutes);
+app.use("/api/helpers", helperRoutes);
+app.use("/api/interventions", interventionRoutes);
+app.use("/api/payments", paymentRoutes);
 
 // Route de test
 app.get("/", (req, res) => {

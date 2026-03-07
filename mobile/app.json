@@ -1,7 +1,7 @@
 {
   "expo": {
-    "name": "mobile",
-    "slug": "mobile",
+    "name": "Kadima Road",
+    "slug": "kadima-road",
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/icon.png",
@@ -11,8 +11,19 @@
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
     "ios": {
-      "supportsTablet": true
+      "supportsTablet": true,
+      "bundleIdentifier": "com.kadimaroad.app",
+      "config": {
+        "googleMapsApiKey": "TA_CLE_GOOGLE_MAPS_IOS"
+      },
+      "infoPlist": {
+        "NSLocationWhenInUseUsageDescription": "Kadima Road a besoin de votre position pour trouver des helpers près de chez vous.",
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Kadima Road a besoin de votre position pour les alertes SOS."
+      }
     },
     "android": {
       "adaptiveIcon": {
@@ -20,10 +31,40 @@
         "foregroundImage": "./assets/android-icon-foreground.png",
         "backgroundImage": "./assets/android-icon-background.png",
         "monochromeImage": "./assets/android-icon-monochrome.png"
-      }
+      },
+      "package": "com.kadimaroad.app",
+      "config": {
+        "googleMaps": {
+          "apiKey": "TA_CLE_GOOGLE_MAPS_ANDROID"
+        }
+      },
+      "permissions": [
+        "ACCESS_COARSE_LOCATION",
+        "ACCESS_FINE_LOCATION",
+        "ACCESS_BACKGROUND_LOCATION"
+      ]
     },
     "web": {
       "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Kadima Road a besoin de votre position pour trouver des helpers près de chez vous."
+        }
+      ],
+      [
+        "react-native-maps",
+        {
+          "apiKey": "TA_CLE_GOOGLE_MAPS"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "ton-project-id-eas"
+      }
     }
   }
 }

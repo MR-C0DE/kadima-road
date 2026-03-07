@@ -98,3 +98,19 @@
 {"level":"info","message":"✅ Serveur démarré sur http://localhost:4040","timestamp":"2026-03-06T22:07:14.243Z"}
 {"level":"info","message":"MongoDB Connected: ac-q8agg6j-shard-00-02.jxh4dfk.mongodb.net","timestamp":"2026-03-06T22:07:40.360Z"}
 {"level":"info","message":"✅ Serveur démarré sur http://localhost:4040","timestamp":"2026-03-06T22:07:40.368Z"}
+{"level":"info","message":"MongoDB Connected: ac-q8agg6j-shard-00-00.jxh4dfk.mongodb.net","timestamp":"2026-03-06T22:10:02.161Z"}
+{"level":"info","message":"✅ Serveur démarré sur http://localhost:4040","timestamp":"2026-03-06T22:10:02.167Z"}
+{"level":"info","message":"MongoDB Connected: ac-q8agg6j-shard-00-02.jxh4dfk.mongodb.net","timestamp":"2026-03-06T22:10:25.106Z"}
+{"level":"info","message":"✅ Serveur démarré sur http://localhost:4040","timestamp":"2026-03-06T22:10:25.109Z"}
+{"level":"info","message":"MongoDB Connected: ac-q8agg6j-shard-00-00.jxh4dfk.mongodb.net","timestamp":"2026-03-06T22:11:16.395Z"}
+{"level":"info","message":"✅ Serveur démarré sur http://localhost:4040","timestamp":"2026-03-06T22:11:16.398Z"}
+{"level":"info","message":"MongoDB Connected: ac-q8agg6j-shard-00-00.jxh4dfk.mongodb.net","timestamp":"2026-03-06T22:15:55.582Z"}
+{"level":"info","message":"✅ Serveur démarré sur http://localhost:4040","timestamp":"2026-03-06T22:15:55.590Z"}
+{"level":"info","message":"MongoDB Connected: ac-q8agg6j-shard-00-00.jxh4dfk.mongodb.net","timestamp":"2026-03-06T22:17:21.462Z"}
+{"level":"info","message":"✅ Serveur démarré sur http://localhost:4040","timestamp":"2026-03-06T22:17:21.467Z"}
+{"level":"info","message":"MongoDB Connected: ac-q8agg6j-shard-00-00.jxh4dfk.mongodb.net","timestamp":"2026-03-06T22:19:11.207Z"}
+{"level":"info","message":"✅ Serveur démarré sur http://localhost:4040","timestamp":"2026-03-06T22:19:11.210Z"}
+{"level":"info","message":"MongoDB Connected: ac-q8agg6j-shard-00-00.jxh4dfk.mongodb.net","timestamp":"2026-03-06T22:19:32.605Z"}
+{"level":"info","message":"✅ Serveur démarré sur http://localhost:4040","timestamp":"2026-03-06T22:19:32.608Z"}
+{"level":"info","message":"MongoDB Connected: ac-q8agg6j-shard-00-00.jxh4dfk.mongodb.net","timestamp":"2026-03-06T22:40:21.707Z"}
+{"level":"info","message":"✅ Serveur démarré sur http://localhost:4040","timestamp":"2026-03-06T22:40:21.714Z"}
