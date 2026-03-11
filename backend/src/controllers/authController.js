@@ -1,4 +1,5 @@
 import User from '../models/User.js';
+import Helper from '../models/Helper.js';
 import jwt from 'jsonwebtoken';
 import logger from '../config/logger.js';
 
@@ -9,10 +10,10 @@ const generateToken = (id) => {
   });
 };
 
-// @desc    Inscription d'un nouvel utilisateur
-// @route   POST /api/auth/register
+// @desc    Inscription utilisateur (Kadima Road)
+// @route   POST /api/auth/register/user
 // @access  Public
-export const register = async (req, res) => {
+export const registerUser = async (req, res) => {
   try {
     const { firstName, lastName, email, phone, password } = req.body;
 
@@ -28,17 +29,21 @@ export const register = async (req, res) => {
       });
     }
 
-    // Créer l'utilisateur
+    // Créer l'utilisateur (rôle user par défaut)
     const user = await User.create({
       firstName,
       lastName,
       email,
       phone,
-      password
+      password,
+      role: 'user',
+      isHelper: false
     });
 
     // Générer le token
     const token = generateToken(user._id);
+
+    logger.info(`✅ Nouvel utilisateur créé: ${email}`);
 
     res.status(201).json({
       success: true,
@@ -50,7 +55,7 @@ export const register = async (req, res) => {
     });
 
   } catch (error) {
-    logger.error(`Erreur inscription: ${error.message}`);
+    logger.error(`Erreur inscription utilisateur: ${error.message}`);
     res.status(500).json({
       success: false,
       message: 'Erreur lors de l\'inscription',
@@ -59,7 +64,86 @@ export const register = async (req, res) => {
   }
 };
 
-// @desc    Connexion utilisateur
+// @desc    Inscription helper (Kadima Helpers)
+// @route   POST /api/auth/register/helper
+// @access  Public
+export const registerHelper = async (req, res) => {
+  try {
+    const { firstName, lastName, email, phone, password } = req.body;
+
+    // Vérifier si l'utilisateur existe déjà
+    const userExists = await User.findOne({ 
+      $or: [{ email }, { phone }] 
+    });
+
+    if (userExists) {
+      return res.status(400).json({
+        success: false,
+        message: 'Un utilisateur avec cet email ou téléphone existe déjà'
+      });
+    }
+
+    // Créer l'utilisateur avec rôle helper
+    const user = await User.create({
+      firstName,
+      lastName,
+      email,
+      phone,
+      password,
+      role: 'helper',
+      isHelper: true
+    });
+
+    // Créer le profil helper vide (sera complété pendant l'onboarding)
+    const helper = await Helper.create({
+      user: user._id,
+      status: 'pending',
+      services: [],
+      equipment: [],
+      pricing: {
+        basePrice: 25,
+        perKm: 1
+      },
+      availability: {
+        isAvailable: true,
+        schedule: []
+      },
+      certification: {
+        isCertified: false,
+        trainingCompleted: false,
+        backgroundCheck: false
+      }
+    });
+
+    // Lier le helper à l'utilisateur
+    user.helperProfile = helper._id;
+    await user.save();
+
+    // Générer le token
+    const token = generateToken(user._id);
+
+    logger.info(`✅ Nouveau helper créé: ${email}`);
+
+    res.status(201).json({
+      success: true,
+      message: 'Inscription helper réussie',
+      data: {
+        user: user.toJSON(),
+        token
+      }
+    });
+
+  } catch (error) {
+    logger.error(`Erreur inscription helper: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de l\'inscription helper',
+      error: error.message
+    });
+  }
+};
+
+// @desc    Connexion utilisateur (commun aux deux apps)
 // @route   POST /api/auth/login
 // @access  Public
 export const login = async (req, res) => {
@@ -91,6 +175,8 @@ export const login = async (req, res) => {
     // Générer le token
     const token = generateToken(user._id);
 
+    logger.info(`✅ Connexion réussie: ${email}`);
+
     res.json({
       success: true,
       message: 'Connexion réussie',
@@ -104,8 +190,7 @@ export const login = async (req, res) => {
     logger.error(`Erreur connexion: ${error.message}`);
     res.status(500).json({
       success: false,
-      message: 'Erreur lors de la connexion',
-      error: error.message
+      message: 'Erreur lors de la connexion'
     });
   }
 };

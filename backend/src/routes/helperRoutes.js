@@ -13,7 +13,10 @@ import {
   getHelperStats,
   verifyHelper,
   uploadDocument,
-  getHelperReviews
+  getHelperReviews,
+  getCurrentMissions,      // ← NOUVEAU
+  getMissionHistory,       // ← NOUVEAU
+  updateMissionStatus      // ← NOUVEAU
 } from '../controllers/helperController.js';
 
 const router = express.Router();
@@ -39,5 +42,9 @@ router.post('/documents', uploadDocument);
 // Routes admin seulement
 router.get('/', getAllHelpers);
 router.put('/verify/:id', verifyHelper);
+
+router.get('/missions/current', getCurrentMissions);
+router.get('/missions/history', getMissionHistory);
+router.put('/missions/:id/status', updateMissionStatus);
 
 export default router;

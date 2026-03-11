@@ -1,6 +1,7 @@
 import express from 'express';
 import { 
-  register, 
+  registerUser,
+  registerHelper,
   login, 
   getMe, 
   updateProfile, 
@@ -13,7 +14,8 @@ import { protect } from '../middlewares/authMiddleware.js';
 const router = express.Router();
 
 // Routes publiques
-router.post('/register', registerValidation, validate, register);
+router.post('/register/user', registerValidation, validate, registerUser);   // ← Pour Kadima Road
+router.post('/register/helper', registerValidation, validate, registerHelper); // ← Pour Kadima Helpers
 router.post('/login', loginValidation, validate, login);
 
 // Routes protégées (nécessitent authentification)

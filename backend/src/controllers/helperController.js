@@ -79,6 +79,7 @@ export const registerAsHelper = async (req, res) => {
 // @access  Private
 export const getHelperProfile = async (req, res) => {
   try {
+    console.log("TTTT",req.user._id );
     const helper = await Helper.findOne({ user: req.user._id })
       .populate('user', '-password');
 
@@ -650,3 +651,201 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   return R * c;
 }
+
+// @desc    Obtenir les missions en cours du helper
+// @route   GET /api/helpers/missions/current
+// @access  Private
+export const getCurrentMissions = async (req, res) => {
+  try {
+    const helper = await Helper.findOne({ user: req.user._id });
+    
+    if (!helper) {
+      return res.status(404).json({
+        success: false,
+        message: 'Helper non trouvé'
+      });
+    }
+
+    // Statuts des missions en cours
+    const currentStatuses = ['accepted', 'en_route', 'arrived', 'in_progress'];
+    
+    const missions = await Intervention.find({
+      helper: helper._id,
+      status: { $in: currentStatuses }
+    })
+    .populate('user', 'firstName lastName phone')
+    .sort('-updatedAt');
+
+    res.json({
+      success: true,
+      count: missions.length,
+      data: missions
+    });
+
+  } catch (error) {
+    logger.error(`Erreur getCurrentMissions: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la récupération des missions en cours'
+    });
+  }
+};
+
+// @desc    Obtenir l'historique des missions du helper
+// @route   GET /api/helpers/missions/history
+// @access  Private
+export const getMissionHistory = async (req, res) => {
+  try {
+    const helper = await Helper.findOne({ user: req.user._id });
+    
+    if (!helper) {
+      return res.status(404).json({
+        success: false,
+        message: 'Helper non trouvé'
+      });
+    }
+
+    // Statuts des missions terminées
+    const historyStatuses = ['completed', 'cancelled'];
+    
+    const missions = await Intervention.find({
+      helper: helper._id,
+      status: { $in: historyStatuses }
+    })
+    .populate('user', 'firstName lastName')
+    .sort('-createdAt')
+    .limit(50); // Limiter à 50 missions pour l'historique
+
+    res.json({
+      success: true,
+      count: missions.length,
+      data: missions
+    });
+
+  } catch (error) {
+    logger.error(`Erreur getMissionHistory: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la récupération de l\'historique'
+    });
+  }
+};
+
+// @desc    Mettre à jour le statut d'une mission
+// @route   PUT /api/helpers/missions/:id/status
+// @access  Private
+export const updateMissionStatus = async (req, res) => {
+  try {
+    const { status } = req.body;
+    const { id } = req.params;
+
+    const helper = await Helper.findOne({ user: req.user._id });
+    
+    if (!helper) {
+      return res.status(404).json({
+        success: false,
+        message: 'Helper non trouvé'
+      });
+    }
+
+    const intervention = await Intervention.findById(id)
+      .populate('user')
+      .populate('helper');
+
+    if (!intervention) {
+      return res.status(404).json({
+        success: false,
+        message: 'Intervention non trouvée'
+      });
+    }
+
+    // Vérifier que le helper est bien assigné à cette intervention
+    if (intervention.helper?._id.toString() !== helper._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Vous n\'êtes pas assigné à cette intervention'
+      });
+    }
+
+    // Mettre à jour le statut
+    intervention.status = status;
+    intervention.timeline.push({
+      status,
+      timestamp: new Date(),
+      note: `Statut mis à jour par le helper: ${status}`
+    });
+
+    // Actions spécifiques selon le statut
+    if (status === 'en_route') {
+      // Calculer le temps d'arrivée estimé
+      intervention.eta = 15; // À améliorer avec Google Maps
+      
+      // Notifier l'utilisateur
+      if (intervention.user?.phone) {
+        await sendSMS(
+          intervention.user.phone,
+          `🚗 Votre helper ${helper.user?.firstName} est en route ! Arrivée estimée dans 15 minutes.`
+        );
+      }
+    }
+
+    if (status === 'arrived') {
+      if (intervention.user?.phone) {
+        await sendSMS(
+          intervention.user.phone,
+          `📍 Votre helper ${helper.user?.firstName} est arrivé sur place.`
+        );
+      }
+    }
+
+    if (status === 'completed') {
+      intervention.completedAt = new Date();
+      
+      // Mettre à jour les stats du helper
+      await Helper.findByIdAndUpdate(helper._id, {
+        $inc: {
+          'stats.completedInterventions': 1,
+          'stats.totalInterventions': 1
+        }
+      });
+
+      if (intervention.user?.phone) {
+        await sendSMS(
+          intervention.user.phone,
+          `✅ Intervention terminée ! Merci d'avoir utilisé Kadima Helpers.`
+        );
+      }
+    }
+
+    if (status === 'cancelled') {
+      intervention.cancelledAt = new Date();
+      intervention.cancellation = {
+        cancelledBy: 'helper',
+        reason: 'Annulé par le helper',
+        cancelledAt: new Date()
+      };
+
+      if (intervention.user?.phone) {
+        await sendSMS(
+          intervention.user.phone,
+          `❌ Votre intervention a été annulée par le helper.`
+        );
+      }
+    }
+
+    await intervention.save();
+
+    res.json({
+      success: true,
+      message: 'Statut mis à jour avec succès',
+      data: intervention
+    });
+
+  } catch (error) {
+    logger.error(`Erreur updateMissionStatus: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la mise à jour du statut'
+    });
+  }
+};

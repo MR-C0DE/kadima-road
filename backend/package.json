@@ -1,5 +1,5 @@
 {
-  "name": "billsder_api",
+  "name": "api.kadima.road",
   "version": "1.0.0",
   "description": "",
   "main": "server.js",
@@ -11,7 +11,6 @@
   "author": "ucodebyus",
   "license": "ISC",
   "dependencies": {
-    "@sendgrid/mail": "^8.1.6",
     "bcrypt": "^5.1.1",
     "body-parser": "^1.20.3",
     "compression": "^1.7.4",
@@ -30,9 +29,7 @@
     "mysql2": "^3.2.3",
     "nodemailer": "^6.9.16",
     "nodemon": "^2.0.22",
-    "openai": "^6.27.0",
-    "stripe": "^17.7.0",
-    "twilio": "^5.12.2",
+    "stripe": "^17.5.0",
     "winston": "^3.10.0",
     "xss": "^1.0.14"
   }
