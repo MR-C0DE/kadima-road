@@ -23,15 +23,14 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
-import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
+import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
 import MapViewDirections from "react-native-maps-directions";
 import * as Location from "expo-location";
 
 const { width } = Dimensions.get("window");
-
-// Clé API Google Maps (à remplacer par la tienne)
 const GOOGLE_MAPS_APIKEY = "AIzaSyDGpdR97HaU5KBE3yTSq_W7Lu5StXhJh1E";
 
+// Interface pour les missions acceptées
 interface Mission {
   _id: string;
   type: string;
@@ -57,12 +56,33 @@ interface Mission {
   };
   location: {
     address: string;
-    coordinates: [number, number]; // [longitude, latitude]
+    coordinates: [number, number];
   };
   createdAt: string;
   acceptedAt?: string;
   completedAt?: string;
   estimatedTime?: string;
+}
+
+// NOUVELLE INTERFACE pour les SOS disponibles
+interface AvailableSOS {
+  _id: string;
+  type: string;
+  distance: number;
+  reward: number;
+  client: {
+    firstName: string;
+    lastName: string;
+  };
+  problem: {
+    description: string;
+    category: string;
+  };
+  location: {
+    address: string;
+    coordinates: [number, number];
+  };
+  createdAt: string;
 }
 
 export default function MissionsScreen() {
@@ -74,7 +94,10 @@ export default function MissionsScreen() {
   // États
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [activeTab, setActiveTab] = useState<"current" | "history">("current");
+  const [activeTab, setActiveTab] = useState<
+    "available" | "current" | "history"
+  >("available"); // ← NOUVEAU TAB
+  const [availableSOS, setAvailableSOS] = useState<AvailableSOS[]>([]); // ← NOUVEAU
   const [currentMissions, setCurrentMissions] = useState<Mission[]>([]);
   const [historyMissions, setHistoryMissions] = useState<Mission[]>([]);
 
@@ -85,6 +108,7 @@ export default function MissionsScreen() {
   } | null>(null);
   const [locationSubscription, setLocationSubscription] = useState<any>(null);
   const [selectedMission, setSelectedMission] = useState<Mission | null>(null);
+  const [selectedSOS, setSelectedSOS] = useState<AvailableSOS | null>(null); // ← NOUVEAU
   const [showMap, setShowMap] = useState(false);
   const [mapRegion, setMapRegion] = useState({
     latitude: 45.4215,
@@ -120,7 +144,7 @@ export default function MissionsScreen() {
       }),
     ]).start();
 
-    loadMissions();
+    loadAllData();
     requestLocationPermission();
 
     return () => {
@@ -129,8 +153,13 @@ export default function MissionsScreen() {
   }, []);
 
   useEffect(() => {
+    let tabIndex = 0;
+    if (activeTab === "available") tabIndex = 0;
+    if (activeTab === "current") tabIndex = 1;
+    if (activeTab === "history") tabIndex = 2;
+
     Animated.spring(tabIndicatorAnim, {
-      toValue: activeTab === "current" ? 0 : 1,
+      toValue: tabIndex,
       friction: 8,
       tension: 40,
       useNativeDriver: true,
@@ -138,7 +167,6 @@ export default function MissionsScreen() {
   }, [activeTab]);
 
   useEffect(() => {
-    // Si une mission est sélectionnée, centrer la carte sur sa position
     if (selectedMission) {
       setMapRegion({
         latitude: selectedMission.location.coordinates[1],
@@ -147,7 +175,15 @@ export default function MissionsScreen() {
         longitudeDelta: 0.05,
       });
     }
-  }, [selectedMission]);
+    if (selectedSOS) {
+      setMapRegion({
+        latitude: selectedSOS.location.coordinates[1],
+        longitude: selectedSOS.location.coordinates[0],
+        latitudeDelta: 0.05,
+        longitudeDelta: 0.05,
+      });
+    }
+  }, [selectedMission, selectedSOS]);
 
   const requestLocationPermission = async () => {
     const { status } = await Location.requestForegroundPermissionsAsync();
@@ -161,6 +197,7 @@ export default function MissionsScreen() {
 
   const startLocationTracking = async (mission: Mission) => {
     setSelectedMission(mission);
+    setSelectedSOS(null);
     setShowMap(true);
 
     const { status } = await Location.getForegroundPermissionsAsync();
@@ -173,7 +210,6 @@ export default function MissionsScreen() {
     }
 
     try {
-      // Obtenir position initiale
       const location = await Location.getCurrentPositionAsync({
         accuracy: Location.Accuracy.High,
       });
@@ -183,7 +219,6 @@ export default function MissionsScreen() {
         longitude: location.coords.longitude,
       });
 
-      // Centrer la carte entre helper et client
       setMapRegion({
         latitude:
           (location.coords.latitude + mission.location.coordinates[1]) / 2,
@@ -193,7 +228,6 @@ export default function MissionsScreen() {
         longitudeDelta: 0.1,
       });
 
-      // Suivre en temps réel
       const subscription = await Location.watchPositionAsync(
         {
           accuracy: Location.Accuracy.High,
@@ -221,6 +255,27 @@ export default function MissionsScreen() {
     }
   };
 
+  // ⚡ NOUVELLE FONCTION pour charger les SOS disponibles
+  const loadAvailableSOS = async () => {
+    try {
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+
+      const response = await api.get("/helpers/available-sos", {
+        params: {
+          lat: location.coords.latitude,
+          lng: location.coords.longitude,
+          radius: 20,
+        },
+      });
+
+      setAvailableSOS(response.data.data || []);
+    } catch (error) {
+      console.log("Erreur chargement SOS disponibles:", error);
+    }
+  };
+
   const loadMissions = async () => {
     try {
       const currentResponse = await api.get("/helpers/missions/current");
@@ -230,9 +285,13 @@ export default function MissionsScreen() {
       setHistoryMissions(historyResponse.data.data || []);
     } catch (error) {
       console.log("Erreur chargement missions:", error);
-    } finally {
-      setLoading(false);
     }
+  };
+
+  const loadAllData = async () => {
+    setLoading(true);
+    await Promise.all([loadAvailableSOS(), loadMissions()]);
+    setLoading(false);
   };
 
   const onRefresh = async () => {
@@ -240,8 +299,50 @@ export default function MissionsScreen() {
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-    await loadMissions();
+    await loadAllData();
     setRefreshing(false);
+  };
+
+  // ⚡ NOUVELLE FONCTION pour accepter un SOS
+  const handleAcceptSOS = async (sosId: string) => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+
+    try {
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+
+      const response = await api.post(`/helpers/accept-sos/${sosId}`, null, {
+        params: {
+          lat: location.coords.latitude,
+          lng: location.coords.longitude,
+        },
+      });
+
+      const { intervention, eta } = response.data.data;
+
+      Alert.alert(
+        "✅ SOS accepté !",
+        `Temps d'arrivée estimé : ${eta} minutes`,
+        [
+          {
+            text: "Voir la mission",
+            onPress: () => router.push(`/missions/${intervention._id}`),
+          },
+        ]
+      );
+
+      // Recharger les données
+      await loadAllData();
+      setActiveTab("current"); // Basculer vers l'onglet "En cours"
+    } catch (error: any) {
+      Alert.alert(
+        "Erreur",
+        error.response?.data?.message || "Impossible d'accepter le SOS"
+      );
+    }
   };
 
   const updateMissionStatus = async (missionId: string, newStatus: string) => {
@@ -254,7 +355,6 @@ export default function MissionsScreen() {
         status: newStatus,
       });
 
-      // Gérer le tracking selon le statut
       const mission = currentMissions.find((m) => m._id === missionId);
 
       if (newStatus === "en_route" && mission) {
@@ -276,7 +376,7 @@ export default function MissionsScreen() {
   };
 
   const calculateDistance = (point1: any, point2: any) => {
-    const R = 6371; // Rayon de la Terre en km
+    const R = 6371;
     const dLat = ((point2.latitude - point1.latitude) * Math.PI) / 180;
     const dLon = ((point2.longitude - point1.longitude) * Math.PI) / 180;
     const a =
@@ -374,8 +474,8 @@ export default function MissionsScreen() {
   };
 
   const tabIndicatorPosition = tabIndicatorAnim.interpolate({
-    inputRange: [0, 1],
-    outputRange: [0, width / 2 - 20],
+    inputRange: [0, 1, 2],
+    outputRange: [0, (width - 60) / 3, ((width - 60) / 3) * 2],
   });
 
   if (loading) {
@@ -401,7 +501,7 @@ export default function MissionsScreen() {
           </LinearGradient>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-            Chargement de vos missions...
+            Chargement des missions...
           </Text>
         </Animated.View>
       </View>
@@ -412,7 +512,6 @@ export default function MissionsScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle="light-content" />
 
-      {/* Header avec dégradé */}
       <LinearGradient
         colors={[colors.primary, colors.secondary]}
         style={styles.header}
@@ -433,8 +532,35 @@ export default function MissionsScreen() {
         </View>
       </LinearGradient>
 
-      {/* Tabs */}
+      {/* Tabs avec 3 options */}
       <View style={[styles.tabContainer, { backgroundColor: colors.card }]}>
+        <TouchableOpacity
+          style={styles.tabButton}
+          onPress={() => setActiveTab("available")}
+        >
+          <Text
+            style={[
+              styles.tabText,
+              {
+                color:
+                  activeTab === "available"
+                    ? colors.primary
+                    : colors.textSecondary,
+                fontWeight: activeTab === "available" ? "600" : "400",
+              },
+            ]}
+          >
+            Disponibles
+          </Text>
+          {availableSOS.length > 0 && activeTab === "available" && (
+            <View
+              style={[styles.tabBadge, { backgroundColor: colors.primary }]}
+            >
+              <Text style={styles.tabBadgeText}>{availableSOS.length}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+
         <TouchableOpacity
           style={styles.tabButton}
           onPress={() => setActiveTab("current")}
@@ -447,6 +573,7 @@ export default function MissionsScreen() {
                   activeTab === "current"
                     ? colors.primary
                     : colors.textSecondary,
+                fontWeight: activeTab === "current" ? "600" : "400",
               },
             ]}
           >
@@ -473,6 +600,7 @@ export default function MissionsScreen() {
                   activeTab === "history"
                     ? colors.primary
                     : colors.textSecondary,
+                fontWeight: activeTab === "history" ? "600" : "400",
               },
             ]}
           >
@@ -485,6 +613,7 @@ export default function MissionsScreen() {
             styles.tabIndicator,
             {
               backgroundColor: colors.primary,
+              width: (width - 60) / 3 - 8,
               transform: [{ translateX: tabIndicatorPosition }],
             },
           ]}
@@ -511,7 +640,7 @@ export default function MissionsScreen() {
             },
           ]}
         >
-          {/* Carte de navigation pour la mission en cours */}
+          {/* Carte de navigation */}
           {activeTab === "current" && selectedMission && showMap && (
             <View style={[styles.mapCard, { backgroundColor: colors.card }]}>
               <View style={styles.mapHeader}>
@@ -538,7 +667,6 @@ export default function MissionsScreen() {
                   showsUserLocation={true}
                   followsUserLocation={true}
                 >
-                  {/* Position du client */}
                   <Marker
                     coordinate={{
                       latitude: selectedMission.location.coordinates[1],
@@ -557,7 +685,6 @@ export default function MissionsScreen() {
                     </View>
                   </Marker>
 
-                  {/* Position du helper (si disponible) */}
                   {helperLocation && (
                     <Marker coordinate={helperLocation} title="Votre position">
                       <View
@@ -571,7 +698,6 @@ export default function MissionsScreen() {
                     </Marker>
                   )}
 
-                  {/* Tracer l'itinéraire */}
                   {helperLocation && (
                     <MapViewDirections
                       origin={helperLocation}
@@ -595,7 +721,6 @@ export default function MissionsScreen() {
                 </MapView>
               </View>
 
-              {/* Infos de navigation */}
               {helperLocation && (
                 <View style={styles.navigationInfo}>
                   <View style={styles.navItem}>
@@ -633,11 +758,212 @@ export default function MissionsScreen() {
             </View>
           )}
 
-          {/* Missions en cours */}
+          {/* TAB 1: SOS Disponibles */}
+          {activeTab === "available" && (
+            <>
+              {availableSOS.length > 0 ? (
+                availableSOS.map((sos, index) => (
+                  <Animated.View
+                    key={sos._id}
+                    style={[
+                      styles.missionCard,
+                      { backgroundColor: colors.card },
+                      selectedSOS?._id === sos._id && styles.selectedMission,
+                      {
+                        opacity: fadeAnim,
+                        transform: [
+                          {
+                            translateY: slideAnim.interpolate({
+                              inputRange: [0, 50],
+                              outputRange: [0, 15 * (index + 1)],
+                            }),
+                          },
+                        ],
+                      },
+                    ]}
+                  >
+                    <View style={styles.missionHeader}>
+                      <View style={styles.missionUser}>
+                        <LinearGradient
+                          colors={[colors.error + "20", colors.error + "10"]}
+                          style={styles.missionAvatar}
+                        >
+                          <Ionicons
+                            name="alert-circle"
+                            size={24}
+                            color={colors.error}
+                          />
+                        </LinearGradient>
+                        <View>
+                          <Text
+                            style={[
+                              styles.missionUserName,
+                              { color: colors.text },
+                            ]}
+                          >
+                            {sos.client.firstName} {sos.client.lastName}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.missionType,
+                              { color: colors.textSecondary },
+                            ]}
+                          >
+                            {sos.type}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View
+                        style={[
+                          styles.statusBadge,
+                          { backgroundColor: colors.error + "15" },
+                        ]}
+                      >
+                        <Ionicons name="time" size={12} color={colors.error} />
+                        <Text
+                          style={[styles.statusText, { color: colors.error }]}
+                        >
+                          URGENT
+                        </Text>
+                      </View>
+                    </View>
+
+                    <Text
+                      style={[
+                        styles.missionDescription,
+                        { color: colors.textSecondary },
+                      ]}
+                    >
+                      {sos.problem.description}
+                    </Text>
+
+                    <View style={styles.missionInfo}>
+                      <View style={styles.infoItem}>
+                        <Ionicons
+                          name="location-outline"
+                          size={14}
+                          color={colors.primary}
+                        />
+                        <Text style={[styles.infoText, { color: colors.text }]}>
+                          {sos.distance.toFixed(1)} km
+                        </Text>
+                      </View>
+                      <View style={styles.infoItem}>
+                        <Ionicons
+                          name="cash-outline"
+                          size={14}
+                          color={colors.success}
+                        />
+                        <Text
+                          style={[styles.infoText, { color: colors.success }]}
+                        >
+                          ${sos.reward}
+                        </Text>
+                      </View>
+                      <View style={styles.infoItem}>
+                        <Ionicons
+                          name="time-outline"
+                          size={14}
+                          color={colors.textSecondary}
+                        />
+                        <Text
+                          style={[
+                            styles.infoText,
+                            { color: colors.textSecondary },
+                          ]}
+                        >
+                          {formatTime(sos.createdAt)}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <TouchableOpacity
+                      style={styles.addressContainer}
+                      onPress={() => {
+                        setSelectedSOS(sos);
+                        setMapRegion({
+                          latitude: sos.location.coordinates[1],
+                          longitude: sos.location.coordinates[0],
+                          latitudeDelta: 0.05,
+                          longitudeDelta: 0.05,
+                        });
+                      }}
+                    >
+                      <Ionicons
+                        name="navigate-outline"
+                        size={14}
+                        color={colors.primary}
+                      />
+                      <Text
+                        style={[
+                          styles.addressText,
+                          { color: colors.textSecondary },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {sos.location.address}
+                      </Text>
+                      <Ionicons
+                        name="chevron-forward"
+                        size={16}
+                        color={colors.textSecondary}
+                      />
+                    </TouchableOpacity>
+
+                    <TouchableOpacity
+                      style={[
+                        styles.acceptButton,
+                        { backgroundColor: colors.success },
+                      ]}
+                      onPress={() => handleAcceptSOS(sos._id)}
+                    >
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={20}
+                        color="#fff"
+                      />
+                      <Text style={styles.acceptButtonText}>
+                        Accepter la mission
+                      </Text>
+                    </TouchableOpacity>
+                  </Animated.View>
+                ))
+              ) : (
+                <View
+                  style={[
+                    styles.emptyContainer,
+                    { backgroundColor: colors.card },
+                  ]}
+                >
+                  <LinearGradient
+                    colors={[colors.primary + "10", colors.secondary + "05"]}
+                    style={styles.emptyIconContainer}
+                  >
+                    <Ionicons
+                      name="alert-circle-outline"
+                      size={32}
+                      color={colors.textSecondary}
+                    />
+                  </LinearGradient>
+                  <Text style={[styles.emptyTitle, { color: colors.text }]}>
+                    Aucun SOS disponible
+                  </Text>
+                  <Text
+                    style={[styles.emptyText, { color: colors.textSecondary }]}
+                  >
+                    Les alertes SOS apparaîtront ici en temps réel
+                  </Text>
+                </View>
+              )}
+            </>
+          )}
+
+          {/* TAB 2: Missions en cours (inchangé) */}
           {activeTab === "current" && (
             <>
               {currentMissions.length > 0 ? (
-                currentMissions.map((mission) => (
+                currentMissions.map((mission, index) => (
                   <View
                     key={mission._id}
                     style={[
@@ -647,7 +973,7 @@ export default function MissionsScreen() {
                         styles.selectedMission,
                     ]}
                   >
-                    {/* En-tête avec statut */}
+                    {/* ... (contenu inchangé) ... */}
                     <View style={styles.missionHeader}>
                       <View style={styles.missionUser}>
                         <LinearGradient
@@ -712,7 +1038,6 @@ export default function MissionsScreen() {
                       </View>
                     </View>
 
-                    {/* Description */}
                     <Text
                       style={[
                         styles.missionDescription,
@@ -722,7 +1047,6 @@ export default function MissionsScreen() {
                       {mission.problem.description}
                     </Text>
 
-                    {/* Informations */}
                     <View style={styles.missionInfo}>
                       <View style={styles.infoItem}>
                         <Ionicons
@@ -763,7 +1087,6 @@ export default function MissionsScreen() {
                       </View>
                     </View>
 
-                    {/* Adresse */}
                     <TouchableOpacity
                       style={styles.addressContainer}
                       onPress={() => startLocationTracking(mission)}
@@ -789,7 +1112,6 @@ export default function MissionsScreen() {
                       />
                     </TouchableOpacity>
 
-                    {/* Actions */}
                     <View style={styles.missionActions}>
                       {getNextStatusOptions(mission.status).map(
                         (nextStatus) => (
@@ -883,7 +1205,6 @@ export default function MissionsScreen() {
                       </TouchableOpacity>
                     </View>
 
-                    {/* Bouton pour afficher la carte */}
                     {mission.status === "en_route" && !showMap && (
                       <TouchableOpacity
                         style={[
@@ -939,11 +1260,11 @@ export default function MissionsScreen() {
             </>
           )}
 
-          {/* Historique */}
+          {/* TAB 3: Historique (inchangé) */}
           {activeTab === "history" && (
             <>
               {historyMissions.length > 0 ? (
-                historyMissions.map((mission) => (
+                historyMissions.map((mission, index) => (
                   <View
                     key={mission._id}
                     style={[
@@ -951,7 +1272,6 @@ export default function MissionsScreen() {
                       { backgroundColor: colors.card },
                     ]}
                   >
-                    {/* Version simplifiée pour l'historique */}
                     <View style={styles.missionHeader}>
                       <View style={styles.missionUser}>
                         <LinearGradient
@@ -1163,7 +1483,6 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: 4,
     left: 4,
-    width: (width - 40) / 2 - 8,
     height: 32,
     borderRadius: 12,
     zIndex: -1,
@@ -1388,6 +1707,21 @@ const styles = StyleSheet.create({
   showMapText: {
     fontSize: 13,
     fontWeight: "500",
+  },
+  // ⚡ NOUVEAU STYLE
+  acceptButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 14,
+    borderRadius: 30,
+    gap: 8,
+    marginTop: 8,
+  },
+  acceptButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
   },
   historyInfo: {
     flexDirection: "row",

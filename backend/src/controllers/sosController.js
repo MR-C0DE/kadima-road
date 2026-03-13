@@ -4,7 +4,7 @@ import User from '../models/User.js';
 import Intervention from '../models/Intervention.js';
 import logger from '../config/logger.js';
 
-// @desc    Créer une alerte SOS
+// @desc    Créer une alerte SOS (version MODIFIÉE)
 // @route   POST /api/sos
 // @access  Private
 export const createSOSAlert = async (req, res) => {
@@ -16,7 +16,6 @@ export const createSOSAlert = async (req, res) => {
       emergencyContacts
     } = req.body;
 
-    // Validation de base
     if (!location || !location.coordinates) {
       return res.status(400).json({
         success: false,
@@ -24,7 +23,7 @@ export const createSOSAlert = async (req, res) => {
       });
     }
 
-    // Créer l'alerte SOS
+    // 1. Créer l'alerte SOS
     const sosAlert = await SOSAlert.create({
       user: req.user._id,
       location: {
@@ -47,60 +46,73 @@ export const createSOSAlert = async (req, res) => {
       }]
     });
 
-    // Chercher les helpers disponibles autour
-    const nearbyHelpers = await Helper.find({
-      'serviceArea.coordinates': {
-        $near: {
-          $geometry: {
-            type: 'Point',
-            coordinates: location.coordinates
-          },
-          $maxDistance: 10000 // 10 km
-        }
-      },
+    console.log("📍 SOS créé à:", location.coordinates);
+
+    // 2. ⚡ NOUVELLE LOGIQUE : Trouver TOUS les helpers actifs
+    //    SANS limite de distance
+    const allHelpers = await Helper.find({
       'availability.isAvailable': true,
       status: 'active'
-    }).populate('user');
+    }).populate('user', 'firstName lastName phone');
 
-    // Enregistrer les helpers trouvés
-    const helperNotifications = nearbyHelpers.map(helper => ({
-      helper: helper._id,
-      distance: calculateDistance(
-        location.coordinates,
-        helper.serviceArea.coordinates
-      ),
-      notifiedAt: new Date()
-    }));
+    console.log(`🔍 ${allHelpers.length} helpers actifs trouvés au total`);
 
+    // 3. Calculer la distance pour chaque helper (optionnel)
+    const helperNotifications = allHelpers.map(helper => {
+      let distance = null;
+      
+      // Calculer la distance seulement si le helper a des coordonnées
+      if (helper.serviceArea?.coordinates) {
+        distance = calculateDistance(
+          location.coordinates,
+          helper.serviceArea.coordinates
+        );
+      }
+
+      return {
+        helper: helper._id,
+        distance: distance || 999999, // Distance très grande si pas de coordonnées
+        notifiedAt: new Date()
+      };
+    });
+
+    // 4. Trier par distance (les plus proches d'abord)
+    helperNotifications.sort((a, b) => a.distance - b.distance);
+
+    // 5. Sauvegarder dans le SOS
     sosAlert.notifications.nearbyHelpers = helperNotifications;
     sosAlert.timeline.push({
-      event: `${helperNotifications.length} helpers trouvés autour`,
-      timestamp: new Date()
+      event: `${helperNotifications.length} helpers trouvés au total`,
+      timestamp: new Date(),
+      data: { 
+        total: helperNotifications.length,
+        withCoordinates: allHelpers.filter(h => h.serviceArea?.coordinates).length
+      }
     });
 
     await sosAlert.save();
 
-    // Ici, tu pourrais envoyer des notifications push/SMS aux helpers
-    // (on ajoutera ça plus tard avec Twilio)
+    // 6. (Optionnel) Envoyer des notifications à tous les helpers
+    // Ici tu pourrais ajouter un système de notifications push
 
     res.status(201).json({
       success: true,
       message: 'Alerte SOS créée',
       data: {
         sosAlert,
-        nearbyHelpers: helperNotifications.length
+        totalHelpers: helperNotifications.length
       }
     });
 
   } catch (error) {
-    logger.error(`Erreur création SOS: ${error.message}`);
+    console.error(`Erreur création SOS: ${error.message}`);
     res.status(500).json({
       success: false,
-      message: 'Erreur lors de la création de l\'alerte SOS',
-      error: error.message
+      message: 'Erreur lors de la création de l\'alerte SOS'
     });
   }
 };
+
 
 // @desc    Obtenir les alertes SOS actives autour
 // @route   GET /api/sos/nearby
@@ -359,3 +371,105 @@ function calculateDistance(coord1, coord2) {
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   return R * c;
 }
+
+// src/controllers/sosController.js - AJOUTER
+
+// @desc    Obtenir une alerte SOS par ID
+// @route   GET /api/sos/:id
+// @access  Private
+export const getSOSById = async (req, res) => {
+  try {
+    const sosAlert = await SOSAlert.findById(req.params.id)
+      .populate({
+        path: 'notifications.nearbyHelpers.helper',
+        populate: { path: 'user', select: 'firstName lastName phone' }
+      })
+      .populate({
+        path: 'intervention',
+        populate: {
+          path: 'helper',
+          populate: { path: 'user', select: 'firstName lastName phone photo' }
+        }
+      });
+
+    if (!sosAlert) {
+      return res.status(404).json({
+        success: false,
+        message: 'Alerte SOS non trouvée'
+      });
+    }
+
+    // Vérifier que l'utilisateur est bien le propriétaire
+    if (sosAlert.user.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Non autorisé'
+      });
+    }
+
+    res.json({
+      success: true,
+      data: sosAlert
+    });
+
+  } catch (error) {
+    logger.error(`Erreur getSOSById: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la récupération de l\'alerte'
+    });
+  }
+};
+
+// @desc    Annuler une alerte SOS
+// @route   PUT /api/sos/:id/cancel
+// @access  Private
+export const cancelSOS = async (req, res) => {
+  try {
+    const sosAlert = await SOSAlert.findById(req.params.id);
+
+    if (!sosAlert) {
+      return res.status(404).json({
+        success: false,
+        message: 'Alerte SOS non trouvée'
+      });
+    }
+
+    // Vérifier que l'utilisateur est bien le propriétaire
+    if (sosAlert.user.toString() !== req.user._id.toString()) {
+      return res.status(403).json({
+        success: false,
+        message: 'Non autorisé'
+      });
+    }
+
+    // Ne peut annuler que si l'alerte est active
+    if (sosAlert.status !== 'active') {
+      return res.status(400).json({
+        success: false,
+        message: 'Impossible d\'annuler cette alerte'
+      });
+    }
+
+    sosAlert.status = 'cancelled';
+    sosAlert.timeline.push({
+      event: 'Alerte annulée par l\'utilisateur',
+      timestamp: new Date()
+    });
+
+    await sosAlert.save();
+
+    res.json({
+      success: true,
+      message: 'Alerte annulée',
+      data: sosAlert
+    });
+
+  } catch (error) {
+    logger.error(`Erreur cancelSOS: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de l\'annulation'
+    });
+  }
+};

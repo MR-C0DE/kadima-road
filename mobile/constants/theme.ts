@@ -1,63 +1,51 @@
 // constants/theme.ts
 export const Colors = {
   light: {
-    // Fond
-    background: "#FFFFFF",
-    surface: "#F8F9FA",
-    card: "#FFFFFF",
+    background: "#1F1F1F", // gris très foncé
+    surface: "#2A2A2A",
+    card: "#2A2A2A",
 
-    // Texte
-    text: "#1A1B1E",
-    textSecondary: "#6C757D",
+    text: "#E5E5E5", // clair et lisible
+    textSecondary: "#B0B0B0", // gris doux
 
-    // Accents
-    primary: "#B8860B", // Or antique
-    secondary: "#800020", // Bordeaux profond
-    accent: "#D4AF37", // Or brillant
+    primary: "#3B82F6", // bleu sérieux pour actions importantes
+    secondary: "#555555", // gris neutre pour éléments secondaires
+    accent: "#22D3EE", // turquoise très discret
 
-    // États
-    success: "#2E7D32",
-    warning: "#ED6C02",
-    error: "#D32F2F",
-    info: "#0288D1",
+    success: "#16A34A",
+    warning: "#FBBF24",
+    error: "#F87171",
+    info: "#60A5FA",
 
-    // Gris
-    border: "#E9ECEF",
-    disabled: "#ADB5BD",
-    placeholder: "#CED4DA",
+    border: "#444444",
+    disabled: "#666666",
+    placeholder: "#777777",
 
-    // Tab bar
-    tabIconDefault: "#ADB5BD",
-    tabIconSelected: "#B8860B",
+    tabIconDefault: "#666666",
+    tabIconSelected: "#3B82F6",
   },
   dark: {
-    // Fond
-    background: "#0A0A0A",
-    surface: "#1E1E1E",
-    card: "#2D2D2D",
+    background: "#0D0D0D", // noir profond
+    surface: "#1A1A1A",
+    card: "#1A1A1A",
 
-    // Texte
-    text: "#FFFFFF",
-    textSecondary: "#B0B0B0",
+    text: "#F5F5F5", // clair pour lisibilité
+    textSecondary: "#999999", // gris doux
 
-    // Accents
-    primary: "#D4AF37", // Or brillant
-    secondary: "#9B1D1D", // Bordeaux clair
-    accent: "#F0B90B", // Or vif
+    primary: "#3B82F6", // bleu sérieux
+    secondary: "#4B4B4B", // gris neutre
+    accent: "#1AC5D1", // turquoise discret
 
-    // États
-    success: "#4CAF50",
-    warning: "#FFB74D",
-    error: "#EF5350",
-    info: "#42A5F5",
+    success: "#4ADE80",
+    warning: "#FBBF24",
+    error: "#F87171",
+    info: "#60A5FA",
 
-    // Gris
-    border: "#404040",
-    disabled: "#6C757D",
-    placeholder: "#808080",
+    border: "#333333",
+    disabled: "#555555",
+    placeholder: "#777777",
 
-    // Tab bar
-    tabIconDefault: "#808080",
-    tabIconSelected: "#D4AF37",
+    tabIconDefault: "#555555",
+    tabIconSelected: "#3B82F6",
   },
 };

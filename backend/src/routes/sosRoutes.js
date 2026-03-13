@@ -5,7 +5,9 @@ import {
   getNearbySOS,
   acceptSOS,
   updateStatus,
-  callEmergency
+  callEmergency,
+  getSOSById,
+  cancelSOS
 } from '../controllers/sosController.js';
 
 const router = express.Router();
@@ -27,5 +29,9 @@ router.put('/:id/status', updateStatus);
 
 // Contacter les secours
 router.post('/:id/emergency', callEmergency);
+
+// src/routes/sosRoutes.js - AJOUTER
+router.get('/:id', protect, getSOSById);
+router.put('/:id/cancel', protect, cancelSOS);
 
 export default router;

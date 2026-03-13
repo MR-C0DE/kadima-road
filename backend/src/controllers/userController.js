@@ -6,6 +6,14 @@ import { sendWelcomeEmail } from '../services/emailService.js';
 import logger from '../config/logger.js';
 import bcrypt from 'bcrypt';
 
+import sharp from 'sharp';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 // @desc    Obtenir tous les utilisateurs (admin only)
 // @route   GET /api/users
 // @access  Private/Admin
@@ -354,39 +362,7 @@ export const addEmergencyContact = async (req, res) => {
   }
 };
 
-// @desc    Supprimer un contact d'urgence
-// @route   DELETE /api/users/emergency-contacts/:contactId
-// @access  Private
-export const deleteEmergencyContact = async (req, res) => {
-  try {
-    const user = await User.findById(req.user._id);
-    
-    const contact = user.emergencyContacts.id(req.params.contactId);
-    
-    if (!contact) {
-      return res.status(404).json({
-        success: false,
-        message: 'Contact non trouvé'
-      });
-    }
 
-    contact.deleteOne();
-    await user.save();
-
-    res.json({
-      success: true,
-      message: 'Contact d\'urgence supprimé',
-      data: user.emergencyContacts
-    });
-
-  } catch (error) {
-    logger.error(`Erreur deleteEmergencyContact: ${error.message}`);
-    res.status(500).json({
-      success: false,
-      message: 'Erreur lors de la suppression du contact'
-    });
-  }
-};
 
 // @desc    Obtenir les statistiques d'un utilisateur
 // @route   GET /api/users/stats/me
@@ -505,6 +481,288 @@ export const confirmPhoneVerification = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Erreur lors de la vérification du téléphone'
+    });
+  }
+};
+
+// ============================================
+// PHOTO DE PROFIL
+// ============================================
+
+// @desc    Uploader une photo de profil
+// @route   POST /api/users/profile/photo
+// @access  Private
+export const uploadProfilePhoto = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'Aucune photo fournie'
+      });
+    }
+
+    const user = await User.findById(req.user._id);
+    
+    // Optimisation de l'image avec sharp
+    const optimizedFilename = `profile-${req.user._id}-${Date.now()}.jpg`;
+    const optimizedPath = path.join('uploads/profiles', optimizedFilename);
+    
+    await sharp(req.file.path)
+      .resize(400, 400, { fit: 'cover' })
+      .jpeg({ quality: 80 })
+      .toFile(optimizedPath);
+
+    // Supprimer l'ancienne photo
+    if (user.photo) {
+      const oldPath = path.join(process.cwd(), 'uploads/profiles', path.basename(user.photo));
+      if (fs.existsSync(oldPath)) {
+        fs.unlinkSync(oldPath);
+      }
+    }
+
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    user.photo = `${baseUrl}/uploads/profiles/${optimizedFilename}`;
+    await user.save();
+
+    res.json({
+      success: true,
+      message: 'Photo mise à jour',
+      data: { photo: user.photo }
+    });
+
+  } catch (error) {
+    logger.error(`Erreur upload photo: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de l\'upload'
+    });
+  }
+};
+
+// @desc    Supprimer la photo de profil
+// @route   DELETE /api/users/profile/photo
+// @access  Private
+export const deleteProfilePhoto = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    
+    if (user.photo) {
+      const oldPath = path.join(process.cwd(), 'uploads/profiles', path.basename(user.photo));
+      if (fs.existsSync(oldPath)) {
+        fs.unlinkSync(oldPath);
+      }
+      user.photo = undefined;
+      await user.save();
+    }
+
+    res.json({
+      success: true,
+      message: 'Photo supprimée'
+    });
+
+  } catch (error) {
+    logger.error(`Erreur suppression photo: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la suppression'
+    });
+  }
+};
+
+// ============================================
+// MOT DE PASSE
+// ============================================
+
+// @desc    Changer le mot de passe
+// @route   POST /api/users/change-password
+// @access  Private
+export const changePassword = async (req, res) => {
+  try {
+    const { currentPassword, newPassword } = req.body;
+
+    const user = await User.findById(req.user._id);
+
+    // Vérifier l'ancien mot de passe
+    const isValid = await user.comparePassword(currentPassword);
+    if (!isValid) {
+      return res.status(401).json({
+        success: false,
+        message: 'Mot de passe actuel incorrect'
+      });
+    }
+
+    // Mettre à jour
+    user.password = newPassword;
+    await user.save();
+
+    res.json({
+      success: true,
+      message: 'Mot de passe modifié'
+    });
+
+  } catch (error) {
+    logger.error(`Erreur changement mot de passe: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors du changement de mot de passe'
+    });
+  }
+};
+
+// ============================================
+// PARAMÈTRES
+// ============================================
+
+// @desc    Obtenir les paramètres
+// @route   GET /api/users/settings
+// @access  Private
+export const getSettings = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select('preferences');
+    
+    res.json({
+      success: true,
+      data: user.preferences || {
+        language: 'fr',
+        notifications: { email: true, push: true, sms: true },
+        privacy: { shareLocation: true, shareData: false }
+      }
+    });
+
+  } catch (error) {
+    logger.error(`Erreur get settings: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la récupération des paramètres'
+    });
+  }
+};
+
+// @desc    Mettre à jour les paramètres
+// @route   PUT /api/users/settings
+// @access  Private
+export const updateSettings = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    
+    user.preferences = {
+      ...user.preferences,
+      ...req.body
+    };
+    
+    await user.save();
+
+    res.json({
+      success: true,
+      message: 'Paramètres mis à jour',
+      data: user.preferences
+    });
+
+  } catch (error) {
+    logger.error(`Erreur update settings: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la mise à jour des paramètres'
+    });
+  }
+};
+
+// ============================================
+// CONTACTS D'URGENCE (AMÉLIORÉ)
+// ============================================
+
+// @desc    Obtenir tous les contacts d'urgence
+// @route   GET /api/users/emergency-contacts
+// @access  Private
+export const getEmergencyContacts = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id).select('emergencyContacts');
+    
+    res.json({
+      success: true,
+      data: user.emergencyContacts || []
+    });
+
+  } catch (error) {
+    logger.error(`Erreur get contacts: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la récupération des contacts'
+    });
+  }
+};
+
+
+
+// @desc    Modifier un contact d'urgence
+// @route   PUT /api/users/emergency-contacts/:contactId
+// @access  Private
+export const updateEmergencyContact = async (req, res) => {
+  try {
+    const { name, phone, relationship } = req.body;
+    const { contactId } = req.params;
+
+    const user = await User.findById(req.user._id);
+    const contact = user.emergencyContacts.id(contactId);
+
+    if (!contact) {
+      return res.status(404).json({
+        success: false,
+        message: 'Contact non trouvé'
+      });
+    }
+
+    if (name) contact.name = name;
+    if (phone) contact.phone = phone;
+    if (relationship) contact.relationship = relationship;
+
+    await user.save();
+
+    res.json({
+      success: true,
+      message: 'Contact modifié',
+      data: contact
+    });
+
+  } catch (error) {
+    logger.error(`Erreur update contact: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la modification du contact'
+    });
+  }
+};
+
+// @desc    Supprimer un contact d'urgence
+// @route   DELETE /api/users/emergency-contacts/:contactId
+// @access  Private
+export const deleteEmergencyContact = async (req, res) => {
+  try {
+    const { contactId } = req.params;
+
+    const user = await User.findById(req.user._id);
+    
+    const contact = user.emergencyContacts.id(contactId);
+    if (!contact) {
+      return res.status(404).json({
+        success: false,
+        message: 'Contact non trouvé'
+      });
+    }
+
+    contact.deleteOne();
+    await user.save();
+
+    res.json({
+      success: true,
+      message: 'Contact supprimé'
+    });
+
+  } catch (error) {
+    logger.error(`Erreur delete contact: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la suppression du contact'
     });
   }
 };

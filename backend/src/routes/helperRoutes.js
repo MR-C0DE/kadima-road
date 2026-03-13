@@ -15,7 +15,8 @@ import {
   verifyHelper,
   uploadDocument,
   getHelperReviews,
-  
+  getAvailableSOS,
+  acceptSOSMission,
   // Routes pour les missions
   getCurrentMissions,
   getMissionHistory,
@@ -112,5 +113,9 @@ router.post('/profile/photo', uploadSingle, uploadProfilePhoto);
 router.delete('/profile/photo', deleteProfilePhoto);
 
 router.post('/documents', uploadDocumentMiddleware, uploadDocument);
+
+// AJOUTER CES ROUTES
+router.get('/available-sos', protect, getAvailableSOS);
+router.post('/accept-sos/:sosId', protect, acceptSOSMission);
 
 export default router;

@@ -1233,3 +1233,181 @@ export const deleteProfilePhoto = async (req, res) => {
     });
   }
 };
+
+// @desc    Obtenir les SOS disponibles à proximité
+// @route   GET /api/helpers/available-sos
+// @access  Private
+export const getAvailableSOS = async (req, res) => {
+  try {
+    const { lat, lng, radius = 10 } = req.query;
+
+    if (!lat || !lng) {
+      return res.status(400).json({
+        success: false,
+        message: 'Latitude et longitude requises'
+      });
+    }
+
+    // Récupérer le helper connecté
+    const helper = await Helper.findOne({ user: req.user._id });
+    if (!helper) {
+      return res.status(403).json({
+        success: false,
+        message: 'Vous n\'êtes pas un helper'
+      });
+    }
+
+    // Chercher les SOS actifs autour
+    const sosAlerts = await SOSAlert.find({
+      'location.coordinates': {
+        $near: {
+          $geometry: {
+            type: 'Point',
+            coordinates: [parseFloat(lng), parseFloat(lat)]
+          },
+          $maxDistance: radius * 1000
+        }
+      },
+      status: 'active'
+    })
+    .populate('user', 'firstName lastName phone')
+    .limit(20);
+
+    // Formater pour l'affichage
+    const formattedSOS = sosAlerts.map(sos => {
+      const [sosLng, sosLat] = sos.location.coordinates;
+      // ✅ Utilise la fonction calculateDistance existante
+      const distance = calculateDistance(
+        parseFloat(lat),
+        parseFloat(lng),
+        sosLat,
+        sosLng
+      );
+
+      return {
+        _id: sos._id,
+        type: sos.problem.category,
+        distance: Math.round(distance * 10) / 10, // Arrondi à 1 décimale
+        reward: Math.round(25 + (distance * 2)), // Calcul du prix
+        client: {
+          firstName: sos.user.firstName,
+          lastName: sos.user.lastName
+        },
+        problem: {
+          description: sos.problem.description,
+          category: sos.problem.category
+        },
+        location: {
+          address: sos.location.address,
+          coordinates: sos.location.coordinates
+        },
+        createdAt: sos.createdAt
+      };
+    });
+
+    res.json({
+      success: true,
+      count: formattedSOS.length,
+      data: formattedSOS
+    });
+
+  } catch (error) {
+    logger.error(`Erreur getAvailableSOS: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la récupération des SOS'
+    });
+  }
+};
+
+// @desc    Accepter un SOS et créer l'intervention
+// @route   POST /api/helpers/accept-sos/:sosId
+// @access  Private
+export const acceptSOSMission = async (req, res) => {
+  try {
+    const { sosId } = req.params;
+    const { lat, lng } = req.query; // Position actuelle du helper
+
+    // Récupérer le helper
+    const helper = await Helper.findOne({ user: req.user._id }).populate('user');
+    if (!helper) {
+      return res.status(403).json({
+        success: false,
+        message: 'Vous n\'êtes pas un helper'
+      });
+    }
+
+    // Récupérer le SOS
+    const sosAlert = await SOSAlert.findById(sosId);
+    if (!sosAlert) {
+      return res.status(404).json({
+        success: false,
+        message: 'SOS non trouvé'
+      });
+    }
+
+    if (sosAlert.status !== 'active') {
+      return res.status(400).json({
+        success: false,
+        message: 'Ce SOS n\'est plus disponible'
+      });
+    }
+
+    // Créer l'intervention
+    const intervention = await Intervention.create({
+      user: sosAlert.user,
+      helper: helper._id,
+      sosAlert: sosAlert._id,
+      type: 'sos',
+      status: 'accepted',
+      problem: sosAlert.problem,
+      location: sosAlert.location,
+      timeline: [{
+        status: 'accepted',
+        timestamp: new Date(),
+        note: `Accepté par ${helper.user.firstName} ${helper.user.lastName}`
+      }]
+    });
+
+    // Mettre à jour le SOS
+    sosAlert.status = 'dispatched';
+    sosAlert.intervention = intervention._id;
+    sosAlert.timeline.push({
+      event: 'SOS accepté',
+      timestamp: new Date(),
+      data: { helperId: helper._id }
+    });
+
+    await sosAlert.save();
+
+    // ✅ Utilise la fonction calculateDistance existante
+    let eta = 15; // valeur par défaut
+    if (lat && lng) {
+      const [sosLng, sosLat] = sosAlert.location.coordinates;
+      const distance = calculateDistance(
+        parseFloat(lat),
+        parseFloat(lng),
+        sosLat,
+        sosLng
+      );
+      eta = Math.round(distance * 2); // 2 minutes par km
+    }
+
+    res.json({
+      success: true,
+      message: 'SOS accepté avec succès',
+      data: {
+        intervention,
+        eta
+      }
+    });
+
+  } catch (error) {
+    logger.error(`Erreur acceptSOSMission: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de l\'acceptation du SOS'
+    });
+  }
+};
+// Cette fonction est DÉJÀ présente vers la fin du fichier
