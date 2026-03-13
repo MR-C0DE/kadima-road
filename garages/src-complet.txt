@@ -1,0 +1,4557 @@
+===== src/index.tsx =====
+import React from 'react';
+import ReactDOM from 'react-dom/client';
+import './index.css';
+import App from './App';
+import reportWebVitals from './reportWebVitals';
+
+const root = ReactDOM.createRoot(
+  document.getElementById('root') as HTMLElement
+);
+root.render(
+  <React.StrictMode>
+    <App />
+  </React.StrictMode>
+);
+
+// If you want to start measuring performance in your app, pass a function
+// to log results (for example: reportWebVitals(console.log))
+// or send to an analytics endpoint. Learn more: https://bit.ly/CRA-vitals
+reportWebVitals();
+
+===== src/App.tsx =====
+import React, { useState } from "react";
+import {
+  BrowserRouter as Router,
+  Routes,
+  Route,
+  Navigate,
+} from "react-router-dom";
+import { ThemeProvider as MuiThemeProvider } from "@mui/material/styles";
+import CssBaseline from "@mui/material/CssBaseline";
+import { Box } from "@mui/material";
+import { getTheme } from "./theme";
+import { AuthProvider, useAuth } from "./contexts/AuthContext";
+import { ThemeProvider, useThemeMode } from "./contexts/ThemeContext";
+
+// Pages
+import Login from "./pages/Login";
+import Register from "./pages/Register";
+import Home from "./pages/Home";
+import Profile from "./pages/Profile";
+import Planning from "./pages/Planning"; // ← AJOUTÉ
+
+// Composants
+import Sidebar from "./components/Common/Sidebar";
+import Header from "./components/Common/Header";
+import Loading from "./components/Common/Loading";
+
+const drawerWidth = 240;
+
+const PrivateRoute = ({ children }: { children: React.ReactNode }) => {
+  const { user, loading } = useAuth();
+  const [mobileOpen, setMobileOpen] = useState(false);
+
+  const handleDrawerToggle = () => {
+    setMobileOpen(!mobileOpen);
+  };
+
+  if (loading) return <Loading />;
+
+  if (!user) return <Navigate to="/login" />;
+
+  return (
+    <Box sx={{ display: "flex" }}>
+      <Header toggleSidebar={handleDrawerToggle} />
+      <Sidebar mobileOpen={mobileOpen} onClose={handleDrawerToggle} />
+      <Box
+        component="main"
+        sx={{
+          flexGrow: 1,
+          p: 3,
+          width: { sm: `calc(100% - ${drawerWidth}px)` },
+          mt: "64px",
+          minHeight: "100vh",
+          backgroundColor: "background.default",
+        }}
+      >
+        {children}
+      </Box>
+    </Box>
+  );
+};
+
+function AppContent() {
+  const { mode } = useThemeMode();
+  const theme = getTheme(mode);
+
+  return (
+    <MuiThemeProvider theme={theme}>
+      <CssBaseline />
+      <Routes>
+        <Route path="/login" element={<Login />} />
+        <Route path="/register" element={<Register />} />
+        <Route
+          path="/"
+          element={
+            <PrivateRoute>
+              <Home />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/planning" // ← NOUVELLE ROUTE
+          element={
+            <PrivateRoute>
+              <Planning />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path="/profile"
+          element={
+            <PrivateRoute>
+              <Profile />
+            </PrivateRoute>
+          }
+        />
+      </Routes>
+    </MuiThemeProvider>
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <ThemeProvider>
+        <Router>
+          <AppContent />
+        </Router>
+      </ThemeProvider>
+    </AuthProvider>
+  );
+}
+
+export default App;
+
+===== src/types/garage.ts =====
+export interface Appointment {
+  id: string;
+  time: string;
+  clientName: string;
+  vehicle: string;
+  service: string;
+  mechanic: string;
+  status: "confirmé" | "en cours" | "terminé" | "annulé";
+}
+
+export interface Intervention {
+  id: string;
+  vehicle: string;
+  client: string;
+  service: string;
+  mechanic: string;
+  startTime: string;
+  estimatedDuration: number;
+  progress: number;
+  status: "en_attente" | "en_cours" | "terminé";
+}
+
+export interface StockAlert {
+  id: string;
+  partName: string;
+  currentStock: number;
+  minStock: number;
+  unit: string;
+  reference: string;
+}
+
+export interface DailyStats {
+  appointments: number;
+  appointmentsChange: number;
+  interventions: number;
+  interventionsChange: number;
+  revenue: number;
+  revenueChange: number;
+  mechanicsActive: number;
+}
+
+export interface Mechanic {
+  id: string;
+  name: string;
+  specialty: string;
+  avatar?: string;
+  currentTask?: string;
+}
+
+===== src/types/planning.ts =====
+export interface Appointment {
+  id: string;
+  time: string;
+  endTime: string;
+  clientName: string;
+  clientPhone: string;
+  vehicle: string;
+  vehicleYear: number;
+  licensePlate: string;
+  service: string;
+  serviceType: "maintenance" | "reparation" | "diagnostic" | "controle";
+  mechanic: string;
+  mechanicId: string;
+  duration: number; // en minutes
+  status: "confirmé" | "en_cours" | "terminé" | "annulé";
+  notes?: string;
+  estimatedCost: number;
+  createdAt: string;
+}
+
+export interface Mechanic {
+  id: string;
+  name: string;
+  specialty: string;
+  color: string;
+  avatar?: string;
+  isAvailable: boolean;
+}
+
+export interface PlanningStats {
+  totalAppointments: number;
+  completed: number;
+  ongoing: number;
+  upcoming: number;
+  occupancyRate: number;
+}
+
+===== src/contexts/ThemeContext.tsx =====
+import React, { createContext, useState, useContext, useEffect } from "react";
+
+type ThemeMode = "light" | "dark";
+
+interface ThemeContextType {
+  mode: ThemeMode;
+  toggleTheme: () => void;
+  setMode: (mode: ThemeMode) => void;
+}
+
+const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
+
+export const ThemeProvider = ({ children }: { children: React.ReactNode }) => {
+  const [mode, setMode] = useState<ThemeMode>("light");
+
+  useEffect(() => {
+    // Récupérer le thème sauvegardé
+    const savedTheme = localStorage.getItem("theme") as ThemeMode | null;
+    if (savedTheme) {
+      setMode(savedTheme);
+    }
+  }, []);
+
+  const toggleTheme = () => {
+    const newMode = mode === "light" ? "dark" : "light";
+    setMode(newMode);
+    localStorage.setItem("theme", newMode);
+  };
+
+  const setThemeMode = (newMode: ThemeMode) => {
+    setMode(newMode);
+    localStorage.setItem("theme", newMode);
+  };
+
+  return (
+    <ThemeContext.Provider value={{ mode, toggleTheme, setMode: setThemeMode }}>
+      {children}
+    </ThemeContext.Provider>
+  );
+};
+
+export const useThemeMode = () => {
+  const context = useContext(ThemeContext);
+  if (!context) {
+    throw new Error("useThemeMode must be used within ThemeProvider");
+  }
+  return context;
+};
+
+===== src/contexts/AuthContext.tsx =====
+import React, { createContext, useState, useContext, useEffect } from "react";
+
+interface User {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  role: "admin" | "employe";
+  garageId?: string;
+  photo?: string;
+}
+
+interface AuthContextType {
+  user: User | null;
+  loading: boolean;
+  login: (email: string, password: string) => Promise<void>;
+  logout: () => void;
+}
+
+const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// Utilisateurs de test
+const MOCK_USERS = [
+  {
+    id: "1",
+    firstName: "Garage",
+    lastName: "Principal",
+    email: "garage@test.com",
+    password: "password123",
+    role: "admin" as const,
+    garageId: "g1",
+  },
+  {
+    id: "2",
+    firstName: "Jean",
+    lastName: "Mécanicien",
+    email: "employe@test.com",
+    password: "password123",
+    role: "employe" as const,
+    garageId: "g1",
+    photo: undefined,
+  },
+];
+
+export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
+  const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Vérifier si un utilisateur est déjà connecté
+    const savedUser = localStorage.getItem("mockUser");
+    if (savedUser) {
+      setUser(JSON.parse(savedUser));
+    }
+    setLoading(false);
+  }, []);
+
+  const login = async (email: string, password: string) => {
+    // Simuler un délai réseau
+    await new Promise((resolve) => setTimeout(resolve, 800));
+
+    // Chercher l'utilisateur dans la liste mock
+    const foundUser = MOCK_USERS.find(
+      (u) => u.email === email && u.password === password
+    );
+
+    if (!foundUser) {
+      throw new Error("Email ou mot de passe incorrect");
+    }
+
+    // Enlever le mot de passe avant de stocker
+    const { password: _, ...userWithoutPassword } = foundUser;
+
+    // Sauvegarder dans localStorage
+    localStorage.setItem("mockUser", JSON.stringify(userWithoutPassword));
+    setUser(userWithoutPassword);
+  };
+
+  const logout = () => {
+    localStorage.removeItem("mockUser");
+    setUser(null);
+  };
+
+  return (
+    <AuthContext.Provider value={{ user, loading, login, logout }}>
+      {children}
+    </AuthContext.Provider>
+  );
+};
+
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) throw new Error("useAuth must be used within AuthProvider");
+  return context;
+};
+
+===== src/App.test.tsx =====
+import React from 'react';
+import { render, screen } from '@testing-library/react';
+import App from './App';
+
+test('renders learn react link', () => {
+  render(<App />);
+  const linkElement = screen.getByText(/learn react/i);
+  expect(linkElement).toBeInTheDocument();
+});
+
+===== src/App.css =====
+.App {
+  text-align: center;
+}
+
+.App-logo {
+  height: 40vmin;
+  pointer-events: none;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .App-logo {
+    animation: App-logo-spin infinite 20s linear;
+  }
+}
+
+.App-header {
+  background-color: #282c34;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  font-size: calc(10px + 2vmin);
+  color: white;
+}
+
+.App-link {
+  color: #61dafb;
+}
+
+@keyframes App-logo-spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+===== src/index.css =====
+body {
+  margin: 0;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', 'Roboto', 'Oxygen',
+    'Ubuntu', 'Cantarell', 'Fira Sans', 'Droid Sans', 'Helvetica Neue',
+    sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+code {
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
+}
+
+===== src/setupTests.ts =====
+// jest-dom adds custom jest matchers for asserting on DOM nodes.
+// allows you to do things like:
+// expect(element).toHaveTextContent(/react/i)
+// learn more: https://github.com/testing-library/jest-dom
+import '@testing-library/jest-dom';
+
+===== src/reportWebVitals.ts =====
+import { ReportHandler } from 'web-vitals';
+
+const reportWebVitals = (onPerfEntry?: ReportHandler) => {
+  if (onPerfEntry && onPerfEntry instanceof Function) {
+    import('web-vitals').then(({ getCLS, getFID, getFCP, getLCP, getTTFB }) => {
+      getCLS(onPerfEntry);
+      getFID(onPerfEntry);
+      getFCP(onPerfEntry);
+      getLCP(onPerfEntry);
+      getTTFB(onPerfEntry);
+    });
+  }
+};
+
+export default reportWebVitals;
+
+===== src/components/Planning/DayView.tsx =====
+import React from "react";
+import {
+  Box,
+  Typography,
+  List,
+  ListItem,
+  ListItemText,
+  ListItemAvatar,
+  Avatar,
+  IconButton,
+  Menu,
+  MenuItem,
+  Chip,
+  Divider,
+  useTheme,
+  Paper,
+} from "@mui/material";
+import {
+  MoreVert,
+  DirectionsCar,
+  Person,
+  Build,
+  AccessTime,
+  Phone,
+} from "@mui/icons-material";
+import { Appointment, Mechanic } from "../../types/planning";
+import AppointmentCard from "./AppointmentCard";
+
+interface DayViewProps {
+  appointments: Appointment[];
+  mechanics: Mechanic[];
+  onEdit: (appointment: Appointment) => void;
+  onDelete: (id: string) => void;
+  selectedDate: Date;
+}
+
+// Créneaux horaires de 8h à 19h
+const TIME_SLOTS = [
+  "08:00",
+  "08:30",
+  "09:00",
+  "09:30",
+  "10:00",
+  "10:30",
+  "11:00",
+  "11:30",
+  "12:00",
+  "12:30",
+  "13:00",
+  "13:30",
+  "14:00",
+  "14:30",
+  "15:00",
+  "15:30",
+  "16:00",
+  "16:30",
+  "17:00",
+  "17:30",
+  "18:00",
+  "18:30",
+  "19:00",
+];
+
+export default function DayView({
+  appointments,
+  mechanics,
+  onEdit,
+  onDelete,
+  selectedDate,
+}: DayViewProps) {
+  const theme = useTheme();
+
+  const getAppointmentForTime = (time: string) => {
+    return appointments.find((a) => a.time === time);
+  };
+
+  const isLunchBreak = (time: string) => {
+    return time === "12:00" || time === "12:30";
+  };
+
+  return (
+    <Box sx={{ display: "flex", height: "100%" }}>
+      {/* Colonne des horaires */}
+      <Box
+        sx={{ width: 80, borderRight: `1px solid ${theme.palette.divider}` }}
+      >
+        {TIME_SLOTS.map((time) => (
+          <Box
+            key={time}
+            sx={{
+              height: 70,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              borderBottom: `1px solid ${theme.palette.divider}`,
+              bgcolor: isLunchBreak(time) ? "action.hover" : "transparent",
+            }}
+          >
+            <Typography variant="caption" fontWeight={500}>
+              {time}
+            </Typography>
+          </Box>
+        ))}
+      </Box>
+
+      {/* Colonne des rendez-vous */}
+      <Box sx={{ flex: 1, overflowX: "auto" }}>
+        {TIME_SLOTS.map((time) => {
+          const appointment = getAppointmentForTime(time);
+          const isBreak = isLunchBreak(time);
+
+          return (
+            <Box
+              key={time}
+              sx={{
+                height: 70,
+                borderBottom: `1px solid ${theme.palette.divider}`,
+                p: 0.5,
+                bgcolor: isBreak ? "action.hover" : "transparent",
+              }}
+            >
+              {appointment ? (
+                <AppointmentCard
+                  appointment={appointment}
+                  mechanics={mechanics}
+                  onEdit={onEdit}
+                  onDelete={onDelete}
+                  compact={false}
+                />
+              ) : isBreak ? (
+                <Box
+                  sx={{
+                    height: "100%",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                  }}
+                >
+                  <Typography variant="caption" color="text.secondary">
+                    Pause déjeuner
+                  </Typography>
+                </Box>
+              ) : null}
+            </Box>
+          );
+        })}
+      </Box>
+    </Box>
+  );
+}
+
+===== src/components/Planning/MonthView.tsx =====
+import React from "react";
+import {
+  Box,
+  Typography,
+  Grid,
+  Paper,
+  useTheme,
+  IconButton,
+} from "@mui/material";
+import { ChevronLeft, ChevronRight } from "@mui/icons-material";
+import { Appointment, Mechanic } from "../../types/planning";
+import AppointmentCard from "./AppointmentCard";
+
+interface MonthViewProps {
+  appointments: Appointment[];
+  mechanics: Mechanic[];
+  onEdit: (appointment: Appointment) => void;
+  onDelete: (id: string) => void;
+  selectedDate: Date;
+  onDateChange: (date: Date) => void;
+}
+
+const DAYS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
+
+export default function MonthView({
+  appointments,
+  mechanics,
+  onEdit,
+  onDelete,
+  selectedDate,
+  onDateChange,
+}: MonthViewProps) {
+  const theme = useTheme();
+
+  // Obtenir les jours du mois
+  const getDaysInMonth = (date: Date) => {
+    const year = date.getFullYear();
+    const month = date.getMonth();
+    const firstDay = new Date(year, month, 1);
+    const lastDay = new Date(year, month + 1, 0);
+
+    const days = [];
+    const startOffset = firstDay.getDay() === 0 ? 6 : firstDay.getDay() - 1;
+
+    // Jours du mois précédent
+    for (let i = 0; i < startOffset; i++) {
+      const prevDate = new Date(year, month, -i);
+      days.unshift({ date: prevDate, isCurrentMonth: false });
+    }
+
+    // Jours du mois courant
+    for (let i = 1; i <= lastDay.getDate(); i++) {
+      days.push({ date: new Date(year, month, i), isCurrentMonth: true });
+    }
+
+    // Jours du mois suivant
+    while (days.length < 42) {
+      const nextDate = new Date(year, month, days.length - startOffset + 1);
+      days.push({ date: nextDate, isCurrentMonth: false });
+    }
+
+    return days;
+  };
+
+  const handlePrevMonth = () => {
+    const newDate = new Date(selectedDate);
+    newDate.setMonth(selectedDate.getMonth() - 1);
+    onDateChange(newDate);
+  };
+
+  const handleNextMonth = () => {
+    const newDate = new Date(selectedDate);
+    newDate.setMonth(selectedDate.getMonth() + 1);
+    onDateChange(newDate);
+  };
+
+  const days = getDaysInMonth(selectedDate);
+
+  // Filtrer les rendez-vous pour une date donnée
+  const getAppointmentsForDate = (date: Date) => {
+    return appointments.filter((apt) => {
+      const aptDate = new Date(apt.createdAt);
+      return aptDate.toDateString() === date.toDateString();
+    });
+  };
+
+  return (
+    <Box sx={{ p: 2 }}>
+      {/* En-tête du mois */}
+      <Box
+        sx={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          mb: 2,
+        }}
+      >
+        <IconButton onClick={handlePrevMonth}>
+          <ChevronLeft />
+        </IconButton>
+        <Typography variant="h6">
+          {selectedDate.toLocaleDateString("fr-FR", {
+            month: "long",
+            year: "numeric",
+          })}
+        </Typography>
+        <IconButton onClick={handleNextMonth}>
+          <ChevronRight />
+        </IconButton>
+      </Box>
+
+      {/* Jours de la semaine */}
+      <Grid container spacing={0.5}>
+        {DAYS.map((day) => (
+          <Grid item xs={12 / 7} key={day}>
+            <Paper
+              sx={{
+                p: 1,
+                textAlign: "center",
+                bgcolor: theme.palette.primary.main + "10",
+                borderRadius: 1,
+              }}
+            >
+              <Typography variant="caption" fontWeight={600}>
+                {day}
+              </Typography>
+            </Paper>
+          </Grid>
+        ))}
+
+        {/* Cases du mois */}
+        {days.map((day, index) => {
+          const dayAppointments = getAppointmentsForDate(day.date);
+          const isToday = day.date.toDateString() === new Date().toDateString();
+
+          return (
+            <Grid item xs={12 / 7} key={index}>
+              <Paper
+                sx={{
+                  p: 0.5,
+                  minHeight: 100,
+                  bgcolor: day.isCurrentMonth
+                    ? "background.paper"
+                    : "action.hover",
+                  border: isToday
+                    ? `2px solid ${theme.palette.primary.main}`
+                    : `1px solid ${theme.palette.divider}`,
+                  opacity: day.isCurrentMonth ? 1 : 0.5,
+                  position: "relative",
+                }}
+              >
+                <Typography
+                  variant="caption"
+                  sx={{
+                    position: "absolute",
+                    top: 2,
+                    right: 4,
+                    fontWeight: isToday ? 700 : 400,
+                    color: isToday
+                      ? theme.palette.primary.main
+                      : "text.secondary",
+                  }}
+                >
+                  {day.date.getDate()}
+                </Typography>
+
+                <Box sx={{ mt: 3 }}>
+                  {dayAppointments.slice(0, 2).map((apt) => (
+                    <Box key={apt.id} sx={{ mb: 0.5 }}>
+                      <AppointmentCard
+                        appointment={apt}
+                        mechanics={mechanics}
+                        onEdit={onEdit}
+                        onDelete={onDelete}
+                        compact={true}
+                      />
+                    </Box>
+                  ))}
+                  {dayAppointments.length > 2 && (
+                    <Typography
+                      variant="caption"
+                      color="text.secondary"
+                      sx={{ display: "block", textAlign: "center" }}
+                    >
+                      +{dayAppointments.length - 2} autres
+                    </Typography>
+                  )}
+                </Box>
+              </Paper>
+            </Grid>
+          );
+        })}
+      </Grid>
+    </Box>
+  );
+}
+
+===== src/components/Planning/AppointmentCard.tsx =====
+import React, { useState } from "react";
+import {
+  Box,
+  Typography,
+  Chip,
+  IconButton,
+  Menu,
+  MenuItem,
+  Avatar,
+  Tooltip,
+  useTheme,
+} from "@mui/material";
+import {
+  MoreVert,
+  Edit,
+  Delete,
+  Phone,
+  DirectionsCar,
+  Build,
+} from "@mui/icons-material";
+import { Appointment, Mechanic } from "../../types/planning";
+
+interface AppointmentCardProps {
+  appointment: Appointment;
+  mechanics: Mechanic[];
+  onEdit: (appointment: Appointment) => void;
+  onDelete: (id: string) => void;
+  compact?: boolean;
+}
+
+export default function AppointmentCard({
+  appointment,
+  mechanics,
+  onEdit,
+  onDelete,
+  compact = false,
+}: AppointmentCardProps) {
+  const theme = useTheme();
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+
+  const mechanic = mechanics.find((m) => m.id === appointment.mechanicId);
+  const mechanicColor = mechanic?.color || theme.palette.primary.main;
+
+  const handleMenuOpen = (event: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleMenuClose = () => {
+    setAnchorEl(null);
+  };
+
+  const handleEdit = () => {
+    onEdit(appointment);
+    handleMenuClose();
+  };
+
+  const handleDelete = () => {
+    onDelete(appointment.id);
+    handleMenuClose();
+  };
+
+  const getStatusColor = () => {
+    switch (appointment.status) {
+      case "confirmé":
+        return theme.palette.success.main;
+      case "en_cours":
+        return theme.palette.warning.main;
+      case "terminé":
+        return theme.palette.info.main;
+      case "annulé":
+        return theme.palette.error.main;
+      default:
+        return theme.palette.grey[500];
+    }
+  };
+
+  if (compact) {
+    return (
+      <Box
+        sx={{
+          p: 1,
+          borderRadius: 1,
+          bgcolor: `${mechanicColor}15`,
+          borderLeft: `4px solid ${mechanicColor}`,
+          position: "relative",
+          height: "100%",
+          display: "flex",
+          flexDirection: "column",
+          cursor: "pointer",
+          "&:hover": {
+            bgcolor: `${mechanicColor}25`,
+          },
+        }}
+      >
+        <Box
+          sx={{
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+          }}
+        >
+          <Typography variant="caption" fontWeight={600} noWrap>
+            {appointment.time}
+          </Typography>
+          <Box
+            sx={{
+              width: 8,
+              height: 8,
+              borderRadius: "50%",
+              bgcolor: getStatusColor(),
+            }}
+          />
+        </Box>
+        <Typography variant="caption" fontWeight={500} noWrap>
+          {appointment.clientName}
+        </Typography>
+        <Typography variant="caption" color="text.secondary" noWrap>
+          {appointment.vehicle}
+        </Typography>
+      </Box>
+    );
+  }
+
+  return (
+    <Box
+      sx={{
+        height: "100%",
+        p: 1,
+        borderRadius: 1,
+        bgcolor: `${mechanicColor}10`,
+        border: `1px solid ${mechanicColor}30`,
+        display: "flex",
+        flexDirection: "column",
+        position: "relative",
+        "&:hover": {
+          bgcolor: `${mechanicColor}20`,
+          "& .menu-button": {
+            opacity: 1,
+          },
+        },
+      }}
+    >
+      {/* En-tête */}
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "flex-start",
+          mb: 0.5,
+        }}
+      >
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+          <Typography variant="subtitle2" fontWeight={600}>
+            {appointment.time} - {appointment.endTime}
+          </Typography>
+          <Chip
+            label={appointment.status}
+            size="small"
+            sx={{
+              height: 20,
+              fontSize: "0.625rem",
+              bgcolor: getStatusColor() + "20",
+              color: getStatusColor(),
+              border: `1px solid ${getStatusColor()}`,
+            }}
+          />
+        </Box>
+
+        <IconButton
+          size="small"
+          className="menu-button"
+          onClick={handleMenuOpen}
+          sx={{ opacity: 0, transition: "opacity 0.2s", p: 0.5 }}
+        >
+          <MoreVert fontSize="small" />
+        </IconButton>
+
+        <Menu
+          anchorEl={anchorEl}
+          open={Boolean(anchorEl)}
+          onClose={handleMenuClose}
+        >
+          <MenuItem onClick={handleEdit}>
+            <Edit fontSize="small" sx={{ mr: 1 }} /> Modifier
+          </MenuItem>
+          <MenuItem onClick={handleDelete} sx={{ color: "error.main" }}>
+            <Delete fontSize="small" sx={{ mr: 1 }} /> Supprimer
+          </MenuItem>
+        </Menu>
+      </Box>
+
+      {/* Client et véhicule */}
+      <Box sx={{ display: "flex", alignItems: "center", gap: 1, mb: 0.5 }}>
+        <Avatar
+          sx={{
+            width: 24,
+            height: 24,
+            bgcolor: mechanicColor,
+            fontSize: "0.75rem",
+          }}
+        >
+          {appointment.clientName.charAt(0)}
+        </Avatar>
+        <Box>
+          <Typography variant="body2" fontWeight={500}>
+            {appointment.clientName}
+          </Typography>
+          <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+            <DirectionsCar sx={{ fontSize: 12, color: "text.secondary" }} />
+            <Typography variant="caption" color="text.secondary">
+              {appointment.vehicle} ({appointment.vehicleYear})
+            </Typography>
+          </Box>
+        </Box>
+      </Box>
+
+      {/* Service et mécanicien */}
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          mt: "auto",
+        }}
+      >
+        <Box sx={{ display: "flex", alignItems: "center", gap: 0.5 }}>
+          <Build sx={{ fontSize: 12, color: "text.secondary" }} />
+          <Typography variant="caption" color="text.secondary">
+            {appointment.service}
+          </Typography>
+        </Box>
+
+        <Tooltip title={appointment.mechanic}>
+          <Avatar
+            sx={{
+              width: 20,
+              height: 20,
+              bgcolor: mechanicColor,
+              fontSize: "0.625rem",
+            }}
+          >
+            {appointment.mechanic.charAt(0)}
+          </Avatar>
+        </Tooltip>
+      </Box>
+
+      {/* Téléphone en survol */}
+      <Box
+        sx={{
+          position: "absolute",
+          bottom: 4,
+          right: 4,
+          opacity: 0,
+          transition: "opacity 0.2s",
+          "&:hover": { opacity: 1 },
+        }}
+      >
+        <IconButton size="small" sx={{ p: 0.5 }}>
+          <Phone fontSize="small" />
+        </IconButton>
+      </Box>
+    </Box>
+  );
+}
+
+===== src/components/Planning/WeekView.tsx =====
+import React from "react";
+import { Box, Typography, Grid, Paper, useTheme } from "@mui/material";
+import { Appointment, Mechanic } from "../../types/planning";
+import AppointmentCard from "./AppointmentCard";
+
+interface WeekViewProps {
+  appointments: Appointment[];
+  mechanics: Mechanic[];
+  onEdit: (appointment: Appointment) => void;
+  onDelete: (id: string) => void;
+  selectedDate: Date;
+  onDateChange: (date: Date) => void;
+}
+
+// Jours de la semaine
+const DAYS = ["Lundi", "Mardi", "Mercredi", "Jeudi", "Vendredi", "Samedi"];
+
+export default function WeekView({
+  appointments,
+  mechanics,
+  onEdit,
+  onDelete,
+  selectedDate,
+}: WeekViewProps) {
+  const theme = useTheme();
+
+  // Obtenir les dates de la semaine
+  const getWeekDates = () => {
+    const startOfWeek = new Date(selectedDate);
+    const day = selectedDate.getDay();
+    const diff = day === 0 ? 6 : day - 1; // Ajuster pour commencer le lundi
+    startOfWeek.setDate(selectedDate.getDate() - diff);
+
+    return DAYS.map((_, index) => {
+      const date = new Date(startOfWeek);
+      date.setDate(startOfWeek.getDate() + index);
+      return date;
+    });
+  };
+
+  const weekDates = getWeekDates();
+
+  // Filtrer les rendez-vous pour une date donnée
+  const getAppointmentsForDate = (date: Date) => {
+    const dateStr = date.toDateString();
+    return appointments.filter((apt) => {
+      const aptDate = new Date(apt.createdAt).toDateString();
+      return aptDate === dateStr;
+    });
+  };
+
+  return (
+    <Box sx={{ p: 2 }}>
+      <Grid container spacing={1}>
+        {/* En-têtes des jours */}
+        {DAYS.map((day, index) => (
+          <Grid item xs={12 / 7} key={day}>
+            <Paper
+              sx={{
+                p: 1,
+                textAlign: "center",
+                bgcolor: theme.palette.primary.main + "10",
+                borderBottom: `2px solid ${theme.palette.primary.main}`,
+              }}
+            >
+              <Typography variant="subtitle2" fontWeight={600}>
+                {day}
+              </Typography>
+              <Typography variant="caption" color="text.secondary">
+                {weekDates[index].getDate()}
+              </Typography>
+            </Paper>
+          </Grid>
+        ))}
+
+        {/* Créneaux horaires */}
+        {Array.from({ length: 10 }, (_, hour) => hour + 8).map((hour) => (
+          <React.Fragment key={hour}>
+            {weekDates.map((date, dayIndex) => {
+              const timeStr = `${hour.toString().padStart(2, "0")}:00`;
+              const appointmentsForDay = getAppointmentsForDate(date);
+              const appointment = appointmentsForDay.find(
+                (a) => a.time === timeStr
+              );
+
+              return (
+                <Grid item xs={12 / 7} key={`${dayIndex}-${hour}`}>
+                  <Paper
+                    sx={{
+                      p: 0.5,
+                      minHeight: 80,
+                      border: `1px solid ${theme.palette.divider}`,
+                      bgcolor: appointment
+                        ? theme.palette.primary.main + "05"
+                        : "transparent",
+                    }}
+                  >
+                    {appointment ? (
+                      <AppointmentCard
+                        appointment={appointment}
+                        mechanics={mechanics}
+                        onEdit={onEdit}
+                        onDelete={onDelete}
+                        compact={true}
+                      />
+                    ) : (
+                      <Typography
+                        variant="caption"
+                        color="text.secondary"
+                        sx={{ display: "block", textAlign: "center", mt: 1 }}
+                      >
+                        {timeStr}
+                      </Typography>
+                    )}
+                  </Paper>
+                </Grid>
+              );
+            })}
+          </React.Fragment>
+        ))}
+      </Grid>
+    </Box>
+  );
+}
+
+===== src/components/Planning/PlanningView.tsx =====
+import React from "react";
+import { Box, Paper } from "@mui/material";
+import DayView from "./DayView";
+import WeekView from "./WeekView";
+import MonthView from "./MonthView";
+import { Appointment, Mechanic } from "../../types/planning";
+
+interface PlanningViewProps {
+  view: "day" | "week" | "month";
+  appointments: Appointment[];
+  mechanics: Mechanic[];
+  onEdit: (appointment: Appointment) => void;
+  onDelete: (id: string) => void;
+  selectedDate: Date;
+  onDateChange: (date: Date) => void;
+}
+
+export default function PlanningView({
+  view,
+  appointments,
+  mechanics,
+  onEdit,
+  onDelete,
+  selectedDate,
+  onDateChange,
+}: PlanningViewProps) {
+  const renderView = () => {
+    switch (view) {
+      case "day":
+        return (
+          <DayView
+            appointments={appointments}
+            mechanics={mechanics}
+            onEdit={onEdit}
+            onDelete={onDelete}
+            selectedDate={selectedDate}
+          />
+        );
+      case "week":
+        return (
+          <WeekView
+            appointments={appointments}
+            mechanics={mechanics}
+            onEdit={onEdit}
+            onDelete={onDelete}
+            selectedDate={selectedDate}
+            onDateChange={onDateChange}
+          />
+        );
+      case "month":
+        return (
+          <MonthView
+            appointments={appointments}
+            mechanics={mechanics}
+            onEdit={onEdit}
+            onDelete={onDelete}
+            selectedDate={selectedDate}
+            onDateChange={onDateChange}
+          />
+        );
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <Paper sx={{ p: 2, minHeight: 600 }}>
+      <Box sx={{ height: "100%" }}>{renderView()}</Box>
+    </Paper>
+  );
+}
+
+===== src/components/Planning/NewAppointmentModal.tsx =====
+import React, { useState } from "react";
+import {
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
+  TextField,
+  Button,
+  Grid,
+  MenuItem,
+  FormControl,
+  InputLabel,
+  Select,
+  Box,
+  Typography,
+} from "@mui/material";
+import { DatePicker } from "@mui/x-date-pickers/DatePicker";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import { AdapterDateFns } from "@mui/x-date-pickers/AdapterDateFns";
+import frLocale from "date-fns/locale/fr";
+import { Appointment, Mechanic } from "../../types/planning";
+
+interface NewAppointmentModalProps {
+  open: boolean;
+  onClose: () => void;
+  onSave: (appointment: Appointment) => void;
+  mechanics: Mechanic[];
+}
+
+const SERVICE_TYPES = [
+  { value: "maintenance", label: "Maintenance" },
+  { value: "reparation", label: "Réparation" },
+  { value: "diagnostic", label: "Diagnostic" },
+  { value: "controle", label: "Contrôle" },
+];
+
+const SERVICE_OPTIONS = [
+  { value: "Vidange", label: "Vidange", duration: 45, price: 120 },
+  { value: "Révision", label: "Révision", duration: 60, price: 250 },
+  { value: "Diagnostic", label: "Diagnostic", duration: 30, price: 95 },
+  { value: "Freins", label: "Freins", duration: 45, price: 350 },
+  { value: "Climatisation", label: "Climatisation", duration: 60, price: 180 },
+  { value: "Pneus", label: "Pneus", duration: 30, price: 80 },
+  { value: "Moteur", label: "Moteur", duration: 120, price: 500 },
+];
+
+export default function NewAppointmentModal({
+  open,
+  onClose,
+  onSave,
+  mechanics,
+}: NewAppointmentModalProps) {
+  const [formData, setFormData] = useState({
+    date: new Date(),
+    time: "09:00",
+    clientName: "",
+    clientPhone: "",
+    vehicle: "",
+    vehicleYear: new Date().getFullYear(),
+    licensePlate: "",
+    service: "",
+    serviceType: "maintenance",
+    mechanicId: "",
+    duration: 45,
+    estimatedCost: 0,
+    notes: "",
+  });
+
+  const handleServiceChange = (service: string) => {
+    const selected = SERVICE_OPTIONS.find((s) => s.value === service);
+    if (selected) {
+      setFormData({
+        ...formData,
+        service,
+        duration: selected.duration,
+        estimatedCost: selected.price,
+      });
+    }
+  };
+
+  const handleSubmit = () => {
+    const mechanic = mechanics.find((m) => m.id === formData.mechanicId);
+    const appointment: Appointment = {
+      id: Math.random().toString(36).substr(2, 9),
+      time: formData.time,
+      endTime: calculateEndTime(formData.time, formData.duration),
+      clientName: formData.clientName,
+      clientPhone: formData.clientPhone,
+      vehicle: formData.vehicle,
+      vehicleYear: formData.vehicleYear,
+      licensePlate: formData.licensePlate,
+      service: formData.service,
+      serviceType: formData.serviceType as any,
+      mechanic: mechanic?.name || "",
+      mechanicId: formData.mechanicId,
+      duration: formData.duration,
+      status: "confirmé",
+      estimatedCost: formData.estimatedCost,
+      notes: formData.notes,
+      createdAt: new Date().toISOString(),
+    };
+    onSave(appointment);
+  };
+
+  const calculateEndTime = (startTime: string, duration: number) => {
+    const [hours, minutes] = startTime.split(":").map(Number);
+    const totalMinutes = hours * 60 + minutes + duration;
+    const endHours = Math.floor(totalMinutes / 60);
+    const endMinutes = totalMinutes % 60;
+    return `${endHours.toString().padStart(2, "0")}:${endMinutes
+      .toString()
+      .padStart(2, "0")}`;
+  };
+
+  return (
+    <LocalizationProvider dateAdapter={AdapterDateFns} adapterLocale={frLocale}>
+      <Dialog open={open} onClose={onClose} maxWidth="md" fullWidth>
+        <DialogTitle>
+          <Typography variant="h6" fontWeight={600}>
+            Nouveau rendez-vous
+          </Typography>
+        </DialogTitle>
+        <DialogContent dividers>
+          <Grid container spacing={2} sx={{ mt: 0 }}>
+            {/* Date et heure */}
+            <Grid item xs={12} sm={6}>
+              <DatePicker
+                label="Date"
+                value={formData.date}
+                onChange={(date) =>
+                  setFormData({ ...formData, date: date || new Date() })
+                }
+                slotProps={{ textField: { fullWidth: true, size: "small" } }}
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                select
+                fullWidth
+                size="small"
+                label="Heure"
+                value={formData.time}
+                onChange={(e) =>
+                  setFormData({ ...formData, time: e.target.value })
+                }
+              >
+                {Array.from({ length: 24 }, (_, i) => {
+                  const hour = i.toString().padStart(2, "0");
+                  return (
+                    <MenuItem key={hour} value={`${hour}:00`}>
+                      {`${hour}:00`}
+                    </MenuItem>
+                  );
+                })}
+              </TextField>
+            </Grid>
+
+            {/* Client */}
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Nom du client"
+                value={formData.clientName}
+                onChange={(e) =>
+                  setFormData({ ...formData, clientName: e.target.value })
+                }
+                required
+              />
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Téléphone"
+                value={formData.clientPhone}
+                onChange={(e) =>
+                  setFormData({ ...formData, clientPhone: e.target.value })
+                }
+                required
+              />
+            </Grid>
+
+            {/* Véhicule */}
+            <Grid item xs={12} sm={4}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Véhicule"
+                value={formData.vehicle}
+                onChange={(e) =>
+                  setFormData({ ...formData, vehicle: e.target.value })
+                }
+                required
+              />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Année"
+                type="number"
+                value={formData.vehicleYear}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    vehicleYear: parseInt(e.target.value),
+                  })
+                }
+              />
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Plaque"
+                value={formData.licensePlate}
+                onChange={(e) =>
+                  setFormData({ ...formData, licensePlate: e.target.value })
+                }
+              />
+            </Grid>
+
+            {/* Service */}
+            <Grid item xs={12} sm={6}>
+              <TextField
+                select
+                fullWidth
+                size="small"
+                label="Service"
+                value={formData.service}
+                onChange={(e) => handleServiceChange(e.target.value)}
+                required
+              >
+                {SERVICE_OPTIONS.map((option) => (
+                  <MenuItem key={option.value} value={option.value}>
+                    {option.label} ({option.duration} min - {option.price}$)
+                  </MenuItem>
+                ))}
+              </TextField>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Type</InputLabel>
+                <Select
+                  value={formData.serviceType}
+                  label="Type"
+                  onChange={(e) =>
+                    setFormData({ ...formData, serviceType: e.target.value })
+                  }
+                >
+                  {SERVICE_TYPES.map((type) => (
+                    <MenuItem key={type.value} value={type.value}>
+                      {type.label}
+                    </MenuItem>
+                  ))}
+                </Select>
+              </FormControl>
+            </Grid>
+
+            {/* Mécanicien */}
+            <Grid item xs={12} sm={6}>
+              <FormControl fullWidth size="small" required>
+                <InputLabel>Mécanicien</InputLabel>
+                <Select
+                  value={formData.mechanicId}
+                  label="Mécanicien"
+                  onChange={(e) =>
+                    setFormData({ ...formData, mechanicId: e.target.value })
+                  }
+                >
+                  {mechanics
+                    .filter((m) => m.isAvailable)
+                    .map((mech) => (
+                      <MenuItem key={mech.id} value={mech.id}>
+                        <Box
+                          sx={{ display: "flex", alignItems: "center", gap: 1 }}
+                        >
+                          <Box
+                            sx={{
+                              width: 10,
+                              height: 10,
+                              borderRadius: "50%",
+                              bgcolor: mech.color,
+                            }}
+                          />
+                          {mech.name} - {mech.specialty}
+                        </Box>
+                      </MenuItem>
+                    ))}
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} sm={6}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Durée (minutes)"
+                type="number"
+                value={formData.duration}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    duration: parseInt(e.target.value),
+                  })
+                }
+              />
+            </Grid>
+
+            {/* Coût estimé */}
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Coût estimé ($)"
+                type="number"
+                value={formData.estimatedCost}
+                onChange={(e) =>
+                  setFormData({
+                    ...formData,
+                    estimatedCost: parseInt(e.target.value),
+                  })
+                }
+              />
+            </Grid>
+
+            {/* Notes */}
+            <Grid item xs={12}>
+              <TextField
+                fullWidth
+                size="small"
+                label="Notes"
+                multiline
+                rows={2}
+                value={formData.notes}
+                onChange={(e) =>
+                  setFormData({ ...formData, notes: e.target.value })
+                }
+              />
+            </Grid>
+          </Grid>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={onClose}>Annuler</Button>
+          <Button
+            variant="contained"
+            onClick={handleSubmit}
+            disabled={
+              !formData.clientName ||
+              !formData.clientPhone ||
+              !formData.vehicle ||
+              !formData.service ||
+              !formData.mechanicId
+            }
+          >
+            Créer le rendez-vous
+          </Button>
+        </DialogActions>
+      </Dialog>
+    </LocalizationProvider>
+  );
+}
+
+===== src/components/Dashboard/Dashboard.tsx =====
+import React, { useState, useEffect } from "react";
+import { Box, Grid, Typography, useTheme, Paper, Divider } from "@mui/material";
+import StatsCards from "./StatsCards";
+import DailyPlanning from "./DailyPlanning";
+import OngoingInterventions from "./OngoingInterventions";
+import StockAlerts from "./StockAlerts";
+import PerformanceChart from "./PerformanceChart";
+import QuickActions from "./QuickActions";
+import {
+  Appointment,
+  Intervention,
+  StockAlert,
+  DailyStats,
+} from "../../types/garage";
+
+// Données fictives
+const MOCK_APPOINTMENTS: Appointment[] = [
+  {
+    id: "1",
+    time: "09:00",
+    clientName: "Jean Dupont",
+    vehicle: "Renault Clio",
+    service: "Vidange",
+    mechanic: "Jean-Marc",
+    status: "confirmé",
+  },
+  {
+    id: "2",
+    time: "10:30",
+    clientName: "Marie Martin",
+    vehicle: "Peugeot 308",
+    service: "Révision",
+    mechanic: "Sophie",
+    status: "confirmé",
+  },
+  {
+    id: "3",
+    time: "12:00",
+    clientName: "Pause déjeuner",
+    vehicle: "",
+    service: "",
+    mechanic: "",
+    status: "confirmé",
+  },
+  {
+    id: "4",
+    time: "14:00",
+    clientName: "Pierre Durand",
+    vehicle: "Toyota Corolla",
+    service: "Diagnostic",
+    mechanic: "Pierre",
+    status: "confirmé",
+  },
+  {
+    id: "5",
+    time: "15:30",
+    clientName: "Sophie Lefebvre",
+    vehicle: "Honda Civic",
+    service: "Freins",
+    mechanic: "Jean-Marc",
+    status: "confirmé",
+  },
+  {
+    id: "6",
+    time: "17:00",
+    clientName: "Lucas Moreau",
+    vehicle: "Ford Focus",
+    service: "Climatisation",
+    mechanic: "Sophie",
+    status: "confirmé",
+  },
+];
+
+const MOCK_INTERVENTIONS: Intervention[] = [
+  {
+    id: "1",
+    vehicle: "Renault Clio",
+    client: "Jean Dupont",
+    service: "Vidange",
+    mechanic: "Jean-Marc",
+    startTime: "09:00",
+    estimatedDuration: 45,
+    progress: 80,
+    status: "en_cours",
+  },
+  {
+    id: "2",
+    vehicle: "Peugeot 308",
+    client: "Marie Martin",
+    service: "Révision",
+    mechanic: "Sophie",
+    startTime: "10:30",
+    estimatedDuration: 60,
+    progress: 60,
+    status: "en_cours",
+  },
+  {
+    id: "3",
+    vehicle: "Toyota Corolla",
+    client: "Pierre Durand",
+    service: "Diagnostic",
+    mechanic: "Pierre",
+    startTime: "14:00",
+    estimatedDuration: 30,
+    progress: 25,
+    status: "en_attente",
+  },
+];
+
+const MOCK_STOCK_ALERTS: StockAlert[] = [
+  {
+    id: "1",
+    partName: "Filtre à huile",
+    currentStock: 3,
+    minStock: 5,
+    unit: "pièces",
+    reference: "FIL-HUILE-001",
+  },
+  {
+    id: "2",
+    partName: "Plaquettes avant",
+    currentStock: 2,
+    minStock: 4,
+    unit: "jeux",
+    reference: "FRE-PLAQ-123",
+  },
+  {
+    id: "3",
+    partName: "Huile 5W40",
+    currentStock: 8,
+    minStock: 10,
+    unit: "litres",
+    reference: "HUI-5W40-01",
+  },
+  {
+    id: "4",
+    partName: "Balais d'essuie-glace",
+    currentStock: 1,
+    minStock: 3,
+    unit: "paires",
+    reference: "ESS-BAL-456",
+  },
+];
+
+const MOCK_STATS: DailyStats = {
+  appointments: 8,
+  appointmentsChange: 2,
+  interventions: 3,
+  interventionsChange: 1,
+  revenue: 2450,
+  revenueChange: 12,
+  mechanicsActive: 3,
+};
+
+export default function Dashboard() {
+  const theme = useTheme();
+  const [appointments] = useState<Appointment[]>(MOCK_APPOINTMENTS);
+  const [interventions] = useState<Intervention[]>(MOCK_INTERVENTIONS);
+  const [stockAlerts] = useState<StockAlert[]>(MOCK_STOCK_ALERTS);
+  const [stats] = useState<DailyStats>(MOCK_STATS);
+  const [currentTime, setCurrentTime] = useState(new Date());
+
+  // Mise à jour de l'heure toutes les minutes
+  useEffect(() => {
+    const timer = setInterval(() => {
+      setCurrentTime(new Date());
+    }, 60000);
+    return () => clearInterval(timer);
+  }, []);
+
+  const formattedDate = currentTime.toLocaleDateString("fr-FR", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  return (
+    <Box sx={{ p: 3 }}>
+      {/* En-tête */}
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 3,
+        }}
+      >
+        <Box>
+          <Typography variant="h4" gutterBottom fontWeight={600}>
+            Tableau de bord
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {formattedDate.charAt(0).toUpperCase() + formattedDate.slice(1)}
+          </Typography>
+        </Box>
+        <QuickActions />
+      </Box>
+
+      {/* Cartes de statistiques */}
+      <StatsCards stats={stats} />
+
+      {/* Planning et interventions */}
+      <Grid container spacing={3} sx={{ mt: 2 }}>
+        <Grid item xs={12} md={8}>
+          <Paper sx={{ p: 3, height: "100%" }}>
+            <Typography variant="h6" gutterBottom fontWeight={600}>
+              Planning du jour
+            </Typography>
+            <Divider sx={{ mb: 2 }} />
+            <DailyPlanning appointments={appointments} />
+          </Paper>
+        </Grid>
+
+        <Grid item xs={12} md={4}>
+          <Paper sx={{ p: 3, height: "100%" }}>
+            <Typography variant="h6" gutterBottom fontWeight={600}>
+              Alertes stock
+            </Typography>
+            <Divider sx={{ mb: 2 }} />
+            <StockAlerts alerts={stockAlerts} />
+          </Paper>
+        </Grid>
+      </Grid>
+
+      {/* Interventions en cours */}
+      <Grid container spacing={3} sx={{ mt: 2 }}>
+        <Grid item xs={12} md={6}>
+          <Paper sx={{ p: 3 }}>
+            <Typography variant="h6" gutterBottom fontWeight={600}>
+              Interventions en cours
+            </Typography>
+            <Divider sx={{ mb: 2 }} />
+            <OngoingInterventions interventions={interventions} />
+          </Paper>
+        </Grid>
+
+        <Grid item xs={12} md={6}>
+          <Paper sx={{ p: 3 }}>
+            <Typography variant="h6" gutterBottom fontWeight={600}>
+              Performance
+            </Typography>
+            <Divider sx={{ mb: 2 }} />
+            <PerformanceChart />
+          </Paper>
+        </Grid>
+      </Grid>
+    </Box>
+  );
+}
+
+===== src/components/Dashboard/StatsCards.tsx =====
+import React from "react";
+import { Grid, Paper, Typography, Box, useTheme } from "@mui/material";
+import {
+  EventAvailable,
+  Build,
+  AttachMoney,
+  People,
+} from "@mui/icons-material";
+import { DailyStats } from "../../types/garage";
+
+interface StatsCardsProps {
+  stats: DailyStats;
+}
+
+export default function StatsCards({ stats }: StatsCardsProps) {
+  const theme = useTheme();
+
+  const cards = [
+    {
+      title: "Rendez-vous",
+      value: stats.appointments,
+      change: stats.appointmentsChange,
+      icon: <EventAvailable sx={{ fontSize: 40 }} />,
+      color: theme.palette.primary.main,
+    },
+    {
+      title: "Interventions",
+      value: stats.interventions,
+      change: stats.interventionsChange,
+      icon: <Build sx={{ fontSize: 40 }} />,
+      color: theme.palette.secondary.main,
+    },
+    {
+      title: "Chiffre d'affaires",
+      value: `${stats.revenue} $`,
+      change: stats.revenueChange,
+      icon: <AttachMoney sx={{ fontSize: 40 }} />,
+      color: "#4CAF50",
+    },
+    {
+      title: "Mécaniciens",
+      value: stats.mechanicsActive,
+      change: 0,
+      icon: <People sx={{ fontSize: 40 }} />,
+      color: "#FF9800",
+    },
+  ];
+
+  return (
+    <Grid container spacing={3}>
+      {cards.map((card, index) => (
+        <Grid item xs={12} sm={6} md={3} key={index}>
+          <Paper
+            sx={{
+              p: 2,
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "space-between",
+              transition: "transform 0.2s",
+              "&:hover": {
+                transform: "translateY(-4px)",
+                boxShadow: theme.shadows[8],
+              },
+            }}
+          >
+            <Box>
+              <Typography variant="body2" color="text.secondary" gutterBottom>
+                {card.title}
+              </Typography>
+              <Typography variant="h4" component="div" fontWeight={600}>
+                {card.value}
+              </Typography>
+              {card.change !== 0 && (
+                <Typography
+                  variant="caption"
+                  sx={{
+                    color: card.change > 0 ? "success.main" : "error.main",
+                    display: "flex",
+                    alignItems: "center",
+                    mt: 0.5,
+                  }}
+                >
+                  {card.change > 0 ? "▲" : "▼"} {Math.abs(card.change)}% vs hier
+                </Typography>
+              )}
+            </Box>
+            <Box
+              sx={{
+                backgroundColor: `${card.color}20`,
+                borderRadius: 2,
+                p: 1,
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+              }}
+            >
+              <Box sx={{ color: card.color }}>{card.icon}</Box>
+            </Box>
+          </Paper>
+        </Grid>
+      ))}
+    </Grid>
+  );
+}
+
+===== src/components/Dashboard/StockAlerts.tsx =====
+import React from "react";
+import {
+  List,
+  ListItem,
+  ListItemText,
+  ListItemAvatar,
+  Avatar,
+  Typography,
+  Box,
+  Button,
+  useTheme,
+} from "@mui/material";
+import { Warning, Inventory, ShoppingCart } from "@mui/icons-material";
+import { StockAlert } from "../../types/garage";
+
+interface StockAlertsProps {
+  alerts: StockAlert[];
+}
+
+export default function StockAlerts({ alerts }: StockAlertsProps) {
+  const theme = useTheme();
+
+  const criticalAlerts = alerts.filter((a) => a.currentStock <= a.minStock / 2);
+  const warnings = alerts.filter(
+    (a) => a.currentStock > a.minStock / 2 && a.currentStock < a.minStock
+  );
+  const ok = alerts.filter((a) => a.currentStock >= a.minStock);
+
+  return (
+    <Box>
+      {/* Alertes critiques */}
+      {criticalAlerts.length > 0 && (
+        <Box sx={{ mb: 2 }}>
+          <Typography
+            variant="subtitle2"
+            color="error"
+            gutterBottom
+            sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
+          >
+            <Warning fontSize="small" /> Critique
+          </Typography>
+          <List dense>
+            {criticalAlerts.map((alert) => (
+              <ListItem key={alert.id} sx={{ px: 0 }}>
+                <ListItemAvatar>
+                  <Avatar
+                    sx={{
+                      bgcolor: theme.palette.error.light,
+                      width: 32,
+                      height: 32,
+                    }}
+                  >
+                    <Warning sx={{ fontSize: 18 }} />
+                  </Avatar>
+                </ListItemAvatar>
+                <ListItemText
+                  primary={
+                    <Typography variant="body2" fontWeight={500}>
+                      {alert.partName}
+                    </Typography>
+                  }
+                  secondary={
+                    <Typography variant="caption" color="text.secondary">
+                      Stock: {alert.currentStock}/{alert.minStock} {alert.unit}
+                    </Typography>
+                  }
+                />
+                <Button
+                  size="small"
+                  variant="outlined"
+                  color="error"
+                  sx={{ minWidth: "auto", p: 0.5 }}
+                >
+                  <ShoppingCart fontSize="small" />
+                </Button>
+              </ListItem>
+            ))}
+          </List>
+        </Box>
+      )}
+
+      {/* Alertes moyennes */}
+      {warnings.length > 0 && (
+        <Box sx={{ mb: 2 }}>
+          <Typography
+            variant="subtitle2"
+            color="warning.main"
+            gutterBottom
+            sx={{ display: "flex", alignItems: "center", gap: 0.5 }}
+          >
+            <Warning fontSize="small" /> Attention
+          </Typography>
+          <List dense>
+            {warnings.map((alert) => (
+              <ListItem key={alert.id} sx={{ px: 0 }}>
+                <ListItemAvatar>
+                  <Avatar
+                    sx={{
+                      bgcolor: theme.palette.warning.light,
+                      width: 32,
+                      height: 32,
+                    }}
+                  >
+                    <Inventory sx={{ fontSize: 18 }} />
+                  </Avatar>
+                </ListItemAvatar>
+                <ListItemText
+                  primary={
+                    <Typography variant="body2" fontWeight={500}>
+                      {alert.partName}
+                    </Typography>
+                  }
+                  secondary={
+                    <Typography variant="caption" color="text.secondary">
+                      Stock: {alert.currentStock}/{alert.minStock} {alert.unit}
+                    </Typography>
+                  }
+                />
+                <Button
+                  size="small"
+                  variant="outlined"
+                  color="warning"
+                  sx={{ minWidth: "auto", p: 0.5 }}
+                >
+                  <ShoppingCart fontSize="small" />
+                </Button>
+              </ListItem>
+            ))}
+          </List>
+        </Box>
+      )}
+
+      {/* Stock OK */}
+      {ok.length > 0 && (
+        <Box>
+          <Typography variant="subtitle2" color="success.main" gutterBottom>
+            Stock normal
+          </Typography>
+          <List dense>
+            {ok.slice(0, 2).map((alert) => (
+              <ListItem key={alert.id} sx={{ px: 0 }}>
+                <ListItemAvatar>
+                  <Avatar
+                    sx={{
+                      bgcolor: theme.palette.success.light,
+                      width: 32,
+                      height: 32,
+                    }}
+                  >
+                    <Inventory sx={{ fontSize: 18 }} />
+                  </Avatar>
+                </ListItemAvatar>
+                <ListItemText
+                  primary={
+                    <Typography variant="body2" fontWeight={500}>
+                      {alert.partName}
+                    </Typography>
+                  }
+                  secondary={
+                    <Typography variant="caption" color="text.secondary">
+                      Stock: {alert.currentStock} {alert.unit}
+                    </Typography>
+                  }
+                />
+              </ListItem>
+            ))}
+          </List>
+        </Box>
+      )}
+    </Box>
+  );
+}
+
+===== src/components/Dashboard/OngoingInterventions.tsx =====
+import React from "react";
+import {
+  List,
+  ListItem,
+  ListItemText,
+  ListItemAvatar,
+  Avatar,
+  Typography,
+  Box,
+  LinearProgress,
+  Chip,
+  useTheme,
+} from "@mui/material";
+import { Build, DirectionsCar } from "@mui/icons-material";
+import { Intervention } from "../../types/garage";
+
+interface OngoingInterventionsProps {
+  interventions: Intervention[];
+}
+
+export default function OngoingInterventions({
+  interventions,
+}: OngoingInterventionsProps) {
+  const theme = useTheme();
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "en_cours":
+        return "warning";
+      case "en_attente":
+        return "info";
+      case "terminé":
+        return "success";
+      default:
+        return "default";
+    }
+  };
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case "en_cours":
+        return "En cours";
+      case "en_attente":
+        return "En attente";
+      case "terminé":
+        return "Terminé";
+      default:
+        return status;
+    }
+  };
+
+  return (
+    <List sx={{ width: "100%" }}>
+      {interventions.map((intervention) => (
+        <ListItem
+          key={intervention.id}
+          alignItems="flex-start"
+          sx={{
+            borderRadius: 1,
+            mb: 1,
+            "&:hover": {
+              bgcolor: "action.selected",
+            },
+          }}
+        >
+          <ListItemAvatar>
+            <Avatar sx={{ bgcolor: theme.palette.primary.main }}>
+              <Build />
+            </Avatar>
+          </ListItemAvatar>
+          <ListItemText
+            primary={
+              <Box
+                sx={{
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                }}
+              >
+                <Typography variant="subtitle2" fontWeight={600}>
+                  {intervention.vehicle}
+                </Typography>
+                <Chip
+                  label={getStatusText(intervention.status)}
+                  size="small"
+                  color={getStatusColor(intervention.status) as any}
+                />
+              </Box>
+            }
+            secondary={
+              <Box sx={{ mt: 1 }}>
+                <Typography variant="body2" color="text.secondary">
+                  {intervention.service} • {intervention.client}
+                </Typography>
+                <Box
+                  sx={{ display: "flex", alignItems: "center", gap: 1, mt: 1 }}
+                >
+                  <Typography variant="caption" color="text.secondary">
+                    Mécanicien: {intervention.mechanic}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    • {intervention.startTime}
+                  </Typography>
+                </Box>
+                <Box sx={{ mt: 1 }}>
+                  <Box
+                    sx={{
+                      display: "flex",
+                      justifyContent: "space-between",
+                      mb: 0.5,
+                    }}
+                  >
+                    <Typography variant="caption" color="text.secondary">
+                      Progression
+                    </Typography>
+                    <Typography variant="caption" color="text.secondary">
+                      {intervention.progress}%
+                    </Typography>
+                  </Box>
+                  <LinearProgress
+                    variant="determinate"
+                    value={intervention.progress}
+                    sx={{
+                      height: 6,
+                      borderRadius: 3,
+                      bgcolor: `${theme.palette.primary.main}20`,
+                      "& .MuiLinearProgress-bar": {
+                        bgcolor: theme.palette.primary.main,
+                      },
+                    }}
+                  />
+                </Box>
+              </Box>
+            }
+          />
+        </ListItem>
+      ))}
+    </List>
+  );
+}
+
+===== src/components/Dashboard/DailyPlanning.tsx =====
+import React from "react";
+import {
+  List,
+  ListItem,
+  ListItemText,
+  ListItemAvatar,
+  Avatar,
+  Typography,
+  Box,
+  Chip,
+  useTheme,
+} from "@mui/material";
+import { DirectionsCar, Person, Build } from "@mui/icons-material";
+import { Appointment } from "../../types/garage";
+
+interface DailyPlanningProps {
+  appointments: Appointment[];
+}
+
+export default function DailyPlanning({ appointments }: DailyPlanningProps) {
+  const theme = useTheme();
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "confirmé":
+        return "success";
+      case "en cours":
+        return "warning";
+      case "terminé":
+        return "info";
+      case "annulé":
+        return "error";
+      default:
+        return "default";
+    }
+  };
+
+  const isLunchBreak = (appointment: Appointment) => {
+    return (
+      appointment.service === "" && appointment.clientName === "Pause déjeuner"
+    );
+  };
+
+  return (
+    <List sx={{ width: "100%" }}>
+      {appointments.map((appointment, index) => (
+        <React.Fragment key={appointment.id}>
+          <ListItem
+            alignItems="flex-start"
+            sx={{
+              bgcolor: isLunchBreak(appointment)
+                ? "action.hover"
+                : "transparent",
+              borderRadius: 1,
+              mb: 0.5,
+              "&:hover": {
+                bgcolor: "action.selected",
+              },
+            }}
+          >
+            <ListItemAvatar>
+              <Avatar
+                sx={{
+                  bgcolor: isLunchBreak(appointment)
+                    ? "grey.500"
+                    : theme.palette.primary.main,
+                }}
+              >
+                {isLunchBreak(appointment) ? "🍽️" : <DirectionsCar />}
+              </Avatar>
+            </ListItemAvatar>
+            <ListItemText
+              primary={
+                <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+                  <Typography variant="subtitle1" fontWeight={600}>
+                    {appointment.time}
+                  </Typography>
+                  <Typography variant="body1" color="text.primary">
+                    {appointment.clientName}
+                  </Typography>
+                  {!isLunchBreak(appointment) && (
+                    <Chip
+                      label={appointment.status}
+                      size="small"
+                      color={getStatusColor(appointment.status) as any}
+                      sx={{ ml: "auto" }}
+                    />
+                  )}
+                </Box>
+              }
+              secondary={
+                !isLunchBreak(appointment) ? (
+                  <Box sx={{ mt: 0.5 }}>
+                    <Typography variant="body2" color="text.secondary">
+                      {appointment.vehicle} • {appointment.service}
+                    </Typography>
+                    <Box
+                      sx={{
+                        display: "flex",
+                        alignItems: "center",
+                        gap: 0.5,
+                        mt: 0.5,
+                      }}
+                    >
+                      <Build sx={{ fontSize: 14, color: "text.secondary" }} />
+                      <Typography variant="caption" color="text.secondary">
+                        {appointment.mechanic}
+                      </Typography>
+                    </Box>
+                  </Box>
+                ) : (
+                  <Typography variant="body2" color="text.secondary">
+                    Pause déjeuner de l'équipe
+                  </Typography>
+                )
+              }
+            />
+          </ListItem>
+          {index < appointments.length - 1 && (
+            <Box
+              sx={{
+                my: 0.5,
+                borderBottom: `1px solid ${theme.palette.divider}`,
+              }}
+            />
+          )}
+        </React.Fragment>
+      ))}
+    </List>
+  );
+}
+
+===== src/components/Dashboard/QuickActions.tsx =====
+import React from "react";
+import { Button, ButtonGroup, Tooltip, useTheme, Badge } from "@mui/material";
+import { Add, CalendarToday, Build, Inventory } from "@mui/icons-material";
+import { useNavigate } from "react-router-dom";
+
+export default function QuickActions() {
+  const navigate = useNavigate();
+  const theme = useTheme();
+
+  return (
+    <ButtonGroup variant="contained" size="small">
+      <Tooltip title="Nouveau rendez-vous">
+        <Button
+          onClick={() => navigate("/planning/new")}
+          sx={{
+            bgcolor: theme.palette.primary.main,
+            "&:hover": { bgcolor: theme.palette.primary.dark },
+          }}
+        >
+          <Add sx={{ mr: 0.5 }} /> RDV
+        </Button>
+      </Tooltip>
+      <Tooltip title="Nouvelle intervention">
+        <Button
+          onClick={() => navigate("/interventions/new")}
+          sx={{
+            bgcolor: theme.palette.secondary.main,
+            "&:hover": { bgcolor: theme.palette.secondary.dark },
+          }}
+        >
+          <Build sx={{ mr: 0.5 }} /> Inter
+        </Button>
+      </Tooltip>
+      <Tooltip title="Planning">
+        <Button
+          onClick={() => navigate("/planning")} // ← LIEN VERS PLANNING
+          sx={{
+            bgcolor: theme.palette.info.main,
+            "&:hover": { bgcolor: theme.palette.info.dark },
+          }}
+        >
+          <CalendarToday sx={{ mr: 0.5 }} /> Planning
+        </Button>
+      </Tooltip>
+      <Tooltip title="Stock">
+        <Badge badgeContent={3} color="error" variant="dot">
+          <Button
+            onClick={() => navigate("/stock")}
+            sx={{
+              bgcolor: theme.palette.warning.main,
+              "&:hover": { bgcolor: theme.palette.warning.dark },
+            }}
+          >
+            <Inventory sx={{ mr: 0.5 }} /> Stock
+          </Button>
+        </Badge>
+      </Tooltip>
+    </ButtonGroup>
+  );
+}
+
+===== src/components/Dashboard/PerformanceChart.tsx =====
+import React from "react";
+import { Box, useTheme } from "@mui/material";
+import {
+  LineChart,
+  Line,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  Tooltip,
+  Legend,
+  ResponsiveContainer,
+} from "recharts";
+
+const data = [
+  { day: "Lun", interventions: 12, revenu: 1800 },
+  { day: "Mar", interventions: 15, revenu: 2200 },
+  { day: "Mer", interventions: 18, revenu: 2600 },
+  { day: "Jeu", interventions: 14, revenu: 2100 },
+  { day: "Ven", interventions: 20, revenu: 2900 },
+  { day: "Sam", interventions: 8, revenu: 1200 },
+];
+
+export default function PerformanceChart() {
+  const theme = useTheme();
+
+  return (
+    <Box sx={{ width: "100%", height: 250 }}>
+      <ResponsiveContainer>
+        <LineChart
+          data={data}
+          margin={{ top: 5, right: 20, left: 0, bottom: 5 }}
+        >
+          <CartesianGrid strokeDasharray="3 3" stroke={theme.palette.divider} />
+          <XAxis
+            dataKey="day"
+            stroke={theme.palette.text.secondary}
+            tick={{ fill: theme.palette.text.secondary, fontSize: 12 }}
+          />
+          <YAxis
+            yAxisId="left"
+            stroke={theme.palette.text.secondary}
+            tick={{ fill: theme.palette.text.secondary, fontSize: 12 }}
+          />
+          <YAxis
+            yAxisId="right"
+            orientation="right"
+            stroke={theme.palette.text.secondary}
+            tick={{ fill: theme.palette.text.secondary, fontSize: 12 }}
+          />
+          <Tooltip
+            contentStyle={{
+              backgroundColor: theme.palette.background.paper,
+              border: `1px solid ${theme.palette.divider}`,
+              borderRadius: 8,
+            }}
+          />
+          <Legend />
+          <Line
+            yAxisId="left"
+            type="monotone"
+            dataKey="interventions"
+            stroke={theme.palette.primary.main}
+            name="Interventions"
+            strokeWidth={2}
+            dot={{ fill: theme.palette.primary.main }}
+          />
+          <Line
+            yAxisId="right"
+            type="monotone"
+            dataKey="revenu"
+            stroke={theme.palette.secondary.main}
+            name="Revenu ($)"
+            strokeWidth={2}
+            dot={{ fill: theme.palette.secondary.main }}
+          />
+        </LineChart>
+      </ResponsiveContainer>
+    </Box>
+  );
+}
+
+===== src/components/Common/Header.tsx =====
+import React, { useState } from "react";
+import {
+  AppBar,
+  Toolbar,
+  Typography,
+  Box,
+  IconButton,
+  Menu,
+  MenuItem,
+  Avatar,
+  Divider,
+  ListItemIcon,
+  Tooltip,
+  useMediaQuery,
+} from "@mui/material";
+import {
+  Menu as MenuIcon,
+  Logout,
+  Settings,
+  Person,
+  Brightness4,
+  Brightness7,
+} from "@mui/icons-material";
+import { useNavigate } from "react-router-dom";
+import { useAuth } from "../../contexts/AuthContext";
+import { useThemeMode } from "../../contexts/ThemeContext";
+
+interface HeaderProps {
+  toggleSidebar?: () => void;
+}
+
+export default function Header({ toggleSidebar }: HeaderProps) {
+  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
+  const { user, logout } = useAuth();
+  const { mode, toggleTheme } = useThemeMode();
+  const navigate = useNavigate();
+  const isMobile = useMediaQuery("(max-width:600px)");
+
+  const handleMenu = (event: React.MouseEvent<HTMLElement>) => {
+    setAnchorEl(event.currentTarget);
+  };
+
+  const handleClose = () => {
+    setAnchorEl(null);
+  };
+
+  const handleLogout = () => {
+    handleClose();
+    logout();
+    navigate("/login");
+  };
+
+  const handleProfile = () => {
+    handleClose();
+    navigate("/profile");
+  };
+
+  // Obtenir les initiales de l'utilisateur
+  const getInitials = () => {
+    if (!user) return "?";
+    return `${user.firstName?.[0] || ""}${
+      user.lastName?.[0] || ""
+    }`.toUpperCase();
+  };
+
+  return (
+    <AppBar
+      position="fixed"
+      color="inherit"
+      elevation={1}
+      sx={{
+        zIndex: (theme) => theme.zIndex.drawer + 1,
+      }}
+    >
+      <Toolbar>
+        {toggleSidebar && (
+          <IconButton
+            size="large"
+            edge="start"
+            color="inherit"
+            aria-label="menu"
+            sx={{ mr: 2 }}
+            onClick={toggleSidebar}
+          >
+            <MenuIcon />
+          </IconButton>
+        )}
+
+        <Typography
+          variant="h6"
+          component="div"
+          sx={{
+            flexGrow: 1,
+            fontWeight: 700,
+            background: "linear-gradient(45deg, #B8860B 30%, #D4AF37 90%)",
+            WebkitBackgroundClip: "text",
+            WebkitTextFillColor: "transparent",
+            display: { xs: isMobile ? "none" : "block", sm: "block" },
+          }}
+        >
+          Kadima Garages
+        </Typography>
+
+        <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+          {/* Bouton de thème */}
+          <Tooltip title={mode === "light" ? "Mode sombre" : "Mode clair"}>
+            <IconButton onClick={toggleTheme} color="inherit">
+              {mode === "light" ? <Brightness4 /> : <Brightness7 />}
+            </IconButton>
+          </Tooltip>
+
+          {user && (
+            <>
+              <Typography
+                variant="body2"
+                sx={{ mr: 1, display: { xs: "none", md: "block" } }}
+              >
+                {user.firstName} {user.lastName}
+              </Typography>
+
+              <IconButton
+                size="large"
+                aria-label="account"
+                aria-controls="menu-appbar"
+                aria-haspopup="true"
+                onClick={handleMenu}
+                color="inherit"
+              >
+                <Avatar
+                  sx={{
+                    width: 36,
+                    height: 36,
+                    bgcolor: "secondary.main",
+                    fontSize: "0.875rem",
+                    fontWeight: 600,
+                  }}
+                >
+                  {getInitials()}
+                </Avatar>
+              </IconButton>
+
+              <Menu
+                id="menu-appbar"
+                anchorEl={anchorEl}
+                anchorOrigin={{
+                  vertical: "bottom",
+                  horizontal: "right",
+                }}
+                keepMounted
+                transformOrigin={{
+                  vertical: "top",
+                  horizontal: "right",
+                }}
+                open={Boolean(anchorEl)}
+                onClose={handleClose}
+                PaperProps={{
+                  elevation: 3,
+                  sx: {
+                    mt: 1,
+                    minWidth: 200,
+                    borderRadius: 2,
+                  },
+                }}
+              >
+                <Box sx={{ px: 2, py: 1.5 }}>
+                  <Typography variant="subtitle2">
+                    {user.firstName} {user.lastName}
+                  </Typography>
+                  <Typography variant="caption" color="text.secondary">
+                    {user.role === "admin" ? "Administrateur" : "Employé"}
+                  </Typography>
+                </Box>
+
+                <Divider />
+
+                <MenuItem onClick={handleProfile}>
+                  <ListItemIcon>
+                    <Person fontSize="small" />
+                  </ListItemIcon>
+                  Mon profil
+                </MenuItem>
+
+                <MenuItem onClick={handleClose}>
+                  <ListItemIcon>
+                    <Settings fontSize="small" />
+                  </ListItemIcon>
+                  Paramètres
+                </MenuItem>
+
+                <Divider />
+
+                <MenuItem onClick={handleLogout} sx={{ color: "error.main" }}>
+                  <ListItemIcon>
+                    <Logout fontSize="small" color="error" />
+                  </ListItemIcon>
+                  Déconnexion
+                </MenuItem>
+              </Menu>
+            </>
+          )}
+        </Box>
+      </Toolbar>
+    </AppBar>
+  );
+}
+
+===== src/components/Common/Loading.tsx =====
+import React from "react";
+import { Box, CircularProgress } from "@mui/material";
+
+export default function Loading() {
+  return (
+    <Box
+      sx={{
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        height: "100vh",
+      }}
+    >
+      <CircularProgress />
+    </Box>
+  );
+}
+
+===== src/components/Common/Sidebar.tsx =====
+import React from "react";
+import {
+  Drawer,
+  List,
+  ListItem,
+  ListItemButton,
+  ListItemIcon,
+  ListItemText,
+  Box,
+  useTheme,
+  useMediaQuery,
+} from "@mui/material";
+import DashboardIcon from "@mui/icons-material/Dashboard";
+import CalendarTodayIcon from "@mui/icons-material/CalendarToday";
+import BuildIcon from "@mui/icons-material/Build";
+import PeopleIcon from "@mui/icons-material/People";
+import InventoryIcon from "@mui/icons-material/Inventory";
+import ReceiptIcon from "@mui/icons-material/Receipt";
+import { useNavigate } from "react-router-dom";
+
+const drawerWidth = 240;
+
+interface SidebarProps {
+  mobileOpen: boolean;
+  onClose: () => void;
+}
+
+export default function Sidebar({ mobileOpen, onClose }: SidebarProps) {
+  const navigate = useNavigate();
+  const theme = useTheme();
+  const isMobile = useMediaQuery(theme.breakpoints.down("sm"));
+
+  const menuItems = [
+    { text: "Dashboard", icon: <DashboardIcon />, path: "/" },
+    { text: "Planning", icon: <CalendarTodayIcon />, path: "/planning" }, // ← AJOUTÉ
+    { text: "Interventions", icon: <BuildIcon />, path: "/interventions" },
+    { text: "Clients", icon: <PeopleIcon />, path: "/clients" },
+    { text: "Stock", icon: <InventoryIcon />, path: "/stock" },
+    { text: "Devis & Factures", icon: <ReceiptIcon />, path: "/devis" },
+  ];
+
+  const drawer = (
+    <Box>
+      <List>
+        {menuItems.map((item) => (
+          <ListItem key={item.text} disablePadding>
+            <ListItemButton
+              onClick={() => {
+                navigate(item.path);
+                if (isMobile) onClose();
+              }}
+            >
+              <ListItemIcon>{item.icon}</ListItemIcon>
+              <ListItemText primary={item.text} />
+            </ListItemButton>
+          </ListItem>
+        ))}
+      </List>
+    </Box>
+  );
+
+  return (
+    <Box
+      component="nav"
+      sx={{ width: { sm: drawerWidth }, flexShrink: { sm: 0 } }}
+    >
+      {/* Mobile drawer */}
+      <Drawer
+        variant="temporary"
+        open={mobileOpen}
+        onClose={onClose}
+        ModalProps={{ keepMounted: true }}
+        sx={{
+          display: { xs: "block", sm: "none" },
+          "& .MuiDrawer-paper": {
+            boxSizing: "border-box",
+            width: drawerWidth,
+            pt: "64px",
+          },
+        }}
+      >
+        {drawer}
+      </Drawer>
+
+      {/* Desktop drawer */}
+      <Drawer
+        variant="permanent"
+        sx={{
+          display: { xs: "none", sm: "block" },
+          "& .MuiDrawer-paper": {
+            boxSizing: "border-box",
+            width: drawerWidth,
+            pt: "64px",
+          },
+        }}
+        open
+      >
+        {drawer}
+      </Drawer>
+    </Box>
+  );
+}
+
+===== src/theme.ts =====
+import { createTheme } from "@mui/material/styles";
+
+declare module "@mui/material/styles" {
+  interface Theme {
+    status: {
+      danger: string;
+    };
+  }
+  interface ThemeOptions {
+    status?: {
+      danger?: string;
+    };
+  }
+}
+
+// Thème clair
+const lightTheme = createTheme({
+  palette: {
+    mode: "light",
+    primary: {
+      main: "#B8860B", // Or antique
+      light: "#D4AF37",
+      dark: "#8B6508",
+      contrastText: "#FFFFFF",
+    },
+    secondary: {
+      main: "#800020", // Bordeaux
+      light: "#9B1D1D",
+      dark: "#4A0010",
+      contrastText: "#FFFFFF",
+    },
+    success: {
+      main: "#2E7D32",
+      light: "#4CAF50",
+      dark: "#1B5E20",
+    },
+    warning: {
+      main: "#ED6C02",
+      light: "#FF9800",
+      dark: "#B26A00",
+    },
+    error: {
+      main: "#D32F2F",
+      light: "#EF5350",
+      dark: "#C62828",
+    },
+    info: {
+      main: "#0288D1",
+      light: "#03A9F4",
+      dark: "#01579B",
+    },
+    background: {
+      default: "#F5F7FA",
+      paper: "#FFFFFF",
+    },
+    text: {
+      primary: "#1A1B1E",
+      secondary: "#6C757D",
+    },
+    divider: "#E9ECEF",
+  },
+  typography: {
+    fontFamily: '"Inter", "Roboto", "Helvetica", "Arial", sans-serif',
+    h1: {
+      fontSize: "2.5rem",
+      fontWeight: 600,
+      letterSpacing: "-0.02em",
+    },
+    h2: {
+      fontSize: "2rem",
+      fontWeight: 600,
+      letterSpacing: "-0.01em",
+    },
+    h3: {
+      fontSize: "1.75rem",
+      fontWeight: 600,
+    },
+    h4: {
+      fontSize: "1.5rem",
+      fontWeight: 600,
+    },
+    h5: {
+      fontSize: "1.25rem",
+      fontWeight: 600,
+    },
+    h6: {
+      fontSize: "1rem",
+      fontWeight: 600,
+    },
+    subtitle1: {
+      fontSize: "1rem",
+      fontWeight: 500,
+    },
+    subtitle2: {
+      fontSize: "0.875rem",
+      fontWeight: 500,
+    },
+    body1: {
+      fontSize: "1rem",
+    },
+    body2: {
+      fontSize: "0.875rem",
+    },
+    button: {
+      textTransform: "none",
+      fontWeight: 600,
+    },
+  },
+  shape: {
+    borderRadius: 12,
+  },
+  components: {
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          borderRadius: 8,
+          padding: "8px 16px",
+          boxShadow: "none",
+          "&:hover": {
+            boxShadow: "0 4px 8px rgba(0,0,0,0.1)",
+          },
+        },
+        containedPrimary: {
+          background: "linear-gradient(45deg, #B8860B 30%, #D4AF37 90%)",
+          "&:hover": {
+            background: "linear-gradient(45deg, #8B6508 30%, #B8860B 90%)",
+          },
+        },
+        containedSecondary: {
+          background: "linear-gradient(45deg, #800020 30%, #9B1D1D 90%)",
+          "&:hover": {
+            background: "linear-gradient(45deg, #4A0010 30%, #800020 90%)",
+          },
+        },
+      },
+    },
+    MuiCard: {
+      styleOverrides: {
+        root: {
+          borderRadius: 16,
+          boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
+          transition: "transform 0.2s, box-shadow 0.2s",
+          "&:hover": {
+            transform: "translateY(-2px)",
+            boxShadow: "0 8px 24px rgba(0,0,0,0.1)",
+          },
+        },
+      },
+    },
+    MuiPaper: {
+      styleOverrides: {
+        root: {
+          borderRadius: 16,
+        },
+        elevation1: {
+          boxShadow: "0 4px 12px rgba(0,0,0,0.05)",
+        },
+      },
+    },
+    MuiDrawer: {
+      styleOverrides: {
+        paper: {
+          backgroundColor: "#FFFFFF",
+          borderRight: "1px solid #E9ECEF",
+        },
+      },
+    },
+    MuiAppBar: {
+      styleOverrides: {
+        root: {
+          backgroundColor: "#FFFFFF",
+          color: "#1A1B1E",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.05)",
+          borderBottom: "1px solid #E9ECEF",
+        },
+      },
+    },
+    MuiListItemButton: {
+      styleOverrides: {
+        root: {
+          borderRadius: 8,
+          margin: "4px 8px",
+          "&.Mui-selected": {
+            backgroundColor: "#B8860B15",
+            "&:hover": {
+              backgroundColor: "#B8860B25",
+            },
+          },
+        },
+      },
+    },
+    MuiTableCell: {
+      styleOverrides: {
+        head: {
+          fontWeight: 600,
+          backgroundColor: "#F8F9FA",
+        },
+      },
+    },
+  },
+});
+
+// Thème sombre
+const darkTheme = createTheme({
+  ...lightTheme,
+  palette: {
+    mode: "dark",
+    primary: {
+      main: "#D4AF37", // Or plus clair pour le dark mode
+      light: "#F0B90B",
+      dark: "#B8860B",
+      contrastText: "#000000",
+    },
+    secondary: {
+      main: "#9B1D1D",
+      light: "#B71C1C",
+      dark: "#800020",
+      contrastText: "#FFFFFF",
+    },
+    success: {
+      main: "#4CAF50",
+      light: "#81C784",
+      dark: "#388E3C",
+    },
+    warning: {
+      main: "#FF9800",
+      light: "#FFB74D",
+      dark: "#F57C00",
+    },
+    error: {
+      main: "#F44336",
+      light: "#E57373",
+      dark: "#D32F2F",
+    },
+    info: {
+      main: "#29B6F6",
+      light: "#4FC3F7",
+      dark: "#0288D1",
+    },
+    background: {
+      default: "#121212",
+      paper: "#1E1E1E",
+    },
+    text: {
+      primary: "#FFFFFF",
+      secondary: "#B0B0B0",
+    },
+    divider: "#404040",
+  },
+  components: {
+    ...lightTheme.components,
+    MuiDrawer: {
+      styleOverrides: {
+        paper: {
+          backgroundColor: "#1A1A1A",
+          borderRight: "1px solid #404040",
+        },
+      },
+    },
+    MuiAppBar: {
+      styleOverrides: {
+        root: {
+          backgroundColor: "#1A1A1A",
+          color: "#FFFFFF",
+          boxShadow: "0 2px 8px rgba(0,0,0,0.2)",
+          borderBottom: "1px solid #404040",
+        },
+      },
+    },
+    MuiCard: {
+      styleOverrides: {
+        root: {
+          backgroundColor: "#1E1E1E",
+          boxShadow: "0 4px 12px rgba(0,0,0,0.2)",
+        },
+      },
+    },
+  },
+});
+
+export const getTheme = (mode: "light" | "dark") => {
+  return mode === "light" ? lightTheme : darkTheme;
+};
+
+===== src/react-app-env.d.ts =====
+/// <reference types="react-scripts" />
+
+===== src/pages/Login.tsx =====
+import React, { useState } from "react";
+import {
+  Container,
+  Box,
+  Typography,
+  TextField,
+  Button,
+  Paper,
+  Alert,
+  InputAdornment,
+  IconButton,
+  useTheme,
+  Divider,
+  Link,
+} from "@mui/material";
+import {
+  Visibility,
+  VisibilityOff,
+  Email,
+  Lock,
+  Build,
+} from "@mui/icons-material";
+import { useNavigate, Link as RouterLink } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
+
+export default function Login() {
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+
+  const { login } = useAuth();
+  const navigate = useNavigate();
+  const theme = useTheme();
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setError("");
+    setLoading(true);
+
+    try {
+      await login(email, password);
+      navigate("/");
+    } catch (err: any) {
+      setError(err.message || "Email ou mot de passe incorrect");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Box
+      sx={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        bgcolor: theme.palette.mode === "light" ? "#f0f2f5" : "#0a0a0a",
+      }}
+    >
+      <Container maxWidth="sm">
+        <Paper
+          elevation={3}
+          sx={{
+            p: 4,
+            borderRadius: 2,
+            borderTop: `4px solid ${theme.palette.primary.main}`,
+          }}
+        >
+          {/* En-tête avec logo */}
+          <Box sx={{ textAlign: "center", mb: 4 }}>
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 1,
+                mb: 2,
+              }}
+            >
+              <Build sx={{ fontSize: 40, color: theme.palette.primary.main }} />
+              <Typography
+                variant="h4"
+                component="h1"
+                sx={{
+                  fontWeight: 600,
+                  color: theme.palette.text.primary,
+                }}
+              >
+                KADIMA GARAGES
+              </Typography>
+            </Box>
+            <Typography variant="body2" color="text.secondary">
+              Logiciel de gestion d'atelier professionnel
+            </Typography>
+          </Box>
+
+          {/* Formulaire */}
+          <Box component="form" onSubmit={handleSubmit}>
+            <TextField
+              fullWidth
+              size="medium"
+              label="Email professionnel"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              error={!!error}
+              disabled={loading}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Email color="action" />
+                  </InputAdornment>
+                ),
+              }}
+              sx={{ mb: 2 }}
+            />
+
+            <TextField
+              fullWidth
+              size="medium"
+              label="Mot de passe"
+              type={showPassword ? "text" : "password"}
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              error={!!error}
+              disabled={loading}
+              InputProps={{
+                startAdornment: (
+                  <InputAdornment position="start">
+                    <Lock color="action" />
+                  </InputAdornment>
+                ),
+                endAdornment: (
+                  <InputAdornment position="end">
+                    <IconButton
+                      onClick={() => setShowPassword(!showPassword)}
+                      edge="end"
+                      size="small"
+                    >
+                      {showPassword ? <VisibilityOff /> : <Visibility />}
+                    </IconButton>
+                  </InputAdornment>
+                ),
+              }}
+              sx={{ mb: 3 }}
+            />
+
+            {error && (
+              <Alert severity="error" sx={{ mb: 2 }}>
+                {error}
+              </Alert>
+            )}
+
+            <Button
+              type="submit"
+              fullWidth
+              variant="contained"
+              size="large"
+              disabled={loading}
+              sx={{
+                py: 1.5,
+                mb: 2,
+                fontWeight: 600,
+              }}
+            >
+              {loading ? "Connexion..." : "Se connecter"}
+            </Button>
+
+            {/* ← LIEN VERS INSCRIPTION AJOUTÉ ICI */}
+            <Box sx={{ textAlign: "center", mb: 2 }}>
+              <Link
+                component={RouterLink}
+                to="/register"
+                variant="body2"
+                sx={{
+                  color: theme.palette.primary.main,
+                  textDecoration: "none",
+                  fontWeight: 500,
+                  "&:hover": {
+                    textDecoration: "underline",
+                  },
+                }}
+              >
+                Pas encore de compte ? Créer un compte garage
+              </Link>
+            </Box>
+
+            <Divider sx={{ my: 2 }}>
+              <Typography variant="caption" color="text.secondary">
+                ACCÈS PROFESSIONNEL
+              </Typography>
+            </Divider>
+
+            <Box sx={{ display: "flex", justifyContent: "space-between" }}>
+              <Typography variant="caption" color="text.secondary">
+                Version 2.0.0
+              </Typography>
+              <Typography variant="caption" color="primary">
+                Support technique 24/7
+              </Typography>
+            </Box>
+          </Box>
+        </Paper>
+
+        {/* Pied de page avec infos légales */}
+        <Box sx={{ textAlign: "center", mt: 3 }}>
+          <Typography variant="caption" color="text.secondary" display="block">
+            © 2026 Kadima Technologies. Tous droits réservés.
+          </Typography>
+          <Typography variant="caption" color="text.secondary" display="block">
+            Logiciel de gestion pour ateliers de réparation automobile
+          </Typography>
+        </Box>
+      </Container>
+    </Box>
+  );
+}
+
+===== src/pages/Home.tsx =====
+import React from "react";
+import Dashboard from "../components/Dashboard/Dashboard";
+
+export default function Home() {
+  return <Dashboard />;
+}
+
+===== src/pages/Register.tsx =====
+import React, { useState } from "react";
+import {
+  Container,
+  Box,
+  Typography,
+  TextField,
+  Button,
+  Paper,
+  Alert,
+  InputAdornment,
+  IconButton,
+  useTheme,
+  Divider,
+  Stepper,
+  Step,
+  StepLabel,
+  Grid,
+  MenuItem,
+  FormControlLabel,
+  Checkbox,
+} from "@mui/material";
+import {
+  Visibility,
+  VisibilityOff,
+  Email,
+  Lock,
+  Build,
+  Person,
+  Phone,
+  LocationOn,
+  AccessTime,
+  CheckCircle,
+} from "@mui/icons-material";
+import { useNavigate, Link as RouterLink } from "react-router-dom";
+import { useAuth } from "../contexts/AuthContext";
+
+// Étapes d'inscription
+const steps = ["Informations garage", "Identifiants", "Confirmation"];
+
+// Types de garage
+const garageTypes = [
+  { value: "independant", label: "Garage indépendant" },
+  { value: "franchise", label: "Franchise" },
+  { value: "multimarques", label: "Multimarques" },
+  { value: "concession", label: "Concession" },
+];
+
+// Nombre de mécaniciens
+const mechanicOptions = [
+  { value: "1", label: "1 mécanicien" },
+  { value: "2-5", label: "2 à 5 mécaniciens" },
+  { value: "6-10", label: "6 à 10 mécaniciens" },
+  { value: "10+", label: "Plus de 10 mécaniciens" },
+];
+
+export default function Register() {
+  const [activeStep, setActiveStep] = useState(0);
+  const [showPassword, setShowPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState(false);
+  const [loading, setLoading] = useState(false);
+
+  const { login } = useAuth();
+  const navigate = useNavigate();
+  const theme = useTheme();
+
+  // Données du formulaire
+  const [formData, setFormData] = useState({
+    // Étape 1
+    garageName: "",
+    garageType: "",
+    siret: "",
+    address: "",
+    city: "",
+    postalCode: "",
+    phone: "",
+    mechanicCount: "",
+    yearEstablished: "",
+
+    // Étape 2
+    firstName: "",
+    lastName: "",
+    email: "",
+    password: "",
+    confirmPassword: "",
+
+    // Étape 3
+    acceptTerms: false,
+    acceptNewsletter: false,
+  });
+
+  const handleChange =
+    (field: string) =>
+    (e: React.ChangeEvent<HTMLInputElement | { value: unknown }>) => {
+      setFormData({
+        ...formData,
+        [field]: e.target.value,
+      });
+    };
+
+  const handleCheckbox =
+    (field: string) => (e: React.ChangeEvent<HTMLInputElement>) => {
+      setFormData({
+        ...formData,
+        [field]: e.target.checked,
+      });
+    };
+
+  const handleNext = () => {
+    // Validation étape 1
+    if (activeStep === 0) {
+      if (!formData.garageName || !formData.garageType || !formData.phone) {
+        setError("Veuillez remplir tous les champs obligatoires");
+        return;
+      }
+    }
+
+    // Validation étape 2
+    if (activeStep === 1) {
+      if (
+        !formData.firstName ||
+        !formData.lastName ||
+        !formData.email ||
+        !formData.password
+      ) {
+        setError("Veuillez remplir tous les champs");
+        return;
+      }
+      if (formData.password !== formData.confirmPassword) {
+        setError("Les mots de passe ne correspondent pas");
+        return;
+      }
+      if (formData.password.length < 6) {
+        setError("Le mot de passe doit contenir au moins 6 caractères");
+        return;
+      }
+    }
+
+    setError("");
+
+    if (activeStep === steps.length - 1) {
+      handleSubmit();
+    } else {
+      setActiveStep(activeStep + 1);
+    }
+  };
+
+  const handleBack = () => {
+    setActiveStep(activeStep - 1);
+    setError("");
+  };
+
+  const handleSubmit = async () => {
+    if (!formData.acceptTerms) {
+      setError("Vous devez accepter les conditions d'utilisation");
+      return;
+    }
+
+    setLoading(true);
+    setError("");
+
+    try {
+      // Simuler une inscription (à remplacer par appel API)
+      await new Promise((resolve) => setTimeout(resolve, 1500));
+
+      setSuccess(true);
+
+      // Rediriger vers login après 2 secondes
+      setTimeout(() => {
+        navigate("/login");
+      }, 2000);
+    } catch (err: any) {
+      setError(err.message || "Erreur lors de l'inscription");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const getStepContent = (step: number) => {
+    switch (step) {
+      case 0:
+        return (
+          <Box>
+            <Typography variant="h6" gutterBottom sx={{ mb: 3 }}>
+              Informations du garage
+            </Typography>
+
+            <Grid container spacing={2}>
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  required
+                  label="Nom du garage"
+                  value={formData.garageName}
+                  onChange={handleChange("garageName")}
+                  disabled={loading}
+                />
+              </Grid>
+
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  required
+                  select
+                  label="Type de garage"
+                  value={formData.garageType}
+                  onChange={handleChange("garageType")}
+                  disabled={loading}
+                >
+                  {garageTypes.map((option) => (
+                    <MenuItem key={option.value} value={option.value}>
+                      {option.label}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
+
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="N° SIRET"
+                  value={formData.siret}
+                  onChange={handleChange("siret")}
+                  disabled={loading}
+                  placeholder="123 456 789 00012"
+                />
+              </Grid>
+
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  label="Adresse"
+                  value={formData.address}
+                  onChange={handleChange("address")}
+                  disabled={loading}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <LocationOn color="action" />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+
+              <Grid item xs={12} sm={4}>
+                <TextField
+                  fullWidth
+                  label="Ville"
+                  value={formData.city}
+                  onChange={handleChange("city")}
+                  disabled={loading}
+                />
+              </Grid>
+
+              <Grid item xs={12} sm={4}>
+                <TextField
+                  fullWidth
+                  label="Code postal"
+                  value={formData.postalCode}
+                  onChange={handleChange("postalCode")}
+                  disabled={loading}
+                />
+              </Grid>
+
+              <Grid item xs={12} sm={4}>
+                <TextField
+                  fullWidth
+                  required
+                  label="Téléphone"
+                  value={formData.phone}
+                  onChange={handleChange("phone")}
+                  disabled={loading}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Phone color="action" />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  select
+                  label="Nombre de mécaniciens"
+                  value={formData.mechanicCount}
+                  onChange={handleChange("mechanicCount")}
+                  disabled={loading}
+                >
+                  {mechanicOptions.map((option) => (
+                    <MenuItem key={option.value} value={option.value}>
+                      {option.label}
+                    </MenuItem>
+                  ))}
+                </TextField>
+              </Grid>
+
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  label="Année de création"
+                  value={formData.yearEstablished}
+                  onChange={handleChange("yearEstablished")}
+                  disabled={loading}
+                  placeholder="2015"
+                />
+              </Grid>
+            </Grid>
+          </Box>
+        );
+
+      case 1:
+        return (
+          <Box>
+            <Typography variant="h6" gutterBottom sx={{ mb: 3 }}>
+              Identifiants de connexion
+            </Typography>
+
+            <Grid container spacing={2}>
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  required
+                  label="Prénom"
+                  value={formData.firstName}
+                  onChange={handleChange("firstName")}
+                  disabled={loading}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Person color="action" />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  required
+                  label="Nom"
+                  value={formData.lastName}
+                  onChange={handleChange("lastName")}
+                  disabled={loading}
+                />
+              </Grid>
+
+              <Grid item xs={12}>
+                <TextField
+                  fullWidth
+                  required
+                  label="Email professionnel"
+                  type="email"
+                  value={formData.email}
+                  onChange={handleChange("email")}
+                  disabled={loading}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Email color="action" />
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  required
+                  label="Mot de passe"
+                  type={showPassword ? "text" : "password"}
+                  value={formData.password}
+                  onChange={handleChange("password")}
+                  disabled={loading}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Lock color="action" />
+                      </InputAdornment>
+                    ),
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton
+                          onClick={() => setShowPassword(!showPassword)}
+                          edge="end"
+                          size="small"
+                        >
+                          {showPassword ? <VisibilityOff /> : <Visibility />}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+
+              <Grid item xs={12} sm={6}>
+                <TextField
+                  fullWidth
+                  required
+                  label="Confirmer mot de passe"
+                  type={showConfirmPassword ? "text" : "password"}
+                  value={formData.confirmPassword}
+                  onChange={handleChange("confirmPassword")}
+                  disabled={loading}
+                  InputProps={{
+                    startAdornment: (
+                      <InputAdornment position="start">
+                        <Lock color="action" />
+                      </InputAdornment>
+                    ),
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton
+                          onClick={() =>
+                            setShowConfirmPassword(!showConfirmPassword)
+                          }
+                          edge="end"
+                          size="small"
+                        >
+                          {showConfirmPassword ? (
+                            <VisibilityOff />
+                          ) : (
+                            <Visibility />
+                          )}
+                        </IconButton>
+                      </InputAdornment>
+                    ),
+                  }}
+                />
+              </Grid>
+            </Grid>
+          </Box>
+        );
+
+      case 2:
+        return (
+          <Box>
+            <Typography
+              variant="h6"
+              gutterBottom
+              sx={{ mb: 3, color: "success.main" }}
+            >
+              <CheckCircle sx={{ mr: 1, verticalAlign: "middle" }} />
+              Confirmation
+            </Typography>
+
+            <Box sx={{ mb: 3 }}>
+              <Typography variant="body2" color="text.secondary" paragraph>
+                Veuillez vérifier vos informations avant de finaliser
+                l'inscription.
+              </Typography>
+
+              <Paper
+                variant="outlined"
+                sx={{ p: 2, mb: 3, bgcolor: "background.default" }}
+              >
+                <Typography variant="subtitle2" gutterBottom>
+                  Garage : {formData.garageName || "Non renseigné"}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  {formData.address} {formData.city} {formData.postalCode}
+                </Typography>
+                <Typography variant="body2" color="text.secondary">
+                  Tél: {formData.phone}
+                </Typography>
+              </Paper>
+
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={formData.acceptTerms}
+                    onChange={handleCheckbox("acceptTerms")}
+                    color="primary"
+                  />
+                }
+                label={
+                  <Typography variant="body2">
+                    J'accepte les{" "}
+                    <a
+                      href="/terms"
+                      style={{ color: theme.palette.primary.main }}
+                    >
+                      conditions générales d'utilisation
+                    </a>
+                  </Typography>
+                }
+                sx={{ mb: 1 }}
+              />
+
+              <FormControlLabel
+                control={
+                  <Checkbox
+                    checked={formData.acceptNewsletter}
+                    onChange={handleCheckbox("acceptNewsletter")}
+                    color="primary"
+                  />
+                }
+                label={
+                  <Typography variant="body2">
+                    Je souhaite recevoir les actualités Kadima Garages
+                  </Typography>
+                }
+              />
+            </Box>
+          </Box>
+        );
+
+      default:
+        return "Étape inconnue";
+    }
+  };
+
+  if (success) {
+    return (
+      <Box
+        sx={{
+          minHeight: "100vh",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+          bgcolor: theme.palette.mode === "light" ? "#f0f2f5" : "#0a0a0a",
+        }}
+      >
+        <Container maxWidth="sm">
+          <Paper
+            elevation={3}
+            sx={{
+              p: 4,
+              borderRadius: 2,
+              borderTop: `4px solid ${theme.palette.success.main}`,
+              textAlign: "center",
+            }}
+          >
+            <CheckCircle sx={{ fontSize: 60, color: "success.main", mb: 2 }} />
+            <Typography variant="h5" gutterBottom>
+              Inscription réussie !
+            </Typography>
+            <Typography variant="body2" color="text.secondary" paragraph>
+              Votre compte a été créé avec succès. Vous allez être redirigé vers
+              la page de connexion.
+            </Typography>
+          </Paper>
+        </Container>
+      </Box>
+    );
+  }
+
+  return (
+    <Box
+      sx={{
+        minHeight: "100vh",
+        display: "flex",
+        alignItems: "center",
+        justifyContent: "center",
+        bgcolor: theme.palette.mode === "light" ? "#f0f2f5" : "#0a0a0a",
+        py: 4,
+      }}
+    >
+      <Container maxWidth="md">
+        <Paper
+          elevation={3}
+          sx={{
+            p: 4,
+            borderRadius: 2,
+            borderTop: `4px solid ${theme.palette.primary.main}`,
+          }}
+        >
+          {/* En-tête */}
+          <Box sx={{ textAlign: "center", mb: 4 }}>
+            <Box
+              sx={{
+                display: "flex",
+                alignItems: "center",
+                justifyContent: "center",
+                gap: 1,
+                mb: 2,
+              }}
+            >
+              <Build sx={{ fontSize: 40, color: theme.palette.primary.main }} />
+              <Typography
+                variant="h4"
+                component="h1"
+                sx={{
+                  fontWeight: 600,
+                  color: theme.palette.text.primary,
+                }}
+              >
+                KADIMA GARAGES
+              </Typography>
+            </Box>
+            <Typography variant="body2" color="text.secondary">
+              Créez votre compte professionnel
+            </Typography>
+          </Box>
+
+          {/* Stepper */}
+          <Stepper activeStep={activeStep} sx={{ mb: 4 }}>
+            {steps.map((label) => (
+              <Step key={label}>
+                <StepLabel>{label}</StepLabel>
+              </Step>
+            ))}
+          </Stepper>
+
+          {/* Contenu de l'étape */}
+          {getStepContent(activeStep)}
+
+          {/* Message d'erreur */}
+          {error && (
+            <Alert severity="error" sx={{ mt: 2 }}>
+              {error}
+            </Alert>
+          )}
+
+          {/* Boutons de navigation */}
+          <Box sx={{ display: "flex", justifyContent: "space-between", mt: 3 }}>
+            <Button
+              variant="outlined"
+              onClick={handleBack}
+              disabled={activeStep === 0 || loading}
+            >
+              Retour
+            </Button>
+            <Button
+              variant="contained"
+              onClick={handleNext}
+              disabled={loading}
+              sx={{ minWidth: 120 }}
+            >
+              {activeStep === steps.length - 1
+                ? loading
+                  ? "Inscription..."
+                  : "S'inscrire"
+                : "Suivant"}
+            </Button>
+          </Box>
+
+          <Divider sx={{ my: 3 }}>
+            <Typography variant="caption" color="text.secondary">
+              DÉJÀ INSCRIT ?
+            </Typography>
+          </Divider>
+
+          <Box sx={{ textAlign: "center" }}>
+            <Button
+              component={RouterLink}
+              to="/login"
+              color="primary"
+              sx={{ textTransform: "none" }}
+            >
+              Se connecter
+            </Button>
+          </Box>
+        </Paper>
+      </Container>
+    </Box>
+  );
+}
+
+===== src/pages/Profile.tsx =====
+import React from "react";
+import { Container, Typography } from "@mui/material";
+
+export default function Profile() {
+  return (
+    <Container>
+      <Typography variant="h4">Profil</Typography>
+    </Container>
+  );
+}
+
+===== src/pages/Planning.tsx =====
+import React, { useState, useEffect } from "react";
+import {
+  Box,
+  Typography,
+  Paper,
+  ToggleButton,
+  ToggleButtonGroup,
+  Button,
+  useTheme,
+  Grid,
+  Chip,
+  LinearProgress,
+} from "@mui/material";
+import {
+  Today,
+  ViewWeek,
+  CalendarMonth,
+  Add,
+  Refresh,
+} from "@mui/icons-material";
+import PlanningView from "../components/Planning/PlanningView";
+import NewAppointmentModal from "../components/Planning/NewAppointmentModal";
+import { Appointment, Mechanic, PlanningStats } from "../types/planning";
+
+// Données fictives
+const MOCK_MECHANICS: Mechanic[] = [
+  {
+    id: "1",
+    name: "Jean-Marc",
+    specialty: "Moteur",
+    color: "#B8860B",
+    isAvailable: true,
+  },
+  {
+    id: "2",
+    name: "Sophie",
+    specialty: "Électronique",
+    color: "#800020",
+    isAvailable: true,
+  },
+  {
+    id: "3",
+    name: "Pierre",
+    specialty: "Diagnostic",
+    color: "#4CAF50",
+    isAvailable: true,
+  },
+  {
+    id: "4",
+    name: "Luc",
+    specialty: "Freins",
+    color: "#2196F3",
+    isAvailable: false,
+  },
+];
+
+const MOCK_APPOINTMENTS: Appointment[] = [
+  {
+    id: "1",
+    time: "09:00",
+    endTime: "09:45",
+    clientName: "Jean Dupont",
+    clientPhone: "613-555-0123",
+    vehicle: "Renault Clio",
+    vehicleYear: 2019,
+    licensePlate: "ABC-123",
+    service: "Vidange",
+    serviceType: "maintenance",
+    mechanic: "Jean-Marc",
+    mechanicId: "1",
+    duration: 45,
+    status: "confirmé",
+    estimatedCost: 120,
+    notes: "Vidange complète + contrôle niveaux",
+    createdAt: "2026-03-12T08:00:00",
+  },
+  {
+    id: "2",
+    time: "10:30",
+    endTime: "11:30",
+    clientName: "Marie Martin",
+    clientPhone: "613-555-0456",
+    vehicle: "Peugeot 308",
+    vehicleYear: 2022,
+    licensePlate: "XYZ-789",
+    service: "Révision",
+    serviceType: "maintenance",
+    mechanic: "Sophie",
+    mechanicId: "2",
+    duration: 60,
+    status: "confirmé",
+    estimatedCost: 250,
+    notes: "Révision annuelle + vidange",
+    createdAt: "2026-03-12T08:30:00",
+  },
+  {
+    id: "3",
+    time: "14:00",
+    endTime: "14:30",
+    clientName: "Pierre Durand",
+    clientPhone: "613-555-0789",
+    vehicle: "Toyota Corolla",
+    vehicleYear: 2020,
+    licensePlate: "DEF-456",
+    service: "Diagnostic",
+    serviceType: "diagnostic",
+    mechanic: "Pierre",
+    mechanicId: "3",
+    duration: 30,
+    status: "confirmé",
+    estimatedCost: 95,
+    notes: "Voyant moteur allumé",
+    createdAt: "2026-03-12T09:00:00",
+  },
+  {
+    id: "4",
+    time: "15:30",
+    endTime: "16:15",
+    clientName: "Sophie Lefebvre",
+    clientPhone: "613-555-0321",
+    vehicle: "Honda Civic",
+    vehicleYear: 2021,
+    licensePlate: "GHI-789",
+    service: "Freins",
+    serviceType: "reparation",
+    mechanic: "Jean-Marc",
+    mechanicId: "1",
+    duration: 45,
+    status: "confirmé",
+    estimatedCost: 350,
+    notes: "Changement plaquettes avant",
+    createdAt: "2026-03-12T09:30:00",
+  },
+  {
+    id: "5",
+    time: "17:00",
+    endTime: "18:00",
+    clientName: "Lucas Moreau",
+    clientPhone: "613-555-0654",
+    vehicle: "Ford Focus",
+    vehicleYear: 2018,
+    licensePlate: "JKL-012",
+    service: "Climatisation",
+    serviceType: "reparation",
+    mechanic: "Sophie",
+    mechanicId: "2",
+    duration: 60,
+    status: "confirmé",
+    estimatedCost: 180,
+    notes: "Recharge climatisation",
+    createdAt: "2026-03-12T10:00:00",
+  },
+];
+
+export default function Planning() {
+  const theme = useTheme();
+  const [view, setView] = useState<"day" | "week" | "month">("day");
+  const [appointments, setAppointments] =
+    useState<Appointment[]>(MOCK_APPOINTMENTS);
+  const [mechanics] = useState<Mechanic[]>(MOCK_MECHANICS);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedDate, setSelectedDate] = useState(new Date());
+  const [stats, setStats] = useState<PlanningStats>({
+    totalAppointments: 0,
+    completed: 0,
+    ongoing: 0,
+    upcoming: 0,
+    occupancyRate: 0,
+  });
+
+  // Calculer les statistiques
+  useEffect(() => {
+    const total = appointments.length;
+    const completed = appointments.filter((a) => a.status === "terminé").length;
+    const ongoing = appointments.filter((a) => a.status === "en_cours").length;
+    const upcoming = appointments.filter((a) => a.status === "confirmé").length;
+
+    // Taux d'occupation basé sur les créneaux de 9h à 18h (9h = 540 min)
+    const totalMinutes = 9 * 60; // 540 minutes
+    const occupiedMinutes = appointments.reduce(
+      (acc, app) => acc + app.duration,
+      0
+    );
+    const occupancyRate = Math.min(
+      Math.round((occupiedMinutes / totalMinutes) * 100),
+      100
+    );
+
+    setStats({
+      totalAppointments: total,
+      completed,
+      ongoing,
+      upcoming,
+      occupancyRate,
+    });
+  }, [appointments]);
+
+  const handleViewChange = (
+    event: React.MouseEvent<HTMLElement>,
+    newView: "day" | "week" | "month" | null
+  ) => {
+    if (newView) {
+      setView(newView);
+    }
+  };
+
+  const handleRefresh = () => {
+    // Simuler un rechargement
+    setAppointments([...MOCK_APPOINTMENTS]);
+  };
+
+  const handleNewAppointment = (newAppointment: Appointment) => {
+    setAppointments([...appointments, newAppointment]);
+    setModalOpen(false);
+  };
+
+  const handleEditAppointment = (updatedAppointment: Appointment) => {
+    setAppointments(
+      appointments.map((a) =>
+        a.id === updatedAppointment.id ? updatedAppointment : a
+      )
+    );
+  };
+
+  const handleDeleteAppointment = (id: string) => {
+    setAppointments(appointments.filter((a) => a.id !== id));
+  };
+
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString("fr-FR", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  };
+
+  return (
+    <Box sx={{ p: 3 }}>
+      {/* En-tête */}
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 3,
+        }}
+      >
+        <Box>
+          <Typography variant="h4" gutterBottom fontWeight={600}>
+            Planning
+          </Typography>
+          <Typography variant="body2" color="text.secondary">
+            {formatDate(selectedDate).charAt(0).toUpperCase() +
+              formatDate(selectedDate).slice(1)}
+          </Typography>
+        </Box>
+
+        <Box sx={{ display: "flex", gap: 2 }}>
+          <Button
+            variant="outlined"
+            startIcon={<Refresh />}
+            onClick={handleRefresh}
+            size="small"
+          >
+            Rafraîchir
+          </Button>
+          <Button
+            variant="contained"
+            startIcon={<Add />}
+            onClick={() => setModalOpen(true)}
+            size="small"
+          >
+            Nouveau RDV
+          </Button>
+        </Box>
+      </Box>
+
+      {/* Contrôles de vue */}
+      <Box
+        sx={{
+          display: "flex",
+          justifyContent: "space-between",
+          alignItems: "center",
+          mb: 3,
+        }}
+      >
+        <ToggleButtonGroup
+          value={view}
+          exclusive
+          onChange={handleViewChange}
+          size="small"
+        >
+          <ToggleButton value="day">
+            <Today sx={{ mr: 1 }} /> Jour
+          </ToggleButton>
+          <ToggleButton value="week">
+            <ViewWeek sx={{ mr: 1 }} /> Semaine
+          </ToggleButton>
+          <ToggleButton value="month">
+            <CalendarMonth sx={{ mr: 1 }} /> Mois
+          </ToggleButton>
+        </ToggleButtonGroup>
+
+        {/* Légende des mécaniciens */}
+        <Box sx={{ display: "flex", gap: 2 }}>
+          {mechanics.map((mech) => (
+            <Chip
+              key={mech.id}
+              label={mech.name}
+              size="small"
+              sx={{
+                bgcolor: mech.color + "20",
+                color: mech.color,
+                border: `1px solid ${mech.color}`,
+                opacity: mech.isAvailable ? 1 : 0.5,
+              }}
+            />
+          ))}
+        </Box>
+      </Box>
+
+      {/* Statistiques */}
+      <Grid container spacing={2} sx={{ mb: 3 }}>
+        <Grid item xs={12} sm={6} md={3}>
+          <Paper sx={{ p: 2, textAlign: "center" }}>
+            <Typography variant="h5" color="primary" fontWeight={600}>
+              {stats.totalAppointments}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Rendez-vous aujourd'hui
+            </Typography>
+          </Paper>
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Paper sx={{ p: 2, textAlign: "center" }}>
+            <Typography variant="h5" color="warning.main" fontWeight={600}>
+              {stats.ongoing}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              En cours
+            </Typography>
+          </Paper>
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Paper sx={{ p: 2, textAlign: "center" }}>
+            <Typography variant="h5" color="success.main" fontWeight={600}>
+              {stats.completed}
+            </Typography>
+            <Typography variant="body2" color="text.secondary">
+              Terminés
+            </Typography>
+          </Paper>
+        </Grid>
+        <Grid item xs={12} sm={6} md={3}>
+          <Paper sx={{ p: 2 }}>
+            <Typography variant="body2" color="text.secondary" gutterBottom>
+              Taux d'occupation
+            </Typography>
+            <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+              <Box sx={{ flex: 1 }}>
+                <LinearProgress
+                  variant="determinate"
+                  value={stats.occupancyRate}
+                  sx={{
+                    height: 8,
+                    borderRadius: 4,
+                    bgcolor: theme.palette.grey[200],
+                    "& .MuiLinearProgress-bar": {
+                      bgcolor:
+                        stats.occupancyRate > 80
+                          ? theme.palette.error.main
+                          : stats.occupancyRate > 50
+                          ? theme.palette.warning.main
+                          : theme.palette.success.main,
+                    },
+                  }}
+                />
+              </Box>
+              <Typography variant="body2" fontWeight={600}>
+                {stats.occupancyRate}%
+              </Typography>
+            </Box>
+          </Paper>
+        </Grid>
+      </Grid>
+
+      {/* Vue principale */}
+      <PlanningView
+        view={view}
+        appointments={appointments}
+        mechanics={mechanics}
+        onEdit={handleEditAppointment}
+        onDelete={handleDeleteAppointment}
+        selectedDate={selectedDate}
+        onDateChange={setSelectedDate}
+      />
+
+      {/* Modal de création */}
+      <NewAppointmentModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onSave={handleNewAppointment}
+        mechanics={mechanics}
+      />
+    </Box>
+  );
+}
+
+===== src/logo.svg =====
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 841.9 595.3"><g fill="#61DAFB"><path d="M666.3 296.5c0-32.5-40.7-63.3-103.1-82.4 14.4-63.6 8-114.2-20.2-130.4-6.5-3.8-14.1-5.6-22.4-5.6v22.3c4.6 0 8.3.9 11.4 2.6 13.6 7.8 19.5 37.5 14.9 75.7-1.1 9.4-2.9 19.3-5.1 29.4-19.6-4.8-41-8.5-63.5-10.9-13.5-18.5-27.5-35.3-41.6-50 32.6-30.3 63.2-46.9 84-46.9V78c-27.5 0-63.5 19.6-99.9 53.6-36.4-33.8-72.4-53.2-99.9-53.2v22.3c20.7 0 51.4 16.5 84 46.6-14 14.7-28 31.4-41.3 49.9-22.6 2.4-44 6.1-63.6 11-2.3-10-4-19.7-5.2-29-4.7-38.2 1.1-67.9 14.6-75.8 3-1.8 6.9-2.6 11.5-2.6V78.5c-8.4 0-16 1.8-22.6 5.6-28.1 16.2-34.4 66.7-19.9 130.1-62.2 19.2-102.7 49.9-102.7 82.3 0 32.5 40.7 63.3 103.1 82.4-14.4 63.6-8 114.2 20.2 130.4 6.5 3.8 14.1 5.6 22.5 5.6 27.5 0 63.5-19.6 99.9-53.6 36.4 33.8 72.4 53.2 99.9 53.2 8.4 0 16-1.8 22.6-5.6 28.1-16.2 34.4-66.7 19.9-130.1 62-19.1 102.5-49.9 102.5-82.3zm-130.2-66.7c-3.7 12.9-8.3 26.2-13.5 39.5-4.1-8-8.4-16-13.1-24-4.6-8-9.5-15.8-14.4-23.4 14.2 2.1 27.9 4.7 41 7.9zm-45.8 106.5c-7.8 13.5-15.8 26.3-24.1 38.2-14.9 1.3-30 2-45.2 2-15.1 0-30.2-.7-45-1.9-8.3-11.9-16.4-24.6-24.2-38-7.6-13.1-14.5-26.4-20.8-39.8 6.2-13.4 13.2-26.8 20.7-39.9 7.8-13.5 15.8-26.3 24.1-38.2 14.9-1.3 30-2 45.2-2 15.1 0 30.2.7 45 1.9 8.3 11.9 16.4 24.6 24.2 38 7.6 13.1 14.5 26.4 20.8 39.8-6.3 13.4-13.2 26.8-20.7 39.9zm32.3-13c5.4 13.4 10 26.8 13.8 39.8-13.1 3.2-26.9 5.9-41.2 8 4.9-7.7 9.8-15.6 14.4-23.7 4.6-8 8.9-16.1 13-24.1zM421.2 430c-9.3-9.6-18.6-20.3-27.8-32 9 .4 18.2.7 27.5.7 9.4 0 18.7-.2 27.8-.7-9 11.7-18.3 22.4-27.5 32zm-74.4-58.9c-14.2-2.1-27.9-4.7-41-7.9 3.7-12.9 8.3-26.2 13.5-39.5 4.1 8 8.4 16 13.1 24 4.7 8 9.5 15.8 14.4 23.4zM420.7 163c9.3 9.6 18.6 20.3 27.8 32-9-.4-18.2-.7-27.5-.7-9.4 0-18.7.2-27.8.7 9-11.7 18.3-22.4 27.5-32zm-74 58.9c-4.9 7.7-9.8 15.6-14.4 23.7-4.6 8-8.9 16-13 24-5.4-13.4-10-26.8-13.8-39.8 13.1-3.1 26.9-5.8 41.2-7.9zm-90.5 125.2c-35.4-15.1-58.3-34.9-58.3-50.6 0-15.7 22.9-35.6 58.3-50.6 8.6-3.7 18-7 27.7-10.1 5.7 19.6 13.2 40 22.5 60.9-9.2 20.8-16.6 41.1-22.2 60.6-9.9-3.1-19.3-6.5-28-10.2zM310 490c-13.6-7.8-19.5-37.5-14.9-75.7 1.1-9.4 2.9-19.3 5.1-29.4 19.6 4.8 41 8.5 63.5 10.9 13.5 18.5 27.5 35.3 41.6 50-32.6 30.3-63.2 46.9-84 46.9-4.5-.1-8.3-1-11.3-2.7zm237.2-76.2c4.7 38.2-1.1 67.9-14.6 75.8-3 1.8-6.9 2.6-11.5 2.6-20.7 0-51.4-16.5-84-46.6 14-14.7 28-31.4 41.3-49.9 22.6-2.4 44-6.1 63.6-11 2.3 10.1 4.1 19.8 5.2 29.1zm38.5-66.7c-8.6 3.7-18 7-27.7 10.1-5.7-19.6-13.2-40-22.5-60.9 9.2-20.8 16.6-41.1 22.2-60.6 9.9 3.1 19.3 6.5 28.1 10.2 35.4 15.1 58.3 34.9 58.3 50.6-.1 15.7-23 35.6-58.4 50.6zM320.8 78.4z"/><circle cx="420.9" cy="296.5" r="45.7"/><path d="M520.5 78.1z"/></g></svg>
+===== src/services/api.ts =====
+// src/services/api.ts
+import axios from "axios";
+
+export const api = axios.create({
+  baseURL: process.env.REACT_APP_API_URL || "http://localhost:4040/api",
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
+
+api.interceptors.request.use((config) => {
+  const token = localStorage.getItem("token");
+  if (token) {
+    config.headers.Authorization = `Bearer ${token}`;
+  }
+  return config;
+});
+
+api.interceptors.response.use(
+  (response) => response,
+  (error) => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem("token");
+      window.location.href = "/login";
+    }
+    return Promise.reject(error);
+  }
+);
+

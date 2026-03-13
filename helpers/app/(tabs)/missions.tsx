@@ -12,6 +12,8 @@ import {
   Animated,
   Easing,
   Platform,
+  StatusBar,
+  Linking,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "../../contexts/AuthContext";
@@ -21,9 +23,14 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
-import { BlurView } from "expo-blur";
+import MapView, { Marker, Polyline, PROVIDER_GOOGLE } from "react-native-maps";
+import MapViewDirections from "react-native-maps-directions";
+import * as Location from "expo-location";
 
 const { width } = Dimensions.get("window");
+
+// Clé API Google Maps (à remplacer par la tienne)
+const GOOGLE_MAPS_APIKEY = "AIzaSyDGpdR97HaU5KBE3yTSq_W7Lu5StXhJh1E";
 
 interface Mission {
   _id: string;
@@ -50,7 +57,7 @@ interface Mission {
   };
   location: {
     address: string;
-    coordinates: [number, number];
+    coordinates: [number, number]; // [longitude, latitude]
   };
   createdAt: string;
   acceptedAt?: string;
@@ -71,6 +78,21 @@ export default function MissionsScreen() {
   const [currentMissions, setCurrentMissions] = useState<Mission[]>([]);
   const [historyMissions, setHistoryMissions] = useState<Mission[]>([]);
 
+  // États pour la localisation
+  const [helperLocation, setHelperLocation] = useState<{
+    latitude: number;
+    longitude: number;
+  } | null>(null);
+  const [locationSubscription, setLocationSubscription] = useState<any>(null);
+  const [selectedMission, setSelectedMission] = useState<Mission | null>(null);
+  const [showMap, setShowMap] = useState(false);
+  const [mapRegion, setMapRegion] = useState({
+    latitude: 45.4215,
+    longitude: -75.6919,
+    latitudeDelta: 0.05,
+    longitudeDelta: 0.05,
+  });
+
   // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
@@ -78,7 +100,6 @@ export default function MissionsScreen() {
   const tabIndicatorAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
-    // Animations d'entrée
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -100,10 +121,14 @@ export default function MissionsScreen() {
     ]).start();
 
     loadMissions();
+    requestLocationPermission();
+
+    return () => {
+      stopLocationTracking();
+    };
   }, []);
 
   useEffect(() => {
-    // Animation de l'indicateur de tab
     Animated.spring(tabIndicatorAnim, {
       toValue: activeTab === "current" ? 0 : 1,
       friction: 8,
@@ -112,13 +137,95 @@ export default function MissionsScreen() {
     }).start();
   }, [activeTab]);
 
+  useEffect(() => {
+    // Si une mission est sélectionnée, centrer la carte sur sa position
+    if (selectedMission) {
+      setMapRegion({
+        latitude: selectedMission.location.coordinates[1],
+        longitude: selectedMission.location.coordinates[0],
+        latitudeDelta: 0.05,
+        longitudeDelta: 0.05,
+      });
+    }
+  }, [selectedMission]);
+
+  const requestLocationPermission = async () => {
+    const { status } = await Location.requestForegroundPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert(
+        "Permission refusée",
+        "Besoin de la localisation pour voir les itinéraires"
+      );
+    }
+  };
+
+  const startLocationTracking = async (mission: Mission) => {
+    setSelectedMission(mission);
+    setShowMap(true);
+
+    const { status } = await Location.getForegroundPermissionsAsync();
+    if (status !== "granted") {
+      Alert.alert(
+        "Permission refusée",
+        "Activez la localisation pour voir l'itinéraire"
+      );
+      return;
+    }
+
+    try {
+      // Obtenir position initiale
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+
+      setHelperLocation({
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      });
+
+      // Centrer la carte entre helper et client
+      setMapRegion({
+        latitude:
+          (location.coords.latitude + mission.location.coordinates[1]) / 2,
+        longitude:
+          (location.coords.longitude + mission.location.coordinates[0]) / 2,
+        latitudeDelta: 0.1,
+        longitudeDelta: 0.1,
+      });
+
+      // Suivre en temps réel
+      const subscription = await Location.watchPositionAsync(
+        {
+          accuracy: Location.Accuracy.High,
+          timeInterval: 5000,
+          distanceInterval: 10,
+        },
+        (newLocation) => {
+          setHelperLocation({
+            latitude: newLocation.coords.latitude,
+            longitude: newLocation.coords.longitude,
+          });
+        }
+      );
+
+      setLocationSubscription(subscription);
+    } catch (error) {
+      console.log("Erreur localisation:", error);
+    }
+  };
+
+  const stopLocationTracking = () => {
+    if (locationSubscription) {
+      locationSubscription.remove();
+      setLocationSubscription(null);
+    }
+  };
+
   const loadMissions = async () => {
     try {
-      // Charger les missions en cours
       const currentResponse = await api.get("/helpers/missions/current");
       setCurrentMissions(currentResponse.data.data || []);
 
-      // Charger l'historique des missions
       const historyResponse = await api.get("/helpers/missions/history");
       setHistoryMissions(historyResponse.data.data || []);
     } catch (error) {
@@ -147,13 +254,39 @@ export default function MissionsScreen() {
         status: newStatus,
       });
 
-      // Recharger les missions
-      await loadMissions();
+      // Gérer le tracking selon le statut
+      const mission = currentMissions.find((m) => m._id === missionId);
 
+      if (newStatus === "en_route" && mission) {
+        startLocationTracking(mission);
+      }
+
+      if (newStatus === "completed" || newStatus === "cancelled") {
+        stopLocationTracking();
+        setShowMap(false);
+        setSelectedMission(null);
+      }
+
+      await loadMissions();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
       Alert.alert("Succès", "Statut de la mission mis à jour");
     } catch (error) {
       Alert.alert("Erreur", "Impossible de mettre à jour le statut");
     }
+  };
+
+  const calculateDistance = (point1: any, point2: any) => {
+    const R = 6371; // Rayon de la Terre en km
+    const dLat = ((point2.latitude - point1.latitude) * Math.PI) / 180;
+    const dLon = ((point2.longitude - point1.longitude) * Math.PI) / 180;
+    const a =
+      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+      Math.cos((point1.latitude * Math.PI) / 180) *
+        Math.cos((point2.latitude * Math.PI) / 180) *
+        Math.sin(dLon / 2) *
+        Math.sin(dLon / 2);
+    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+    return R * c;
   };
 
   const getStatusColor = (status: string) => {
@@ -169,7 +302,7 @@ export default function MissionsScreen() {
       case "completed":
         return "#4CAF50";
       case "cancelled":
-        return "#E63946";
+        return "#F44336";
       default:
         return "#FFC107";
     }
@@ -214,7 +347,7 @@ export default function MissionsScreen() {
   };
 
   const getNextStatusOptions = (currentStatus: string) => {
-    const options = {
+    const options: Record<string, string[]> = {
       accepted: ["en_route", "cancelled"],
       en_route: ["arrived", "cancelled"],
       arrived: ["in_progress", "cancelled"],
@@ -223,216 +356,32 @@ export default function MissionsScreen() {
     return options[currentStatus] || [];
   };
 
-  const renderMissionCard = (mission: Mission, isCurrent: boolean) => (
-    <Animated.View
-      key={mission._id}
-      style={[
-        styles.missionCard,
-        {
-          opacity: fadeAnim,
-          transform: [
-            {
-              translateX: slideAnim.interpolate({
-                inputRange: [0, 50],
-                outputRange: [0, 20],
-              }),
-            },
-          ],
-        },
-      ]}
-    >
-      <LinearGradient
-        colors={[colors.surface, colors.surface]}
-        style={styles.missionGradient}
-      >
-        {/* En-tête de la mission */}
-        <View style={styles.missionHeader}>
-          <View style={styles.missionUser}>
-            <View
-              style={[
-                styles.missionAvatar,
-                { backgroundColor: colors.primary + "20" },
-              ]}
-            >
-              <Text
-                style={[styles.missionAvatarText, { color: colors.primary }]}
-              >
-                {mission.client.firstName[0]}
-                {mission.client.lastName[0]}
-              </Text>
-            </View>
-            <View style={styles.missionUserInfo}>
-              <Text style={[styles.missionUserName, { color: colors.text }]}>
-                {mission.client.firstName} {mission.client.lastName}
-              </Text>
-              <Text style={[styles.missionType, { color: colors.primary }]}>
-                {mission.type}
-              </Text>
-            </View>
-          </View>
-          <View
-            style={[
-              styles.statusBadge,
-              { backgroundColor: getStatusColor(mission.status) + "20" },
-            ]}
-          >
-            <Ionicons
-              name={getStatusIcon(mission.status)}
-              size={14}
-              color={getStatusColor(mission.status)}
-            />
-            <Text
-              style={[
-                styles.statusText,
-                { color: getStatusColor(mission.status) },
-              ]}
-            >
-              {getStatusText(mission.status)}
-            </Text>
-          </View>
-        </View>
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString("fr-FR", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
 
-        {/* Description du problème */}
-        <Text
-          style={[styles.missionDescription, { color: colors.textSecondary }]}
-          numberOfLines={2}
-        >
-          {mission.problem.description}
-        </Text>
-
-        {/* Détails de la mission */}
-        <View style={styles.missionDetails}>
-          <View style={styles.detailItem}>
-            <Ionicons name="location" size={16} color={colors.primary} />
-            <Text style={[styles.detailText, { color: colors.textSecondary }]}>
-              {mission.distance} km
-            </Text>
-          </View>
-          <View style={styles.detailItem}>
-            <Ionicons name="cash" size={16} color={colors.success} />
-            <Text style={[styles.detailText, { color: colors.success }]}>
-              {mission.reward} €
-            </Text>
-          </View>
-          <View style={styles.detailItem}>
-            <Ionicons name="time" size={16} color={colors.primary} />
-            <Text style={[styles.detailText, { color: colors.textSecondary }]}>
-              {new Date(mission.createdAt).toLocaleTimeString()}
-            </Text>
-          </View>
-        </View>
-
-        {/* Adresse */}
-        <View style={styles.addressContainer}>
-          <Ionicons name="navigate" size={16} color={colors.primary} />
-          <Text style={[styles.addressText, { color: colors.textSecondary }]}>
-            {mission.location.address}
-          </Text>
-        </View>
-
-        {/* Actions selon le statut */}
-        {isCurrent && (
-          <View style={styles.missionActions}>
-            {/* Boutons de mise à jour du statut */}
-            {getNextStatusOptions(mission.status).map((nextStatus) => (
-              <TouchableOpacity
-                key={nextStatus}
-                style={[
-                  styles.actionButton,
-                  {
-                    backgroundColor:
-                      nextStatus === "cancelled"
-                        ? colors.error + "20"
-                        : colors.primary + "20",
-                    borderColor:
-                      nextStatus === "cancelled"
-                        ? colors.error
-                        : colors.primary,
-                  },
-                ]}
-                onPress={() => updateMissionStatus(mission._id, nextStatus)}
-              >
-                <Ionicons
-                  name={
-                    nextStatus === "cancelled"
-                      ? "close-circle"
-                      : nextStatus === "en_route"
-                      ? "car"
-                      : nextStatus === "arrived"
-                      ? "location"
-                      : nextStatus === "in_progress"
-                      ? "construct"
-                      : "checkmark-circle"
-                  }
-                  size={20}
-                  color={
-                    nextStatus === "cancelled" ? colors.error : colors.primary
-                  }
-                />
-                <Text
-                  style={[
-                    styles.actionButtonText,
-                    {
-                      color:
-                        nextStatus === "cancelled"
-                          ? colors.error
-                          : colors.primary,
-                    },
-                  ]}
-                >
-                  {nextStatus === "en_route"
-                    ? "En route"
-                    : nextStatus === "arrived"
-                    ? "Arrivé"
-                    : nextStatus === "in_progress"
-                    ? "Commencer"
-                    : nextStatus === "completed"
-                    ? "Terminer"
-                    : "Annuler"}
-                </Text>
-              </TouchableOpacity>
-            ))}
-
-            {/* Bouton pour contacter le client */}
-            <TouchableOpacity
-              style={[styles.contactButton, { borderColor: colors.border }]}
-              onPress={() => {
-                Alert.alert(
-                  "Contacter le client",
-                  `Voulez-vous appeler ${mission.client.firstName} ?`,
-                  [
-                    { text: "Annuler", style: "cancel" },
-                    {
-                      text: "Appeler",
-                      onPress: () => {
-                        // Implémenter l'appel téléphonique
-                        Alert.alert("Info", `Appel à ${mission.client.phone}`);
-                      },
-                    },
-                  ]
-                );
-              }}
-            >
-              <Ionicons name="call" size={20} color={colors.primary} />
-            </TouchableOpacity>
-          </View>
-        )}
-      </LinearGradient>
-    </Animated.View>
-  );
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString("fr-FR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  };
 
   const tabIndicatorPosition = tabIndicatorAnim.interpolate({
     inputRange: [0, 1],
-    outputRange: [0, width / 2 - 40],
+    outputRange: [0, width / 2 - 20],
   });
 
   if (loading) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <LinearGradient
-          colors={[colors.primary + "20", colors.secondary + "20"]}
-          style={StyleSheet.absoluteFill}
-        />
+        <StatusBar barStyle="dark-content" />
         <Animated.View
           style={[
             styles.loadingContent,
@@ -442,14 +391,14 @@ export default function MissionsScreen() {
             },
           ]}
         >
-          <View
-            style={[
-              styles.loadingLogo,
-              { backgroundColor: colors.primary + "15" },
-            ]}
+          <LinearGradient
+            colors={[colors.primary, colors.secondary]}
+            style={styles.loadingLogo}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
           >
-            <Ionicons name="car" size={60} color={colors.primary} />
-          </View>
+            <Ionicons name="car" size={40} color="#fff" />
+          </LinearGradient>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
             Chargement de vos missions...
@@ -461,18 +410,31 @@ export default function MissionsScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* En-tête */}
+      <StatusBar barStyle="light-content" />
+
+      {/* Header avec dégradé */}
       <LinearGradient
         colors={[colors.primary, colors.secondary]}
         style={styles.header}
         start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 0 }}
+        end={{ x: 1, y: 1 }}
       >
-        <Text style={styles.headerTitle}>Mes missions</Text>
+        <View style={styles.headerContent}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.headerButton}
+          >
+            <Ionicons name="arrow-back" size={24} color="#fff" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Missions</Text>
+          <TouchableOpacity onPress={onRefresh} style={styles.headerButton}>
+            <Ionicons name="refresh" size={24} color="#fff" />
+          </TouchableOpacity>
+        </View>
       </LinearGradient>
 
       {/* Tabs */}
-      <View style={styles.tabContainer}>
+      <View style={[styles.tabContainer, { backgroundColor: colors.card }]}>
         <TouchableOpacity
           style={styles.tabButton}
           onPress={() => setActiveTab("current")}
@@ -488,9 +450,17 @@ export default function MissionsScreen() {
               },
             ]}
           >
-            En cours ({currentMissions.length})
+            En cours
           </Text>
+          {currentMissions.length > 0 && (
+            <View
+              style={[styles.tabBadge, { backgroundColor: colors.primary }]}
+            >
+              <Text style={styles.tabBadgeText}>{currentMissions.length}</Text>
+            </View>
+          )}
         </TouchableOpacity>
+
         <TouchableOpacity
           style={styles.tabButton}
           onPress={() => setActiveTab("history")}
@@ -506,9 +476,10 @@ export default function MissionsScreen() {
               },
             ]}
           >
-            Historique ({historyMissions.length})
+            Historique
           </Text>
         </TouchableOpacity>
+
         <Animated.View
           style={[
             styles.tabIndicator,
@@ -540,31 +511,421 @@ export default function MissionsScreen() {
             },
           ]}
         >
+          {/* Carte de navigation pour la mission en cours */}
+          {activeTab === "current" && selectedMission && showMap && (
+            <View style={[styles.mapCard, { backgroundColor: colors.card }]}>
+              <View style={styles.mapHeader}>
+                <Text style={[styles.mapTitle, { color: colors.text }]}>
+                  Itinéraire vers {selectedMission.client.firstName}
+                </Text>
+                <TouchableOpacity
+                  onPress={() => setShowMap(false)}
+                  style={styles.mapCloseButton}
+                >
+                  <Ionicons
+                    name="close"
+                    size={20}
+                    color={colors.textSecondary}
+                  />
+                </TouchableOpacity>
+              </View>
+
+              <View style={styles.mapContainer}>
+                <MapView
+                  style={styles.map}
+                  provider={PROVIDER_GOOGLE}
+                  region={mapRegion}
+                  showsUserLocation={true}
+                  followsUserLocation={true}
+                >
+                  {/* Position du client */}
+                  <Marker
+                    coordinate={{
+                      latitude: selectedMission.location.coordinates[1],
+                      longitude: selectedMission.location.coordinates[0],
+                    }}
+                    title={selectedMission.client.firstName}
+                    description={selectedMission.location.address}
+                  >
+                    <View
+                      style={[
+                        styles.clientMarker,
+                        { backgroundColor: colors.error },
+                      ]}
+                    >
+                      <Ionicons name="person" size={16} color="#fff" />
+                    </View>
+                  </Marker>
+
+                  {/* Position du helper (si disponible) */}
+                  {helperLocation && (
+                    <Marker coordinate={helperLocation} title="Votre position">
+                      <View
+                        style={[
+                          styles.helperMarker,
+                          { backgroundColor: colors.primary },
+                        ]}
+                      >
+                        <Ionicons name="car" size={16} color="#fff" />
+                      </View>
+                    </Marker>
+                  )}
+
+                  {/* Tracer l'itinéraire */}
+                  {helperLocation && (
+                    <MapViewDirections
+                      origin={helperLocation}
+                      destination={{
+                        latitude: selectedMission.location.coordinates[1],
+                        longitude: selectedMission.location.coordinates[0],
+                      }}
+                      apikey={GOOGLE_MAPS_APIKEY}
+                      strokeWidth={4}
+                      strokeColor={colors.primary}
+                      optimizeWaypoints={true}
+                      onReady={(result) => {
+                        console.log(`Distance: ${result.distance} km`);
+                        console.log(`Durée: ${result.duration} min`);
+                      }}
+                      onError={(errorMessage) => {
+                        console.log("Erreur itinéraire:", errorMessage);
+                      }}
+                    />
+                  )}
+                </MapView>
+              </View>
+
+              {/* Infos de navigation */}
+              {helperLocation && (
+                <View style={styles.navigationInfo}>
+                  <View style={styles.navItem}>
+                    <Ionicons
+                      name="navigate"
+                      size={20}
+                      color={colors.primary}
+                    />
+                    <Text style={[styles.navText, { color: colors.text }]}>
+                      {calculateDistance(helperLocation, {
+                        latitude: selectedMission.location.coordinates[1],
+                        longitude: selectedMission.location.coordinates[0],
+                      }).toFixed(1)}{" "}
+                      km
+                    </Text>
+                  </View>
+                  <TouchableOpacity
+                    style={[
+                      styles.navButton,
+                      { backgroundColor: colors.primary },
+                    ]}
+                    onPress={() => {
+                      const url = Platform.select({
+                        ios: `maps:?saddr=${helperLocation.latitude},${helperLocation.longitude}&daddr=${selectedMission.location.coordinates[1]},${selectedMission.location.coordinates[0]}`,
+                        android: `google.navigation:q=${selectedMission.location.coordinates[1]},${selectedMission.location.coordinates[0]}`,
+                      });
+                      if (url) Linking.openURL(url);
+                    }}
+                  >
+                    <Ionicons name="map" size={18} color="#fff" />
+                    <Text style={styles.navButtonText}>Ouvrir dans Maps</Text>
+                  </TouchableOpacity>
+                </View>
+              )}
+            </View>
+          )}
+
           {/* Missions en cours */}
           {activeTab === "current" && (
             <>
               {currentMissions.length > 0 ? (
-                currentMissions.map((mission) =>
-                  renderMissionCard(mission, true)
-                )
-              ) : (
-                <BlurView
-                  intensity={30}
-                  tint={colorScheme}
-                  style={styles.emptyContainer}
-                >
+                currentMissions.map((mission) => (
                   <View
+                    key={mission._id}
                     style={[
-                      styles.emptyIcon,
-                      { backgroundColor: colors.primary + "10" },
+                      styles.missionCard,
+                      { backgroundColor: colors.card },
+                      selectedMission?._id === mission._id &&
+                        styles.selectedMission,
                     ]}
+                  >
+                    {/* En-tête avec statut */}
+                    <View style={styles.missionHeader}>
+                      <View style={styles.missionUser}>
+                        <LinearGradient
+                          colors={[
+                            colors.primary + "20",
+                            colors.secondary + "10",
+                          ]}
+                          style={styles.missionAvatar}
+                        >
+                          <Text
+                            style={[
+                              styles.missionAvatarText,
+                              { color: colors.primary },
+                            ]}
+                          >
+                            {mission.client.firstName[0]}
+                            {mission.client.lastName[0]}
+                          </Text>
+                        </LinearGradient>
+                        <View>
+                          <Text
+                            style={[
+                              styles.missionUserName,
+                              { color: colors.text },
+                            ]}
+                          >
+                            {mission.client.firstName} {mission.client.lastName}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.missionType,
+                              { color: colors.textSecondary },
+                            ]}
+                          >
+                            {mission.type}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View
+                        style={[
+                          styles.statusBadge,
+                          {
+                            backgroundColor:
+                              getStatusColor(mission.status) + "15",
+                          },
+                        ]}
+                      >
+                        <Ionicons
+                          name={getStatusIcon(mission.status)}
+                          size={12}
+                          color={getStatusColor(mission.status)}
+                        />
+                        <Text
+                          style={[
+                            styles.statusText,
+                            { color: getStatusColor(mission.status) },
+                          ]}
+                        >
+                          {getStatusText(mission.status)}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Description */}
+                    <Text
+                      style={[
+                        styles.missionDescription,
+                        { color: colors.textSecondary },
+                      ]}
+                    >
+                      {mission.problem.description}
+                    </Text>
+
+                    {/* Informations */}
+                    <View style={styles.missionInfo}>
+                      <View style={styles.infoItem}>
+                        <Ionicons
+                          name="location-outline"
+                          size={14}
+                          color={colors.primary}
+                        />
+                        <Text style={[styles.infoText, { color: colors.text }]}>
+                          {mission.distance} km
+                        </Text>
+                      </View>
+                      <View style={styles.infoItem}>
+                        <Ionicons
+                          name="cash-outline"
+                          size={14}
+                          color={colors.success}
+                        />
+                        <Text
+                          style={[styles.infoText, { color: colors.success }]}
+                        >
+                          ${mission.reward}
+                        </Text>
+                      </View>
+                      <View style={styles.infoItem}>
+                        <Ionicons
+                          name="time-outline"
+                          size={14}
+                          color={colors.textSecondary}
+                        />
+                        <Text
+                          style={[
+                            styles.infoText,
+                            { color: colors.textSecondary },
+                          ]}
+                        >
+                          {formatTime(mission.createdAt)}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Adresse */}
+                    <TouchableOpacity
+                      style={styles.addressContainer}
+                      onPress={() => startLocationTracking(mission)}
+                    >
+                      <Ionicons
+                        name="navigate-outline"
+                        size={14}
+                        color={colors.primary}
+                      />
+                      <Text
+                        style={[
+                          styles.addressText,
+                          { color: colors.textSecondary },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {mission.location.address}
+                      </Text>
+                      <Ionicons
+                        name="chevron-forward"
+                        size={16}
+                        color={colors.textSecondary}
+                      />
+                    </TouchableOpacity>
+
+                    {/* Actions */}
+                    <View style={styles.missionActions}>
+                      {getNextStatusOptions(mission.status).map(
+                        (nextStatus) => (
+                          <TouchableOpacity
+                            key={nextStatus}
+                            style={[
+                              styles.actionButton,
+                              nextStatus === "cancelled"
+                                ? styles.cancelButton
+                                : styles.primaryButton,
+                              {
+                                borderColor:
+                                  nextStatus === "cancelled"
+                                    ? colors.error
+                                    : colors.primary,
+                              },
+                            ]}
+                            onPress={() =>
+                              updateMissionStatus(mission._id, nextStatus)
+                            }
+                          >
+                            <Ionicons
+                              name={
+                                nextStatus === "en_route"
+                                  ? "car"
+                                  : nextStatus === "arrived"
+                                  ? "location"
+                                  : nextStatus === "in_progress"
+                                  ? "construct"
+                                  : nextStatus === "completed"
+                                  ? "checkmark"
+                                  : "close"
+                              }
+                              size={16}
+                              color={
+                                nextStatus === "cancelled"
+                                  ? colors.error
+                                  : colors.primary
+                              }
+                            />
+                            <Text
+                              style={[
+                                styles.actionButtonText,
+                                {
+                                  color:
+                                    nextStatus === "cancelled"
+                                      ? colors.error
+                                      : colors.primary,
+                                },
+                              ]}
+                            >
+                              {nextStatus === "en_route"
+                                ? "En route"
+                                : nextStatus === "arrived"
+                                ? "Arrivé"
+                                : nextStatus === "in_progress"
+                                ? "Commencer"
+                                : nextStatus === "completed"
+                                ? "Terminer"
+                                : "Annuler"}
+                            </Text>
+                          </TouchableOpacity>
+                        )
+                      )}
+
+                      <TouchableOpacity
+                        style={[
+                          styles.contactButton,
+                          { backgroundColor: colors.background },
+                        ]}
+                        onPress={() => {
+                          Alert.alert(
+                            "Contacter le client",
+                            `${mission.client.firstName} ${mission.client.lastName}`,
+                            [
+                              { text: "Annuler", style: "cancel" },
+                              {
+                                text: "Appeler",
+                                onPress: () =>
+                                  Alert.alert("Appel", mission.client.phone),
+                              },
+                            ]
+                          );
+                        }}
+                      >
+                        <Ionicons
+                          name="call-outline"
+                          size={18}
+                          color={colors.primary}
+                        />
+                      </TouchableOpacity>
+                    </View>
+
+                    {/* Bouton pour afficher la carte */}
+                    {mission.status === "en_route" && !showMap && (
+                      <TouchableOpacity
+                        style={[
+                          styles.showMapButton,
+                          { borderColor: colors.primary },
+                        ]}
+                        onPress={() => startLocationTracking(mission)}
+                      >
+                        <Ionicons
+                          name="map-outline"
+                          size={16}
+                          color={colors.primary}
+                        />
+                        <Text
+                          style={[
+                            styles.showMapText,
+                            { color: colors.primary },
+                          ]}
+                        >
+                          Voir l'itinéraire
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
+                ))
+              ) : (
+                <View
+                  style={[
+                    styles.emptyContainer,
+                    { backgroundColor: colors.card },
+                  ]}
+                >
+                  <LinearGradient
+                    colors={[colors.primary + "10", colors.secondary + "05"]}
+                    style={styles.emptyIconContainer}
                   >
                     <Ionicons
                       name="car-outline"
-                      size={50}
-                      color={colors.primary}
+                      size={32}
+                      color={colors.textSecondary}
                     />
-                  </View>
+                  </LinearGradient>
                   <Text style={[styles.emptyTitle, { color: colors.text }]}>
                     Aucune mission en cours
                   </Text>
@@ -573,7 +934,7 @@ export default function MissionsScreen() {
                   >
                     Les missions que vous acceptez apparaîtront ici
                   </Text>
-                </BlurView>
+                </View>
               )}
             </>
           )}
@@ -582,27 +943,127 @@ export default function MissionsScreen() {
           {activeTab === "history" && (
             <>
               {historyMissions.length > 0 ? (
-                historyMissions.map((mission) =>
-                  renderMissionCard(mission, false)
-                )
-              ) : (
-                <BlurView
-                  intensity={30}
-                  tint={colorScheme}
-                  style={styles.emptyContainer}
-                >
+                historyMissions.map((mission) => (
                   <View
+                    key={mission._id}
                     style={[
-                      styles.emptyIcon,
-                      { backgroundColor: colors.primary + "10" },
+                      styles.missionCard,
+                      { backgroundColor: colors.card },
                     ]}
+                  >
+                    {/* Version simplifiée pour l'historique */}
+                    <View style={styles.missionHeader}>
+                      <View style={styles.missionUser}>
+                        <LinearGradient
+                          colors={[
+                            colors.primary + "20",
+                            colors.secondary + "10",
+                          ]}
+                          style={styles.missionAvatar}
+                        >
+                          <Text
+                            style={[
+                              styles.missionAvatarText,
+                              { color: colors.primary },
+                            ]}
+                          >
+                            {mission.client.firstName[0]}
+                            {mission.client.lastName[0]}
+                          </Text>
+                        </LinearGradient>
+                        <View>
+                          <Text
+                            style={[
+                              styles.missionUserName,
+                              { color: colors.text },
+                            ]}
+                          >
+                            {mission.client.firstName} {mission.client.lastName}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.missionDate,
+                              { color: colors.textSecondary },
+                            ]}
+                          >
+                            {formatDate(mission.createdAt)}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View
+                        style={[
+                          styles.statusBadge,
+                          {
+                            backgroundColor:
+                              getStatusColor(mission.status) + "15",
+                          },
+                        ]}
+                      >
+                        <Ionicons
+                          name={getStatusIcon(mission.status)}
+                          size={12}
+                          color={getStatusColor(mission.status)}
+                        />
+                        <Text
+                          style={[
+                            styles.statusText,
+                            { color: getStatusColor(mission.status) },
+                          ]}
+                        >
+                          {getStatusText(mission.status)}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.historyInfo}>
+                      <View style={styles.infoItem}>
+                        <Ionicons
+                          name="cash-outline"
+                          size={14}
+                          color={colors.success}
+                        />
+                        <Text
+                          style={[styles.infoText, { color: colors.success }]}
+                        >
+                          ${mission.reward}
+                        </Text>
+                      </View>
+                      <View style={styles.infoItem}>
+                        <Ionicons
+                          name="location-outline"
+                          size={14}
+                          color={colors.primary}
+                        />
+                        <Text
+                          style={[
+                            styles.infoText,
+                            { color: colors.textSecondary },
+                          ]}
+                        >
+                          {mission.distance} km
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                ))
+              ) : (
+                <View
+                  style={[
+                    styles.emptyContainer,
+                    { backgroundColor: colors.card },
+                  ]}
+                >
+                  <LinearGradient
+                    colors={[colors.primary + "10", colors.secondary + "05"]}
+                    style={styles.emptyIconContainer}
                   >
                     <Ionicons
                       name="time-outline"
-                      size={50}
-                      color={colors.primary}
+                      size={32}
+                      color={colors.textSecondary}
                     />
-                  </View>
+                  </LinearGradient>
                   <Text style={[styles.emptyTitle, { color: colors.text }]}>
                     Aucun historique
                   </Text>
@@ -611,7 +1072,7 @@ export default function MissionsScreen() {
                   >
                     Vos missions terminées apparaîtront ici
                   </Text>
-                </BlurView>
+                </View>
               )}
             </>
           )}
@@ -628,15 +1089,27 @@ const styles = StyleSheet.create({
   header: {
     paddingTop: Platform.OS === "ios" ? 60 : 40,
     paddingBottom: 20,
-    paddingHorizontal: 20,
     borderBottomLeftRadius: 30,
     borderBottomRightRadius: 30,
   },
+  headerContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+  },
+  headerButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
   headerTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
+    fontSize: 18,
+    fontWeight: "600",
     color: "#fff",
-    textAlign: "center",
   },
   loadingContent: {
     flex: 1,
@@ -645,56 +1118,149 @@ const styles = StyleSheet.create({
     gap: 20,
   },
   loadingLogo: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 20,
   },
   loadingText: {
-    fontSize: 16,
-    marginTop: 20,
+    fontSize: 14,
   },
   tabContainer: {
     flexDirection: "row",
-    marginTop: 20,
     marginHorizontal: 20,
+    marginTop: 16,
+    padding: 4,
+    borderRadius: 16,
     position: "relative",
   },
   tabButton: {
     flex: 1,
-    paddingVertical: 12,
+    paddingVertical: 10,
     alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 6,
   },
   tabText: {
-    fontSize: 14,
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  tabBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    minWidth: 20,
+    alignItems: "center",
+  },
+  tabBadgeText: {
+    color: "#fff",
+    fontSize: 10,
     fontWeight: "600",
   },
   tabIndicator: {
     position: "absolute",
-    bottom: 0,
-    left: 20,
-    width: (width - 40) / 2 - 20,
-    height: 3,
-    borderRadius: 1.5,
+    bottom: 4,
+    left: 4,
+    width: (width - 40) / 2 - 8,
+    height: 32,
+    borderRadius: 12,
+    zIndex: -1,
   },
   content: {
     padding: 20,
-    gap: 15,
+    gap: 12,
   },
-  missionCard: {
+  mapCard: {
+    padding: 16,
     borderRadius: 20,
-    marginBottom: 12,
-    overflow: "hidden",
+    marginBottom: 8,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
+    shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
-    elevation: 5,
+    elevation: 3,
   },
-  missionGradient: {
+  mapHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  mapTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  mapCloseButton: {
+    padding: 4,
+  },
+  mapContainer: {
+    height: 200,
+    borderRadius: 16,
+    overflow: "hidden",
+  },
+  map: {
+    flex: 1,
+  },
+  clientMarker: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#fff",
+  },
+  helperMarker: {
+    width: 30,
+    height: 30,
+    borderRadius: 15,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#fff",
+  },
+  navigationInfo: {
+    marginTop: 12,
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  navItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  navText: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  navButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    borderRadius: 20,
+    gap: 6,
+  },
+  navButtonText: {
+    color: "#fff",
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  missionCard: {
     padding: 16,
+    borderRadius: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  selectedMission: {
+    borderWidth: 2,
+    borderColor: "rgba(184, 134, 11, 0.5)",
   },
   missionHeader: {
     flexDirection: "row",
@@ -708,56 +1274,56 @@ const styles = StyleSheet.create({
     gap: 12,
   },
   missionAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: "center",
     alignItems: "center",
   },
   missionAvatarText: {
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  missionUserInfo: {
-    gap: 2,
-  },
-  missionUserName: {
     fontSize: 16,
     fontWeight: "600",
   },
+  missionUserName: {
+    fontSize: 15,
+    fontWeight: "600",
+    marginBottom: 2,
+  },
   missionType: {
-    fontSize: 13,
-    fontWeight: "500",
+    fontSize: 12,
+  },
+  missionDate: {
+    fontSize: 11,
   },
   statusBadge: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: 10,
-    paddingVertical: 5,
-    borderRadius: 15,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
     gap: 4,
   },
   statusText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "600",
   },
   missionDescription: {
-    fontSize: 14,
-    marginBottom: 16,
-    lineHeight: 20,
-  },
-  missionDetails: {
-    flexDirection: "row",
-    gap: 20,
+    fontSize: 13,
     marginBottom: 12,
+    lineHeight: 18,
   },
-  detailItem: {
+  missionInfo: {
+    flexDirection: "row",
+    gap: 16,
+    marginBottom: 8,
+  },
+  infoItem: {
     flexDirection: "row",
     alignItems: "center",
     gap: 4,
   },
-  detailText: {
-    fontSize: 13,
+  infoText: {
+    fontSize: 12,
     fontWeight: "500",
   },
   addressContainer: {
@@ -765,15 +1331,20 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 6,
     marginBottom: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    backgroundColor: "rgba(0,0,0,0.02)",
   },
   addressText: {
     flex: 1,
-    fontSize: 13,
+    fontSize: 12,
   },
   missionActions: {
     flexDirection: "row",
-    gap: 10,
+    gap: 8,
     alignItems: "center",
+    marginBottom: 12,
   },
   actionButton: {
     flex: 1,
@@ -782,44 +1353,66 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     paddingVertical: 10,
     paddingHorizontal: 12,
-    borderRadius: 12,
+    borderRadius: 30,
     borderWidth: 1,
     gap: 6,
   },
+  primaryButton: {
+    backgroundColor: "transparent",
+  },
+  cancelButton: {
+    backgroundColor: "transparent",
+  },
   actionButtonText: {
-    fontSize: 13,
+    fontSize: 12,
     fontWeight: "600",
   },
   contactButton: {
     width: 44,
     height: 44,
     borderRadius: 22,
-    borderWidth: 1,
     justifyContent: "center",
     alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.05)",
+  },
+  showMapButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    borderRadius: 20,
+    borderWidth: 1,
+    gap: 6,
+  },
+  showMapText: {
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  historyInfo: {
+    flexDirection: "row",
+    gap: 16,
+    marginTop: 8,
   },
   emptyContainer: {
     alignItems: "center",
-    padding: 50,
-    borderRadius: 20,
-    overflow: "hidden",
-    marginTop: 20,
+    padding: 32,
+    borderRadius: 24,
+    gap: 12,
   },
-  emptyIcon: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+  emptyIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 20,
   },
   emptyTitle: {
-    fontSize: 18,
+    fontSize: 16,
     fontWeight: "600",
-    marginBottom: 8,
   },
   emptyText: {
-    fontSize: 14,
+    fontSize: 13,
     textAlign: "center",
   },
 });

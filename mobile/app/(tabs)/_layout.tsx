@@ -65,16 +65,7 @@ export default function TabLayout() {
           ),
         }}
       />
-      <Tabs.Screen
-        name="explore"
-        options={{
-          tabBarIcon: ({ color, size }) => (
-            <View style={{ alignItems: "center", justifyContent: "center" }}>
-              <Ionicons name="compass" size={size} color={color} />
-            </View>
-          ),
-        }}
-      />
+
       <Tabs.Screen
         name="profile"
         options={{

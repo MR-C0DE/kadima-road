@@ -1,5 +1,16 @@
 import React, { createContext, useState, useContext, ReactNode } from "react";
 
+interface DocumentData {
+  type?: string;
+  url?: string;
+  verified?: boolean;
+  status?: "missing" | "pending" | "verified" | "rejected";
+  uploadedAt?: string;
+  fileName?: string;
+  fileSize?: number;
+  mimeType?: string;
+}
+
 interface OnboardingData {
   services: string[];
   equipment: string[];
@@ -17,9 +28,9 @@ interface OnboardingData {
     sunday: boolean;
   };
   documents: {
-    license: boolean;
-    insurance: boolean;
-    identity: boolean;
+    license?: DocumentData;
+    insurance?: DocumentData;
+    identity?: DocumentData;
   };
 }
 
@@ -51,9 +62,9 @@ const defaultData: OnboardingData = {
     sunday: false,
   },
   documents: {
-    license: false,
-    insurance: false,
-    identity: false,
+    license: undefined,
+    insurance: undefined,
+    identity: undefined,
   },
 };
 

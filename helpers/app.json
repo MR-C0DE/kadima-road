@@ -13,7 +13,9 @@
       "bundleIdentifier": "com.kadima.helpers",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Kadima Helpers a besoin de votre position pour vous proposer des missions à proximité.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "Kadima Helpers a besoin de votre position pour les interventions en cours."
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Kadima Helpers a besoin de votre position pour les interventions en cours.",
+        "NSCameraUsageDescription": "Kadima Helpers a besoin d'accéder à votre caméra pour prendre une photo de profil.",
+        "NSPhotoLibraryUsageDescription": "Kadima Helpers a besoin d'accéder à votre galerie pour choisir une photo de profil."
       }
     },
     "android": {
@@ -29,7 +31,10 @@
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
-        "ACCESS_BACKGROUND_LOCATION"
+        "ACCESS_BACKGROUND_LOCATION",
+        "CAMERA",
+        "READ_EXTERNAL_STORAGE",
+        "WRITE_EXTERNAL_STORAGE"
       ]
     },
     "web": {
@@ -55,6 +60,13 @@
         {
           "locationAlwaysAndWhenInUsePermission": "Kadima Helpers a besoin de votre position pour vous proposer des missions à proximité.",
           "locationWhenInUsePermission": "Kadima Helpers a besoin de votre position pour les interventions en cours."
+        }
+      ],
+      [
+        "expo-image-picker",
+        {
+          "photosPermission": "Kadima Helpers a besoin d'accéder à votre galerie pour choisir une photo de profil.",
+          "cameraPermission": "Kadima Helpers a besoin d'accéder à votre caméra pour prendre une photo de profil."
         }
       ]
     ],

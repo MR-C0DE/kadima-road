@@ -1,11 +1,13 @@
 import { Stack } from "expo-router";
 import { AuthProvider, useAuth } from "../contexts/AuthContext";
-import { View, ActivityIndicator } from "react-native";
+import { ThemeProvider, useTheme } from "../contexts/ThemeContext";
+import { View, ActivityIndicator, StatusBar } from "react-native";
 import { useEffect } from "react";
 import { useRouter } from "expo-router";
 
 function RootLayoutNav() {
   const { isAuthenticated, isLoading } = useAuth();
+  const { effectiveTheme } = useTheme();
   const router = useRouter();
 
   useEffect(() => {
@@ -27,26 +29,35 @@ function RootLayoutNav() {
   }
 
   return (
-    <Stack
-      screenOptions={{
-        headerShown: false, // ← DÉSACTIVE TOUS LES HEADERS PAR DÉFAUT
-      }}
-    >
-      <Stack.Screen name="(tabs)" />
-      <Stack.Screen name="sos/index" />
-      <Stack.Screen name="diagnostic/index" />
-      <Stack.Screen name="diagnostic/result" />
-      <Stack.Screen name="auth/login" />
-      <Stack.Screen name="auth/register" />
-      <Stack.Screen name="helpers/index" />
-    </Stack>
+    <>
+      <StatusBar
+        barStyle={effectiveTheme === "dark" ? "light-content" : "dark-content"}
+        backgroundColor="transparent"
+        translucent
+      />
+      <Stack
+        screenOptions={{
+          headerShown: false,
+        }}
+      >
+        <Stack.Screen name="(tabs)" />
+        <Stack.Screen name="sos/index" />
+        <Stack.Screen name="diagnostic/index" />
+        <Stack.Screen name="diagnostic/result" />
+        <Stack.Screen name="auth/login" />
+        <Stack.Screen name="auth/register" />
+        {/* ❌ SUPPRIME helpers/index */}
+      </Stack>
+    </>
   );
 }
 
 export default function RootLayout() {
   return (
     <AuthProvider>
-      <RootLayoutNav />
+      <ThemeProvider>
+        <RootLayoutNav />
+      </ThemeProvider>
     </AuthProvider>
   );
 }

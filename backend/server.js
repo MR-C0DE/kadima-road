@@ -4,6 +4,7 @@ import helmet from "helmet";
 import compression from "compression";
 import cors from "cors";
 import morgan from "morgan";
+import path from 'path';
 
 // Configuration
 import connectDB from "./src/config/database.js";
@@ -13,17 +14,21 @@ import limiter from "./src/config/rateLimit.js";
 // Middlewares
 import { errorHandler } from "./src/middlewares/errorMiddleware.js";
 
-// ROUTES
-import authUserRoutes from "./src/routes/authUserRoutes.js";     // ← Pour Kadima Road
-import authHelperRoutes from "./src/routes/authHelperRoutes.js"; // ← Pour Kadima Helpers
+// Routes
+import authUserRoutes from "./src/routes/authUserRoutes.js";
+import authHelperRoutes from "./src/routes/authHelperRoutes.js";
 import userRoutes from "./src/routes/userRoutes.js";
 import helperRoutes from "./src/routes/helperRoutes.js";
+import documentRoutes from "./src/routes/documentRoutes.js"; // ← NOUVEAU
 import sosRoutes from "./src/routes/sosRoutes.js";
 import diagnosticRoutes from "./src/routes/diagnosticRoutes.js";
 import interventionRoutes from "./src/routes/interventionRoutes.js";
 import paymentRoutes from "./src/routes/paymentRoutes.js";
 
 const app = express();
+
+// Servir les fichiers statiques
+app.use('/uploads', express.static(path.join(process.cwd(), 'uploads')));
 
 // Middlewares globaux
 app.use(helmet());
@@ -37,10 +42,11 @@ app.use(limiter);
 app.use(morgan("combined", { stream: { write: (message) => logger.info(message.trim()) } }));
 
 // Routes API
-app.use("/api/auth/user", authUserRoutes);       // ← Ex: /api/auth/user/register
-app.use("/api/auth/helper", authHelperRoutes);   // ← Ex: /api/auth/helper/register
+app.use("/api/auth/user", authUserRoutes);
+app.use("/api/auth/helper", authHelperRoutes);
 app.use("/api/users", userRoutes);
 app.use("/api/helpers", helperRoutes);
+app.use("/api/documents", documentRoutes); // ← NOUVEAU
 app.use("/api/sos", sosRoutes);
 app.use("/api/diagnostic", diagnosticRoutes);
 app.use("/api/interventions", interventionRoutes);

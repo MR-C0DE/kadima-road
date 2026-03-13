@@ -16,16 +16,18 @@ import {
   RefreshControl,
   StatusBar,
 } from "react-native";
+import { useRouter } from "expo-router";
 import { useAuth } from "../../contexts/AuthContext";
+import { useTheme } from "../../contexts/ThemeContext";
 import { api } from "../../config/api";
-import { Ionicons } from "@expo/vector-icons";
 import { Colors } from "@/constants/theme";
-import { useColorScheme } from "@/hooks/use-color-scheme";
+import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import * as Haptics from "expo-haptics";
 import { format, formatDistance, formatRelative } from "date-fns";
 import { fr } from "date-fns/locale";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const { width, height } = Dimensions.get("window");
 
@@ -70,7 +72,11 @@ interface UserDetails {
 }
 
 export default function ProfileScreen() {
+  const router = useRouter();
   const { user, logout } = useAuth();
+  const { effectiveTheme, setTheme } = useTheme();
+  const colors = Colors[effectiveTheme];
+
   const [userDetails, setUserDetails] = useState<UserDetails | null>(null);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -86,18 +92,21 @@ export default function ProfileScreen() {
   });
   const [activeTab, setActiveTab] = useState("info");
 
-  const colorScheme = useColorScheme();
-  const colors = Colors[colorScheme ?? "light"];
-
   // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
   const scaleAnim = useRef(new Animated.Value(0.95)).current;
   const tabIndicatorAnim = useRef(new Animated.Value(0)).current;
-  const headerScaleAnim = useRef(new Animated.Value(1)).current;
   const avatarRotateAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
+    const safetyTimeout = setTimeout(() => {
+      if (loading) {
+        console.log("⚠️ Timeout de sécurité - affichage forcé");
+        setLoading(false);
+      }
+    }, 8000);
+
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -135,6 +144,8 @@ export default function ProfileScreen() {
     ]).start();
 
     fetchUserProfile();
+
+    return () => clearTimeout(safetyTimeout);
   }, []);
 
   useEffect(() => {
@@ -148,9 +159,39 @@ export default function ProfileScreen() {
     }).start();
   }, [activeTab]);
 
+  // ============================================
+  // FONCTIONS DE FORMATAGE DE DATES (SÉCURISÉES)
+  // ============================================
+
+  const formatDate = (dateString?: string) => {
+    if (!dateString) return "Date inconnue";
+
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return "Date inconnue";
+
+      return formatRelative(date, new Date(), { locale: fr });
+    } catch (error) {
+      return "Date inconnue";
+    }
+  };
+
+  const formatMemberSince = (dateString?: string) => {
+    if (!dateString) return "Date inconnue";
+
+    try {
+      const date = new Date(dateString);
+      if (isNaN(date.getTime())) return "Date inconnue";
+
+      return format(date, "MMMM yyyy", { locale: fr });
+    } catch (error) {
+      return "Date inconnue";
+    }
+  };
+
   const fetchUserProfile = async () => {
     try {
-      const response = await api.get("/auth/me");
+      const response = await api.get("/auth/user/me");
       setUserDetails(response.data.data);
     } catch (error) {
       Alert.alert("Erreur", "Impossible de charger le profil");
@@ -315,16 +356,6 @@ export default function ProfileScreen() {
     }
   };
 
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return formatRelative(date, new Date(), { locale: fr });
-  };
-
-  const formatMemberSince = (dateString: string) => {
-    const date = new Date(dateString);
-    return format(date, "MMMM yyyy", { locale: fr });
-  };
-
   const avatarRotate = avatarRotateAnim.interpolate({
     inputRange: [0, 1],
     outputRange: ["-5deg", "5deg"],
@@ -366,13 +397,15 @@ export default function ProfileScreen() {
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar
-        barStyle={colorScheme === "dark" ? "light-content" : "dark-content"}
+        barStyle={effectiveTheme === "dark" ? "light-content" : "dark-content"}
+        backgroundColor="transparent"
+        translucent
       />
 
       {/* Fond animé */}
       <LinearGradient
         colors={
-          colorScheme === "dark"
+          effectiveTheme === "dark"
             ? [colors.primary + "15", colors.secondary + "15", "transparent"]
             : [colors.primary + "08", colors.secondary + "08", "transparent"]
         }
@@ -608,7 +641,7 @@ export default function ProfileScreen() {
                 <Ionicons name="calendar" size={20} color={colors.primary} />
               </View>
               <Text style={[styles.memberText, { color: colors.text }]}>
-                Membre depuis {formatMemberSince(userDetails?.createdAt || "")}
+                Membre depuis {formatMemberSince(userDetails?.createdAt)}
               </Text>
             </LinearGradient>
           </Animated.View>
@@ -1218,7 +1251,11 @@ export default function ProfileScreen() {
         visible={modalVisible}
         onRequestClose={() => setModalVisible(false)}
       >
-        <BlurView intensity={80} tint={colorScheme} style={styles.modalOverlay}>
+        <BlurView
+          intensity={80}
+          tint={effectiveTheme}
+          style={styles.modalOverlay}
+        >
           <Animated.View
             style={[
               styles.modalContent,

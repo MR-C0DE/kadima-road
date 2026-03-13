@@ -23,3 +23,58 @@
 {"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"available-missions\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-11T01:09:43.135Z"}
 {"level":"error","message":"Erreur getHelperStats: Cast to ObjectId failed for value \"me\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-11T01:09:51.916Z"}
 {"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"available-missions\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-11T01:09:52.036Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-11T08:52:09.260Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-11T08:52:27.235Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-11T08:55:03.574Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-11T08:55:12.577Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-11T08:55:36.852Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-11T08:59:31.559Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-11T09:33:17.775Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-11T09:38:10.191Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-11T09:38:42.228Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-11T10:08:18.738Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-11T10:18:55.937Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-11T10:19:09.770Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-11T10:35:47.893Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-11T10:38:48.217Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-11T10:58:16.810Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-11T11:02:44.629Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-11T11:06:03.498Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-11T11:08:34.165Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-11T11:09:04.101Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-11T11:09:05.400Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-11T11:09:21.806Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-11T11:12:07.617Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-11T11:12:11.584Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-11T11:12:34.122Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-11T11:37:22.538Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-11T11:42:20.246Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-11T11:42:41.228Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-11T12:30:32.678Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-11T12:32:19.717Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-11T13:29:07.246Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-11T13:31:27.372Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-11T13:31:33.189Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-11T13:31:34.603Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-11T13:31:35.301Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-11T13:31:35.682Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-11T14:27:47.718Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-11T14:51:03.211Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-11T14:59:50.472Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-11T15:06:37.829Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-11T15:22:07.082Z"}
+{"level":"error","message":"Erreur updateHelperProfile: Helper validation failed: services.1: `diagnostic` is not a valid enum value for path `services.1`.","timestamp":"2026-03-11T23:56:02.203Z"}
+{"level":"error","message":"Erreur updateHelperProfile: Helper validation failed: services.1: `diagnostic` is not a valid enum value for path `services.1`.","timestamp":"2026-03-11T23:56:19.448Z"}
+{"level":"error","message":"Erreur uploadDocument: Helper validation failed: documents.0.type: Path `type` is required., documents.1.type: Path `type` is required., documents.2.type: Path `type` is required., documents.3.type: Path `type` is required., documents.4.type: Path `type` is required.","timestamp":"2026-03-12T04:13:56.999Z"}
+{"level":"error","message":"Erreur uploadDocument: Helper validation failed: documents.0.type: Path `type` is required., documents.1.type: Path `type` is required., documents.2.type: Path `type` is required., documents.3.type: Path `type` is required., documents.4.type: Path `type` is required.","timestamp":"2026-03-12T04:18:49.020Z"}
+{"level":"error","message":"Erreur uploadDocument: Helper validation failed: documents.0.type: Path `type` is required., documents.1.type: Path `type` is required., documents.2.type: Path `type` is required., documents.3.type: Path `type` is required., documents.4.type: Path `type` is required.","timestamp":"2026-03-12T04:19:05.569Z"}
+{"level":"error","message":"Erreur récupération profil helper: Cannot read properties of null (reading '_id')","timestamp":"2026-03-12T04:25:00.301Z"}
+{"level":"error","message":"Erreur getHelperProfile: Cannot read properties of null (reading '_id')","timestamp":"2026-03-12T04:25:00.418Z"}
+{"level":"error","message":"Erreur updateHelperProfile: Cannot read properties of null (reading '_id')","timestamp":"2026-03-12T04:25:12.652Z"}
+{"level":"error","message":"Erreur getHelperProfile: Cannot read properties of null (reading '_id')","timestamp":"2026-03-12T04:25:14.275Z"}
+{"level":"error","message":"Erreur getHelperProfile: Cannot read properties of null (reading '_id')","timestamp":"2026-03-12T04:25:19.900Z"}
+{"level":"error","message":"Erreur getDocuments: Cannot read properties of null (reading '_id')","timestamp":"2026-03-12T04:25:19.904Z"}
+{"level":"error","message":"Erreur updateHelperProfile: Helper validation failed: services.0: `diagnostic` is not a valid enum value for path `services.0`.","timestamp":"2026-03-12T04:28:52.169Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-12T05:38:27.389Z"}
+{"level":"error","message":"Erreur getUserById: Cast to ObjectId failed for value \"vehicles\" (type string) at path \"_id\" for model \"User\"","timestamp":"2026-03-12T18:55:23.580Z"}
+{"level":"error","message":"Erreur getUserById: Cast to ObjectId failed for value \"vehicles\" (type string) at path \"_id\" for model \"User\"","timestamp":"2026-03-12T18:55:45.483Z"}

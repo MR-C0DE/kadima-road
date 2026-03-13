@@ -1,10 +1,13 @@
-import React from "react";
+import React, { useRef, useEffect } from "react";
 import {
   View,
   Text,
   StyleSheet,
   TouchableOpacity,
   Dimensions,
+  Animated,
+  StatusBar,
+  Platform,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { Colors } from "@/constants/theme";
@@ -12,217 +15,226 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 
-const { width } = Dimensions.get("window");
+const { width, height } = Dimensions.get("window");
+
+const STEPS = [
+  {
+    id: 1,
+    title: "Services",
+    description: "Choisissez vos services",
+    icon: "construct",
+    color: "#FF6B6B",
+  },
+  {
+    id: 2,
+    title: "Zone",
+    description: "Définissez votre rayon d'action",
+    icon: "location",
+    color: "#4ECDC4",
+  },
+  {
+    id: 3,
+    title: "Tarifs",
+    description: "Fixez vos prix",
+    icon: "cash",
+    color: "#45B7D1",
+  },
+  {
+    id: 4,
+    title: "Disponibilités",
+    description: "Indiquez vos horaires",
+    icon: "time",
+    color: "#96CEB4",
+  },
+  {
+    id: 5,
+    title: "Équipement",
+    description: "Votre matériel disponible",
+    icon: "build",
+    color: "#FFEAA7",
+  },
+  {
+    id: 6,
+    title: "Documents",
+    description: "Téléchargez vos justificatifs",
+    icon: "document",
+    color: "#DDA0DD",
+  },
+];
 
 export default function WelcomeScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? "light"];
 
+  // Animations
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+  const scaleAnim = useRef(new Animated.Value(0.95)).current;
+  const stepsAnim = STEPS.map(() => useRef(new Animated.Value(0)).current);
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    Animated.stagger(
+      80,
+      stepsAnim.map((anim) =>
+        Animated.spring(anim, {
+          toValue: 1,
+          friction: 8,
+          tension: 40,
+          useNativeDriver: true,
+        })
+      )
+    ).start();
+  }, []);
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <LinearGradient
-        colors={
-          colorScheme === "dark"
-            ? [colors.primary + "20", colors.secondary + "20"]
-            : [colors.primary + "10", colors.secondary + "10"]
-        }
-        style={StyleSheet.absoluteFill}
+      <StatusBar
+        barStyle={colorScheme === "dark" ? "light-content" : "dark-content"}
       />
 
-      <View style={styles.content}>
-        <View
-          style={[
-            styles.iconContainer,
-            { backgroundColor: colors.primary + "15" },
-          ]}
-        >
-          <Ionicons name="car-sport" size={80} color={colors.primary} />
-        </View>
+      {/* Background gradient */}
+      <LinearGradient
+        colors={[
+          colors.primary + "05",
+          colors.secondary + "05",
+          colors.background,
+        ]}
+        style={StyleSheet.absoluteFill}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      />
 
-        <Text style={[styles.title, { color: colors.text }]}>
-          Bienvenue dans Kadima Helpers !
-        </Text>
-
-        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-          Complétez votre profil pour commencer à aider les conducteurs et
-          gagner de l'argent.
-        </Text>
-
-        <View style={styles.stepsContainer}>
-          <View style={styles.step}>
-            <View
-              style={[
-                styles.stepNumber,
-                { backgroundColor: colors.primary + "20" },
-              ]}
-            >
-              <Text style={[styles.stepNumberText, { color: colors.primary }]}>
-                1
-              </Text>
-            </View>
-            <View style={styles.stepContent}>
-              <Text style={[styles.stepTitle, { color: colors.text }]}>
-                Services
-              </Text>
-              <Text
-                style={[
-                  styles.stepDescription,
-                  { color: colors.textSecondary },
-                ]}
-              >
-                Choisissez vos services
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.step}>
-            <View
-              style={[
-                styles.stepNumber,
-                { backgroundColor: colors.primary + "20" },
-              ]}
-            >
-              <Text style={[styles.stepNumberText, { color: colors.primary }]}>
-                2
-              </Text>
-            </View>
-            <View style={styles.stepContent}>
-              <Text style={[styles.stepTitle, { color: colors.text }]}>
-                Zone
-              </Text>
-              <Text
-                style={[
-                  styles.stepDescription,
-                  { color: colors.textSecondary },
-                ]}
-              >
-                Définissez votre rayon d'action
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.step}>
-            <View
-              style={[
-                styles.stepNumber,
-                { backgroundColor: colors.primary + "20" },
-              ]}
-            >
-              <Text style={[styles.stepNumberText, { color: colors.primary }]}>
-                3
-              </Text>
-            </View>
-            <View style={styles.stepContent}>
-              <Text style={[styles.stepTitle, { color: colors.text }]}>
-                Tarifs
-              </Text>
-              <Text
-                style={[
-                  styles.stepDescription,
-                  { color: colors.textSecondary },
-                ]}
-              >
-                Fixez vos prix
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.step}>
-            <View
-              style={[
-                styles.stepNumber,
-                { backgroundColor: colors.primary + "20" },
-              ]}
-            >
-              <Text style={[styles.stepNumberText, { color: colors.primary }]}>
-                4
-              </Text>
-            </View>
-            <View style={styles.stepContent}>
-              <Text style={[styles.stepTitle, { color: colors.text }]}>
-                Disponibilités
-              </Text>
-              <Text
-                style={[
-                  styles.stepDescription,
-                  { color: colors.textSecondary },
-                ]}
-              >
-                Indiquez vos horaires
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.step}>
-            <View
-              style={[
-                styles.stepNumber,
-                { backgroundColor: colors.primary + "20" },
-              ]}
-            >
-              <Text style={[styles.stepNumberText, { color: colors.primary }]}>
-                5
-              </Text>
-            </View>
-            <View style={styles.stepContent}>
-              <Text style={[styles.stepTitle, { color: colors.text }]}>
-                Équipement
-              </Text>
-              <Text
-                style={[
-                  styles.stepDescription,
-                  { color: colors.textSecondary },
-                ]}
-              >
-                Votre matériel disponible
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.step}>
-            <View
-              style={[
-                styles.stepNumber,
-                { backgroundColor: colors.primary + "20" },
-              ]}
-            >
-              <Text style={[styles.stepNumberText, { color: colors.primary }]}>
-                6
-              </Text>
-            </View>
-            <View style={styles.stepContent}>
-              <Text style={[styles.stepTitle, { color: colors.text }]}>
-                Documents
-              </Text>
-              <Text
-                style={[
-                  styles.stepDescription,
-                  { color: colors.textSecondary },
-                ]}
-              >
-                Téléchargez vos justificatifs
-              </Text>
-            </View>
-          </View>
-        </View>
-
-        <TouchableOpacity
-          style={styles.startButton}
-          onPress={() => router.push("/(onboarding)/services")}
-          activeOpacity={0.8}
+      <Animated.View
+        style={[
+          styles.content,
+          {
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }],
+          },
+        ]}
+      >
+        {/* Logo */}
+        <Animated.View
+          style={[styles.logoContainer, { transform: [{ scale: scaleAnim }] }]}
         >
           <LinearGradient
             colors={[colors.primary, colors.secondary]}
-            style={styles.startButtonGradient}
+            style={styles.logo}
             start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
+            end={{ x: 1, y: 1 }}
           >
-            <Text style={styles.startButtonText}>Commencer</Text>
-            <Ionicons name="arrow-forward" size={20} color="#fff" />
+            <Ionicons name="flash" size={36} color="#fff" />
           </LinearGradient>
-        </TouchableOpacity>
-      </View>
+        </Animated.View>
+
+        {/* Titre */}
+        <Text style={[styles.title, { color: colors.text }]}>
+          Bienvenue dans l'aventure
+        </Text>
+        <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
+          Complétez votre profil en 6 étapes
+        </Text>
+
+        {/* Grille des étapes - 2 colonnes */}
+        <View style={styles.stepsGrid}>
+          {STEPS.map((step, index) => {
+            const translateY = stepsAnim[index].interpolate({
+              inputRange: [0, 1],
+              outputRange: [20, 0],
+            });
+
+            return (
+              <Animated.View
+                key={step.id}
+                style={[
+                  styles.stepCard,
+                  {
+                    opacity: stepsAnim[index],
+                    transform: [{ translateY }],
+                  },
+                ]}
+              >
+                <View
+                  style={[
+                    styles.stepIcon,
+                    { backgroundColor: step.color + "15" },
+                  ]}
+                >
+                  <Ionicons
+                    name={step.icon as any}
+                    size={24}
+                    color={step.color}
+                  />
+                </View>
+                <Text style={[styles.stepTitle, { color: colors.text }]}>
+                  {step.title}
+                </Text>
+                <Text
+                  style={[
+                    styles.stepDescription,
+                    { color: colors.textSecondary },
+                  ]}
+                >
+                  {step.description}
+                </Text>
+                <View
+                  style={[
+                    styles.stepNumber,
+                    { backgroundColor: step.color + "15" },
+                  ]}
+                >
+                  <Text style={[styles.stepNumberText, { color: step.color }]}>
+                    {step.id}
+                  </Text>
+                </View>
+              </Animated.View>
+            );
+          })}
+        </View>
+
+        {/* Bouton */}
+        <Animated.View style={{ opacity: fadeAnim }}>
+          <TouchableOpacity
+            style={styles.button}
+            onPress={() => router.push("/(onboarding)/services")}
+            activeOpacity={0.9}
+          >
+            <LinearGradient
+              colors={[colors.primary, colors.secondary]}
+              style={styles.buttonGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <Text style={styles.buttonText}>Commencer</Text>
+              <Ionicons name="arrow-forward" size={20} color="#fff" />
+            </LinearGradient>
+          </TouchableOpacity>
+
+          <Text style={[styles.hint, { color: colors.textSecondary }]}>
+            Moins de 5 minutes
+          </Text>
+        </Animated.View>
+      </Animated.View>
     </View>
   );
 }
@@ -234,75 +246,111 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: 20,
-    paddingTop: 60,
-    paddingBottom: 30,
+    paddingTop: Platform.OS === "ios" ? 50 : 30,
+    paddingBottom: 20,
   },
-  iconContainer: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+  logoContainer: {
+    alignItems: "center",
+    marginBottom: 24,
+  },
+  logo: {
+    width: 70,
+    height: 70,
+    borderRadius: 22,
     justifyContent: "center",
     alignItems: "center",
-    alignSelf: "center",
-    marginBottom: 30,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.15,
+    shadowRadius: 8,
+    elevation: 5,
   },
   title: {
-    fontSize: 28,
-    fontWeight: "bold",
+    fontSize: 26,
+    fontWeight: "700",
     textAlign: "center",
-    marginBottom: 10,
+    marginBottom: 6,
+    letterSpacing: -0.5,
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: 14,
     textAlign: "center",
-    marginBottom: 40,
-    paddingHorizontal: 20,
+    marginBottom: 30,
   },
-  stepsContainer: {
-    gap: 15,
-    marginBottom: 40,
-  },
-  step: {
+  stepsGrid: {
+    flex: 1,
     flexDirection: "row",
-    alignItems: "center",
-    gap: 15,
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    alignContent: "center",
+    marginBottom: 20,
   },
-  stepNumber: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
+  stepCard: {
+    width: (width - 52) / 2,
+    padding: 16,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.03)",
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.03)",
+    marginBottom: 12,
+    position: "relative",
+  },
+  stepIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 16,
     justifyContent: "center",
     alignItems: "center",
-  },
-  stepNumberText: {
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  stepContent: {
-    flex: 1,
+    marginBottom: 12,
   },
   stepTitle: {
     fontSize: 16,
     fontWeight: "600",
-    marginBottom: 2,
+    marginBottom: 4,
   },
   stepDescription: {
-    fontSize: 13,
+    fontSize: 11,
+    lineHeight: 14,
   },
-  startButton: {
+  stepNumber: {
+    position: "absolute",
+    top: 12,
+    right: 12,
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  stepNumberText: {
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  button: {
     borderRadius: 30,
     overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 5,
   },
-  startButtonGradient: {
+  buttonGradient: {
     flexDirection: "row",
-    padding: 18,
+    padding: 16,
     alignItems: "center",
     justifyContent: "center",
-    gap: 10,
+    gap: 8,
   },
-  startButtonText: {
+  buttonText: {
     color: "#fff",
-    fontSize: 18,
-    fontWeight: "bold",
+    fontSize: 16,
+    fontWeight: "600",
+    letterSpacing: 0.3,
+  },
+  hint: {
+    textAlign: "center",
+    fontSize: 12,
+    marginTop: 12,
   },
 });

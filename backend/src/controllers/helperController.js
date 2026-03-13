@@ -4,6 +4,14 @@ import Intervention from '../models/Intervention.js';
 import { sendSMS } from '../services/smsService.js';
 import logger from '../config/logger.js';
 
+import sharp from 'sharp';
+import path from 'path';
+import fs from 'fs';
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 // @desc    S'inscrire en tant que helper
 // @route   POST /api/helpers/register
 // @access  Private
@@ -79,9 +87,11 @@ export const registerAsHelper = async (req, res) => {
 // @access  Private
 export const getHelperProfile = async (req, res) => {
   try {
-    console.log("TTTT",req.user._id );
+    
     const helper = await Helper.findOne({ user: req.user._id })
       .populate('user', '-password');
+
+      console.log(helper);
 
     if (!helper) {
       return res.status(404).json({
@@ -107,6 +117,9 @@ export const getHelperProfile = async (req, res) => {
 // @desc    Mettre à jour le profil helper
 // @route   PUT /api/helpers/profile/me
 // @access  Private
+// @desc    Mettre à jour le profil helper
+// @route   PUT /api/helpers/profile/me
+// @access  Private
 export const updateHelperProfile = async (req, res) => {
   try {
     const helper = await Helper.findOne({ user: req.user._id });
@@ -118,12 +131,13 @@ export const updateHelperProfile = async (req, res) => {
       });
     }
 
-    // Champs autorisés
+    // 1. Mettre à jour les champs simples
     const allowedUpdates = [
       'serviceArea',
       'availability',
       'pricing',
-      'equipment'
+      'equipment',
+      'services',
     ];
 
     allowedUpdates.forEach(field => {
@@ -132,12 +146,34 @@ export const updateHelperProfile = async (req, res) => {
       }
     });
 
-    await helper.save();
+    // 2. Gérer l'adresse (soit directe, soit dans serviceArea)
+    if (req.body.address !== undefined) {
+      // Si le modèle a un champ 'address' direct
+      helper.address = req.body.address;
+      console.log('📍 Adresse directe:', req.body.address);
+    }
+    
+    if (req.body.serviceArea?.address !== undefined) {
+      // Si l'adresse est dans serviceArea
+      if (!helper.serviceArea) {
+        helper.serviceArea = {
+          type: 'Point',
+          coordinates: [-75.6919, 45.4215],
+          radius: 20
+        };
+      }
+      helper.serviceArea.address = req.body.serviceArea.address;
+      console.log('📍 Adresse dans serviceArea:', req.body.serviceArea.address);
+    }
+
+    // 3. Sauvegarder
+    const savedHelper = await helper.save();
+    console.log('✅ Profil mis à jour:', savedHelper._id);
 
     res.json({
       success: true,
       message: 'Profil mis à jour',
-      data: helper
+      data: savedHelper
     });
 
   } catch (error) {
@@ -568,22 +604,38 @@ export const verifyHelper = async (req, res) => {
 // @desc    Uploader un document
 // @route   POST /api/helpers/documents
 // @access  Private
+// @desc    Uploader un document
+// @route   POST /api/helpers/documents
+// @access  Private
 export const uploadDocument = async (req, res) => {
   try {
-    const { type, url } = req.body;
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'Aucun document fourni'
+      });
+    }
+
+    const { type } = req.body; // 'license', 'insurance', 'certification'
 
     const helper = await Helper.findOne({ user: req.user._id });
 
     if (!helper) {
+      // Supprimer le fichier si helper non trouvé
+      fs.unlinkSync(req.file.path);
       return res.status(404).json({
         success: false,
         message: 'Helper non trouvé'
       });
     }
 
+    // Construire l'URL du document
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const documentUrl = `${baseUrl}/uploads/documents/${req.file.filename}`;
+
     helper.documents.push({
       type,
-      url,
+      url: documentUrl,
       verified: false,
       uploadedAt: new Date()
     });
@@ -592,12 +644,18 @@ export const uploadDocument = async (req, res) => {
 
     res.json({
       success: true,
-      message: 'Document uploadé',
+      message: 'Document uploadé avec succès',
       data: helper.documents
     });
 
   } catch (error) {
     logger.error(`Erreur uploadDocument: ${error.message}`);
+    
+    // Nettoyer le fichier en cas d'erreur
+    if (req.file) {
+      fs.unlinkSync(req.file.path);
+    }
+    
     res.status(500).json({
       success: false,
       message: 'Erreur lors de l\'upload du document'
@@ -639,6 +697,10 @@ export const getHelperReviews = async (req, res) => {
   }
 };
 
+// ============================================
+// FONCTIONS UTILITAIRES
+// ============================================
+
 // Fonction utilitaire pour calculer la distance
 function calculateDistance(lat1, lon1, lat2, lon2) {
   const R = 6371; // Rayon de la Terre en km
@@ -651,6 +713,10 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   return R * c;
 }
+
+// ============================================
+// ROUTES POUR LES MISSIONS
+// ============================================
 
 // @desc    Obtenir les missions en cours du helper
 // @route   GET /api/helpers/missions/current
@@ -846,6 +912,324 @@ export const updateMissionStatus = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Erreur lors de la mise à jour du statut'
+    });
+  }
+};
+
+// ============================================
+// ROUTES POUR LES GAINS
+// ============================================
+
+// @desc    Obtenir les statistiques de gains
+// @route   GET /api/helpers/earnings/stats
+// @access  Private
+export const getEarningsStats = async (req, res) => {
+  try {
+    const helper = await Helper.findOne({ user: req.user._id });
+    
+    if (!helper) {
+      return res.status(404).json({
+        success: false,
+        message: 'Helper non trouvé'
+      });
+    }
+
+    // Récupérer toutes les interventions du helper
+    const interventions = await Intervention.find({ 
+      helper: helper._id,
+      status: 'completed'
+    });
+
+    // Calculer les statistiques
+    const now = new Date();
+    const today = new Date(now.setHours(0, 0, 0, 0));
+    const weekAgo = new Date(now.setDate(now.getDate() - 7));
+    const monthAgo = new Date(now.setMonth(now.getMonth() - 1));
+    const yearAgo = new Date(now.setFullYear(now.getFullYear() - 1));
+
+    const todayEarnings = interventions
+      .filter(i => new Date(i.createdAt) >= today)
+      .reduce((sum, i) => sum + (i.pricing?.final || 0), 0);
+
+    const weekEarnings = interventions
+      .filter(i => new Date(i.createdAt) >= weekAgo)
+      .reduce((sum, i) => sum + (i.pricing?.final || 0), 0);
+
+    const monthEarnings = interventions
+      .filter(i => new Date(i.createdAt) >= monthAgo)
+      .reduce((sum, i) => sum + (i.pricing?.final || 0), 0);
+
+    const totalEarnings = interventions
+      .reduce((sum, i) => sum + (i.pricing?.final || 0), 0);
+
+    // Gains en attente (interventions acceptées mais pas encore terminées)
+    const pendingInterventions = await Intervention.find({
+      helper: helper._id,
+      status: { $in: ['accepted', 'en_route', 'arrived', 'in_progress'] }
+    });
+
+    const pendingEarnings = pendingInterventions
+      .reduce((sum, i) => sum + (i.pricing?.final || 0), 0);
+
+    // Statistiques supplémentaires
+    const completedMissions = interventions.length;
+    const averagePerMission = completedMissions > 0 
+      ? totalEarnings / completedMissions 
+      : 0;
+
+    // Taux de réponse et d'annulation
+    const allInterventions = await Intervention.find({ helper: helper._id });
+    const totalMissions = allInterventions.length;
+    const cancelledMissions = allInterventions.filter(i => i.status === 'cancelled').length;
+    
+    const responseRate = totalMissions > 0 
+      ? 100 
+      : 100; // À améliorer avec des données réelles
+    const cancellationRate = totalMissions > 0 
+      ? (cancelledMissions / totalMissions) * 100 
+      : 0;
+
+    res.json({
+      success: true,
+      data: {
+        todayEarnings,
+        weekEarnings,
+        monthEarnings,
+        totalEarnings,
+        pendingEarnings,
+        completedMissions,
+        averagePerMission,
+        responseRate,
+        cancellationRate
+      }
+    });
+
+  } catch (error) {
+    logger.error(`Erreur getEarningsStats: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la récupération des statistiques de gains'
+    });
+  }
+};
+
+// @desc    Obtenir les transactions récentes
+// @route   GET /api/helpers/earnings/transactions
+// @access  Private
+export const getEarningsTransactions = async (req, res) => {
+  try {
+    const { period = 'week' } = req.query;
+    
+    const helper = await Helper.findOne({ user: req.user._id });
+    
+    if (!helper) {
+      return res.status(404).json({
+        success: false,
+        message: 'Helper non trouvé'
+      });
+    }
+
+    // Déterminer la date de début selon la période
+    const now = new Date();
+    let startDate;
+    
+    switch (period) {
+      case 'day':
+        startDate = new Date(now.setHours(0, 0, 0, 0));
+        break;
+      case 'week':
+        startDate = new Date(now.setDate(now.getDate() - 7));
+        break;
+      case 'month':
+        startDate = new Date(now.setMonth(now.getMonth() - 1));
+        break;
+      case 'year':
+        startDate = new Date(now.setFullYear(now.getFullYear() - 1));
+        break;
+      default:
+        startDate = new Date(now.setDate(now.getDate() - 7));
+    }
+
+    // Récupérer les interventions de la période
+    const interventions = await Intervention.find({
+      helper: helper._id,
+      createdAt: { $gte: startDate }
+    })
+    .populate('user', 'firstName lastName')
+    .sort('-createdAt')
+    .limit(50);
+
+    // Formater les transactions
+    const transactions = interventions.map(i => ({
+      _id: i._id,
+      date: i.createdAt,
+      amount: i.pricing?.final || 0,
+      type: i.type,
+      status: i.status === 'completed' ? 'completed' 
+             : i.status === 'cancelled' ? 'cancelled' 
+             : 'pending',
+      client: {
+        firstName: i.user?.firstName || 'Client',
+        lastName: i.user?.lastName || ''
+      },
+      missionType: i.problem?.category || i.type || 'Assistance'
+    }));
+
+    res.json({
+      success: true,
+      count: transactions.length,
+      data: transactions
+    });
+
+  } catch (error) {
+    logger.error(`Erreur getEarningsTransactions: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la récupération des transactions'
+    });
+  }
+};
+
+
+// @desc    Uploader une photo de profil
+// @route   POST /api/helpers/profile/photo
+// @access  Private
+export const uploadProfilePhoto = async (req, res) => {
+  try {
+    if (!req.file) {
+      return res.status(400).json({
+        success: false,
+        message: 'Aucune photo fournie'
+      });
+    }
+
+    const helper = await Helper.findOne({ user: req.user._id });
+
+    if (!helper) {
+      // Supprimer le fichier uploadé si helper non trouvé
+      fs.unlinkSync(req.file.path);
+
+      return res.status(404).json({
+        success: false,
+        message: 'Helper non trouvé'
+      });
+    }
+
+    // ============================================
+    // Optimisation de l'image
+    // ============================================
+
+    const optimizedFilename = `optimized-${req.file.filename}`;
+    const optimizedPath = path.join(
+      __dirname,
+      '../../uploads/profiles',
+      optimizedFilename
+    );
+
+    await sharp(req.file.path)
+      .resize(400, 400, { fit: 'cover' })
+      .jpeg({ quality: 80 })
+      .toFile(optimizedPath);
+
+    // Supprimer le fichier original
+    fs.unlinkSync(req.file.path);
+
+    // ============================================
+    // Construire l'URL de la photo
+    // ============================================
+
+    const baseUrl = `${req.protocol}://${req.get('host')}`;
+    const photoUrl = `${baseUrl}/uploads/profiles/${optimizedFilename}`;
+
+    // ============================================
+    // Supprimer l'ancienne photo si elle existe
+    // ============================================
+
+    if (helper.photo) {
+      const oldPhotoPath = path.join(
+        __dirname,
+        '../../',
+        helper.photo.replace(baseUrl, '')
+      );
+
+      if (fs.existsSync(oldPhotoPath)) {
+        fs.unlinkSync(oldPhotoPath);
+      }
+    }
+
+    // ============================================
+    // Sauvegarder la photo dans Helper
+    // ============================================
+
+    helper.photo = photoUrl;
+    await helper.save();
+
+    // ============================================
+    // Réponse
+    // ============================================
+
+    res.json({
+      success: true,
+      message: 'Photo de profil mise à jour',
+      data: {
+        photo: photoUrl
+      }
+    });
+
+  } catch (error) {
+    logger.error(`Erreur uploadProfilePhoto: ${error.message}`);
+
+    // Nettoyer le fichier en cas d'erreur
+    if (req.file && fs.existsSync(req.file.path)) {
+      fs.unlinkSync(req.file.path);
+    }
+
+    res.status(500).json({
+      success: false,
+      message: "Erreur lors de l'upload de la photo"
+    });
+  }
+};
+
+// @desc    Supprimer la photo de profil
+// @route   DELETE /api/helpers/profile/photo
+// @access  Private
+export const deleteProfilePhoto = async (req, res) => {
+  try {
+    const helper = await Helper.findOne({ user: req.user._id }).populate('user');
+    
+    if (!helper) {
+      return res.status(404).json({
+        success: false,
+        message: 'Helper non trouvé'
+      });
+    }
+
+    if (helper.user?.photo) {
+      const baseUrl = `${req.protocol}://${req.get('host')}`;
+      const photoPath = path.join(__dirname, '../../', helper.user.photo.replace(baseUrl, ''));
+      
+      // Supprimer le fichier physique
+      if (fs.existsSync(photoPath)) {
+        fs.unlinkSync(photoPath);
+      }
+
+      // Supprimer la référence dans la base de données
+      await User.findByIdAndUpdate(req.user._id, {
+        $unset: { photo: 1 }
+      });
+    }
+
+    res.json({
+      success: true,
+      message: 'Photo de profil supprimée'
+    });
+
+  } catch (error) {
+    logger.error(`Erreur deleteProfilePhoto: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la suppression de la photo'
     });
   }
 };

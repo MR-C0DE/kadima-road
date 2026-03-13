@@ -13,6 +13,8 @@ import {
   Easing,
   Platform,
   Modal,
+  StatusBar,
+  SafeAreaView,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "../../contexts/AuthContext";
@@ -42,6 +44,10 @@ interface Mission {
     description: string;
     category: string;
   };
+  location: {
+    address: string;
+    coordinates: [number, number];
+  };
   createdAt: string;
 }
 
@@ -50,22 +56,9 @@ interface HelperStats {
   todayMissions: number;
   averageRating: number;
   totalMissions: number;
-  availability: boolean;
   responseRate: number;
-  completedToday: number;
-}
-
-interface HelperProfile {
-  services: string[];
-  equipment: string[];
-  pricing: {
-    basePrice: number;
-    perKm: number;
-  };
-  availability: {
-    schedule: any[];
-  };
-  status: string;
+  ranking: number;
+  level: string;
 }
 
 export default function HomeScreen() {
@@ -75,43 +68,39 @@ export default function HomeScreen() {
   const colors = Colors[colorScheme ?? "light"];
 
   // États
-  const [hasProfile, setHasProfile] = useState<boolean | null>(null);
-  const [profileComplete, setProfileComplete] = useState(false);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [isAvailable, setIsAvailable] = useState(true);
-  const [showProfileModal, setShowProfileModal] = useState(false);
+  const [selectedMission, setSelectedMission] = useState<Mission | null>(null);
+  const [showMissionModal, setShowMissionModal] = useState(false);
+  const [availableMissions, setAvailableMissions] = useState<Mission[]>([]);
+
+  // Stats réelles
   const [stats, setStats] = useState<HelperStats>({
     todayEarnings: 0,
     todayMissions: 0,
-    averageRating: 4.9,
+    averageRating: 0,
     totalMissions: 0,
-    availability: true,
-    responseRate: 98,
-    completedToday: 0,
+    responseRate: 100,
+    ranking: 0,
+    level: "Débutant",
   });
-  const [availableMissions, setAvailableMissions] = useState<Mission[]>([]);
-  const [showWelcome, setShowWelcome] = useState(true);
 
   // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(50)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
   const scaleAnim = useRef(new Animated.Value(0.95)).current;
-  const pulseAnim = useRef(new Animated.Value(1)).current;
-  const welcomeAnim = useRef(new Animated.Value(1)).current;
 
   useEffect(() => {
-    // Animation d'entrée
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 800,
+        duration: 600,
         useNativeDriver: true,
       }),
       Animated.timing(slideAnim, {
         toValue: 0,
         duration: 600,
-        easing: Easing.out(Easing.cubic),
         useNativeDriver: true,
       }),
       Animated.spring(scaleAnim, {
@@ -122,337 +111,225 @@ export default function HomeScreen() {
       }),
     ]).start();
 
-    // Animation de pulsation
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(pulseAnim, {
-          toValue: 1.05,
-          duration: 1000,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-        Animated.timing(pulseAnim, {
-          toValue: 1,
-          duration: 1000,
-          easing: Easing.inOut(Easing.ease),
-          useNativeDriver: true,
-        }),
-      ])
-    ).start();
-
-    // Animation de bienvenue
-    setTimeout(() => {
-      Animated.timing(welcomeAnim, {
-        toValue: 0,
-        duration: 500,
-        useNativeDriver: true,
-      }).start(() => setShowWelcome(false));
-    }, 3000);
-
-    checkProfileAndLoadData();
+    loadData();
   }, []);
 
-  const checkProfileAndLoadData = async () => {
+  const loadData = async () => {
     try {
-      // Vérifier d'abord si le profil helper existe
-      const profileResponse = await api.get("/auth/helper/profile");
-      const helperProfile: HelperProfile = profileResponse.data.data;
+      // Charger le profil pour la disponibilité
+      const profileResponse = await api.get("/helpers/profile/me");
+      const profile = profileResponse.data.data;
+      setIsAvailable(profile.availability?.isAvailable ?? true);
 
-      setHasProfile(true);
+      // Charger les statistiques
+      try {
+        const statsResponse = await api.get("/helpers/earnings/stats");
+        const statsData = statsResponse.data.data;
 
-      // Vérifier si le profil est complété
-      const isComplete =
-        helperProfile.services?.length > 0 &&
-        helperProfile.pricing?.basePrice > 0 &&
-        helperProfile.availability?.schedule?.length > 0;
+        // Calculer le niveau basé sur le nombre de missions
+        let level = "Débutant";
+        if (statsData.completedMissions > 100) level = "Expert";
+        else if (statsData.completedMissions > 50) level = "Confirmé";
+        else if (statsData.completedMissions > 20) level = "Intermédiaire";
 
-      setProfileComplete(isComplete);
-
-      if (!isComplete) {
-        setShowProfileModal(true);
+        setStats({
+          todayEarnings: statsData.todayEarnings || 0,
+          todayMissions: statsData.todayMissions || 0,
+          averageRating: profile.stats?.averageRating || 0,
+          totalMissions: statsData.completedMissions || 0,
+          responseRate: statsData.responseRate || 100,
+          ranking: 12, // À calculer plus tard
+          level: level,
+        });
+      } catch (error) {
+        console.log("Erreur chargement stats:", error);
       }
 
-      // Charger les données si le profil existe
-      await loadData();
+      // Charger les missions disponibles (à proximité)
+      try {
+        // Remplacer par de vraies coordonnées GPS
+        const locationResponse = await Location.getCurrentPositionAsync({});
+        const { latitude, longitude } = locationResponse.coords;
+
+        const missionsResponse = await api.get(
+          `/helpers/nearby?lat=${latitude}&lng=${longitude}&radius=20`
+        );
+        setAvailableMissions(missionsResponse.data.data || []);
+      } catch (error) {
+        console.log("Erreur chargement missions:", error);
+        setAvailableMissions([]);
+      }
     } catch (error) {
-      // Pas de profil helper
-      setHasProfile(false);
-      setProfileComplete(false);
-      setShowProfileModal(true);
+      console.log("Erreur chargement données:", error);
     } finally {
       setLoading(false);
     }
   };
 
-  const loadData = async () => {
-    try {
-      // Charger les statistiques
-      if (user?.id && hasProfile) {
-        try {
-          const statsResponse = await api.get(`/helpers/stats/${user.id}`);
-          setStats((prev) => ({ ...prev, ...statsResponse.data.data }));
-        } catch (statsError) {
-          console.log("Stats non disponibles");
-        }
-      }
-
-      setAvailableMissions([]);
-    } catch (error) {
-      console.error("Erreur chargement données:", error);
-    }
-  };
-
   const onRefresh = async () => {
     setRefreshing(true);
-    if (Platform.OS !== "web") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     await loadData();
     setRefreshing(false);
   };
 
   const toggleAvailability = async () => {
-    if (!profileComplete) {
-      Alert.alert(
-        "Profil incomplet",
-        "Complétez d'abord votre profil pour changer votre statut",
-        [
-          { text: "Plus tard", style: "cancel" },
-          {
-            text: "Compléter",
-            onPress: () => router.push("/(onboarding)/welcome"),
-          },
-        ]
-      );
-      return;
-    }
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    const newStatus = !isAvailable;
 
-    if (Platform.OS !== "web") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
     try {
-      const newStatus = !isAvailable;
       await api.put("/helpers/availability", { isAvailable: newStatus });
       setIsAvailable(newStatus);
-      Alert.alert(
-        "Succès",
-        `Vous êtes maintenant ${newStatus ? "disponible" : "indisponible"}`
-      );
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     } catch (error) {
-      Alert.alert("Erreur", "Impossible de changer votre statut");
+      Alert.alert("Erreur", "Impossible de changer le statut");
     }
   };
 
-  const acceptMission = async (missionId: string) => {
-    if (!profileComplete) {
-      Alert.alert(
-        "Profil incomplet",
-        "Complétez d'abord votre profil pour accepter des missions"
-      );
-      return;
-    }
+  const handleMissionPress = (mission: Mission) => {
+    setSelectedMission(mission);
+    setShowMissionModal(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
 
-    if (Platform.OS !== "web") {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-    }
+  const handleAcceptMission = async () => {
+    if (!selectedMission) return;
+
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setShowMissionModal(false);
+
     try {
-      await api.post(`/helpers/accept-mission/${missionId}`);
-      Alert.alert("Succès", "Mission acceptée !");
-      loadData();
+      await api.post(`/helpers/accept-mission/${selectedMission._id}`);
+      Alert.alert(
+        "✅ Mission acceptée",
+        "Rendez-vous dans l'onglet Missions pour plus de détails"
+      );
+      loadData(); // Recharger les données
     } catch (error) {
       Alert.alert("Erreur", "Impossible d'accepter la mission");
     }
   };
 
-  const navigateToOnboarding = () => {
-    setShowProfileModal(false);
-    router.push("/(onboarding)/welcome");
+  const getTimeColor = (minutes: number) => {
+    if (minutes < 10) return colors.success;
+    if (minutes < 20) return colors.warning;
+    return colors.error;
   };
 
-  const getTimeColor = (minutes: number) => {
-    if (minutes < 10) return "#4CAF50";
-    if (minutes < 20) return "#FF9800";
-    return "#E63946";
+  const getLevelColor = (level: string) => {
+    switch (level) {
+      case "Expert":
+        return "#FFD700";
+      case "Confirmé":
+        return "#C0C0C0";
+      case "Intermédiaire":
+        return "#CD7F32";
+      default:
+        return colors.primary;
+    }
+  };
+
+  const formatDistance = (distance: number) => {
+    if (distance < 1) {
+      return `${Math.round(distance * 1000)} m`;
+    }
+    return `${distance.toFixed(1)} km`;
   };
 
   if (loading) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <LinearGradient
-          colors={[colors.primary + "20", colors.secondary + "20"]}
-          style={StyleSheet.absoluteFill}
-        />
-        <Animated.View
-          style={[
-            styles.loadingContent,
-            {
-              opacity: fadeAnim,
-              transform: [{ scale: scaleAnim }],
-            },
-          ]}
-        >
-          <View
-            style={[
-              styles.loadingLogo,
-              { backgroundColor: colors.primary + "15" },
-            ]}
+        <StatusBar barStyle="dark-content" />
+        <View style={styles.loadingContainer}>
+          <LinearGradient
+            colors={[colors.primary, colors.secondary]}
+            style={styles.loadingLogo}
           >
-            <Ionicons name="construct" size={60} color={colors.primary} />
-          </View>
-          <ActivityIndicator size="large" color={colors.primary} />
-          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-            Chargement de votre espace...
+            <Ionicons name="flash" size={40} color="#fff" />
+          </LinearGradient>
+          <Text style={[styles.loadingText, { color: colors.primary }]}>
+            Kadima
           </Text>
-        </Animated.View>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
       </View>
     );
   }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Modal de profil incomplet */}
-      <Modal
-        visible={showProfileModal}
-        transparent
-        animationType="slide"
-        onRequestClose={() => setShowProfileModal(false)}
+      <StatusBar
+        barStyle="light-content"
+        backgroundColor="transparent"
+        translucent
+      />
+
+      {/* Header avec dégradé */}
+      <LinearGradient
+        colors={[colors.primary, colors.secondary]}
+        style={styles.header}
       >
-        <BlurView intensity={80} tint={colorScheme} style={styles.modalOverlay}>
-          <Animated.View
-            style={[
-              styles.modalContent,
-              {
-                backgroundColor: colors.background,
-                transform: [{ scale: scaleAnim }],
-              },
-            ]}
-          >
-            <View
-              style={[
-                styles.modalIcon,
-                { backgroundColor: colors.primary + "20" },
-              ]}
-            >
-              <Ionicons name="construct" size={50} color={colors.primary} />
-            </View>
-
-            <Text style={[styles.modalTitle, { color: colors.text }]}>
-              {!hasProfile
-                ? "Bienvenue dans Kadima Helpers !"
-                : "Profil incomplet"}
-            </Text>
-
-            <Text style={[styles.modalText, { color: colors.textSecondary }]}>
-              {!hasProfile
-                ? "Pour commencer à recevoir des missions, vous devez d'abord créer votre profil helper."
-                : "Votre profil n'est pas encore complet. Ajoutez vos services, tarifs et disponibilités pour commencer."}
-            </Text>
-
-            <View style={styles.modalSteps}>
-              <View style={styles.modalStep}>
+        <SafeAreaView style={styles.headerSafeArea}>
+          <View style={styles.headerTop}>
+            <View>
+              <Text style={styles.headerGreeting}>Bonjour,</Text>
+              <View style={styles.headerNameRow}>
+                <Text style={styles.headerName}>
+                  {user?.firstName || "Helper"}
+                </Text>
                 <View
                   style={[
-                    styles.modalStepDot,
-                    { backgroundColor: colors.primary },
+                    styles.headerLevel,
+                    { backgroundColor: getLevelColor(stats.level) + "30" },
                   ]}
-                />
-                <Text style={[styles.modalStepText, { color: colors.text }]}>
-                  Services proposés
-                </Text>
-              </View>
-              <View style={styles.modalStep}>
-                <View
-                  style={[
-                    styles.modalStepDot,
-                    { backgroundColor: colors.primary },
-                  ]}
-                />
-                <Text style={[styles.modalStepText, { color: colors.text }]}>
-                  Zone d'intervention
-                </Text>
-              </View>
-              <View style={styles.modalStep}>
-                <View
-                  style={[
-                    styles.modalStepDot,
-                    { backgroundColor: colors.primary },
-                  ]}
-                />
-                <Text style={[styles.modalStepText, { color: colors.text }]}>
-                  Tarifs
-                </Text>
-              </View>
-              <View style={styles.modalStep}>
-                <View
-                  style={[
-                    styles.modalStepDot,
-                    { backgroundColor: colors.primary },
-                  ]}
-                />
-                <Text style={[styles.modalStepText, { color: colors.text }]}>
-                  Disponibilités
-                </Text>
-              </View>
-            </View>
-
-            <View style={styles.modalButtons}>
-              <TouchableOpacity
-                style={[
-                  styles.modalButton,
-                  { backgroundColor: colors.primary },
-                ]}
-                onPress={navigateToOnboarding}
-              >
-                <Text style={styles.modalButtonText}>
-                  {!hasProfile ? "Créer mon profil" : "Compléter mon profil"}
-                </Text>
-              </TouchableOpacity>
-
-              {hasProfile && (
-                <TouchableOpacity
-                  style={[
-                    styles.modalButton,
-                    {
-                      backgroundColor: "transparent",
-                      borderWidth: 1,
-                      borderColor: colors.border,
-                    },
-                  ]}
-                  onPress={() => setShowProfileModal(false)}
                 >
                   <Text
                     style={[
-                      styles.modalButtonText,
-                      { color: colors.textSecondary },
+                      styles.headerLevelText,
+                      { color: getLevelColor(stats.level) },
                     ]}
                   >
-                    Plus tard
+                    {stats.level}
                   </Text>
-                </TouchableOpacity>
-              )}
+                </View>
+              </View>
             </View>
-          </Animated.View>
-        </BlurView>
-      </Modal>
+            <TouchableOpacity
+              style={[
+                styles.statusButton,
+                {
+                  backgroundColor: isAvailable ? colors.success : colors.error,
+                },
+              ]}
+              onPress={toggleAvailability}
+              activeOpacity={0.8}
+            >
+              <View style={styles.statusDot} />
+              <Text style={styles.statusText}>
+                {isAvailable ? "Disponible" : "Indisponible"}
+              </Text>
+            </TouchableOpacity>
+          </View>
 
-      {/* Message de bienvenue animé */}
-      {showWelcome && (
-        <Animated.View
-          style={[
-            styles.welcomeOverlay,
-            {
-              opacity: welcomeAnim,
-              backgroundColor: colors.primary + "F2",
-            },
-          ]}
-        >
-          <Ionicons name="hand-left" size={60} color="#fff" />
-          <Text style={styles.welcomeTitle}>Bonjour {user?.name} !</Text>
-          <Text style={styles.welcomeSubtitle}>
-            Prêt à aider des conducteurs ?
-          </Text>
-        </Animated.View>
-      )}
+          {/* Stats header */}
+          <View style={styles.headerStats}>
+            <View style={styles.headerStat}>
+              <Text style={styles.headerStatValue}>{stats.todayMissions}</Text>
+              <Text style={styles.headerStatLabel}>aujourd'hui</Text>
+            </View>
+            <View style={styles.headerStatDivider} />
+            <View style={styles.headerStat}>
+              <Text style={styles.headerStatValue}>${stats.todayEarnings}</Text>
+              <Text style={styles.headerStatLabel}>gagnés</Text>
+            </View>
+            <View style={styles.headerStatDivider} />
+            <View style={styles.headerStat}>
+              <Text style={styles.headerStatValue}>#{stats.ranking}</Text>
+              <Text style={styles.headerStatLabel}>classement</Text>
+            </View>
+          </View>
+        </SafeAreaView>
+      </LinearGradient>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -474,538 +351,485 @@ export default function HomeScreen() {
             },
           ]}
         >
-          {/* En-tête avec statut */}
-          <LinearGradient
-            colors={[colors.primary, colors.secondary]}
-            style={styles.header}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          >
-            <View style={styles.headerTop}>
-              <View>
-                <Text style={styles.headerGreeting}>Bonjour,</Text>
-                <Text style={styles.headerName}>{user?.name || "Helper"}</Text>
-              </View>
-              <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-                <TouchableOpacity
-                  style={[
-                    styles.availabilityButton,
-                    {
-                      backgroundColor: isAvailable ? "#4CAF50" : "#E63946",
-                      opacity: profileComplete ? 1 : 0.5,
-                    },
-                  ]}
-                  onPress={toggleAvailability}
-                  activeOpacity={0.8}
-                  disabled={!profileComplete}
-                >
-                  <View style={styles.availabilityDot} />
-                  <Text style={styles.availabilityText}>
-                    {isAvailable ? "Disponible" : "Indisponible"}
-                  </Text>
-                </TouchableOpacity>
-              </Animated.View>
-            </View>
-
-            {/* Quick stats dans le header */}
-            <View style={styles.headerStats}>
-              <View style={styles.headerStat}>
-                <Text style={styles.headerStatValue}>
-                  {stats.todayMissions}
-                </Text>
-                <Text style={styles.headerStatLabel}>aujourd'hui</Text>
-              </View>
-              <View style={styles.headerStatDivider} />
-              <View style={styles.headerStat}>
-                <Text style={styles.headerStatValue}>
-                  {stats.todayEarnings}€
-                </Text>
-                <Text style={styles.headerStatLabel}>gagnés</Text>
-              </View>
-              <View style={styles.headerStatDivider} />
-              <View style={styles.headerStat}>
-                <Text style={styles.headerStatValue}>
-                  {stats.responseRate}%
-                </Text>
-                <Text style={styles.headerStatLabel}>réponse</Text>
-              </View>
-            </View>
-          </LinearGradient>
-
-          {/* Cartes de statistiques */}
+          {/* Grille de stats */}
           <View style={styles.statsGrid}>
-            <LinearGradient
-              colors={[colors.primary + "15", colors.secondary + "05"]}
-              style={styles.statCard}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
+            <View style={[styles.statCard, { backgroundColor: colors.card }]}>
               <View
                 style={[
                   styles.statIcon,
-                  { backgroundColor: colors.primary + "20" },
+                  { backgroundColor: colors.primary + "15" },
                 ]}
               >
-                <Ionicons name="star" size={20} color={colors.primary} />
+                <Ionicons name="star" size={18} color={colors.primary} />
               </View>
-              <Text style={[styles.statValue, { color: colors.text }]}>
+              <Text style={[styles.statCardValue, { color: colors.text }]}>
                 {stats.averageRating.toFixed(1)}
               </Text>
-              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-                Note moyenne
+              <Text
+                style={[styles.statCardLabel, { color: colors.textSecondary }]}
+              >
+                Note
               </Text>
-            </LinearGradient>
+            </View>
 
-            <LinearGradient
-              colors={[colors.primary + "15", colors.secondary + "05"]}
-              style={styles.statCard}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
+            <View style={[styles.statCard, { backgroundColor: colors.card }]}>
               <View
                 style={[
                   styles.statIcon,
-                  { backgroundColor: colors.primary + "20" },
+                  { backgroundColor: colors.primary + "15" },
                 ]}
               >
                 <Ionicons
                   name="checkmark-circle"
-                  size={20}
+                  size={18}
                   color={colors.primary}
                 />
               </View>
-              <Text style={[styles.statValue, { color: colors.text }]}>
+              <Text style={[styles.statCardValue, { color: colors.text }]}>
                 {stats.totalMissions}
               </Text>
-              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-                Missions totales
+              <Text
+                style={[styles.statCardLabel, { color: colors.textSecondary }]}
+              >
+                Missions
               </Text>
-            </LinearGradient>
+            </View>
 
-            <LinearGradient
-              colors={[colors.primary + "15", colors.secondary + "05"]}
-              style={styles.statCard}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
+            <View style={[styles.statCard, { backgroundColor: colors.card }]}>
               <View
                 style={[
                   styles.statIcon,
-                  { backgroundColor: colors.primary + "20" },
+                  { backgroundColor: colors.primary + "15" },
                 ]}
               >
-                <Ionicons name="time" size={20} color={colors.primary} />
+                <Ionicons name="trending-up" size={18} color={colors.primary} />
               </View>
-              <Text style={[styles.statValue, { color: colors.text }]}>
-                {stats.completedToday}
+              <Text style={[styles.statCardValue, { color: colors.text }]}>
+                {stats.responseRate}%
               </Text>
-              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
-                Complétées
+              <Text
+                style={[styles.statCardLabel, { color: colors.textSecondary }]}
+              >
+                Réponse
               </Text>
-            </LinearGradient>
+            </View>
           </View>
 
-          {/* Message si profil incomplet */}
-          {!profileComplete && (
-            <TouchableOpacity
-              style={[
-                styles.incompleteCard,
-                { backgroundColor: colors.warning + "20" },
-              ]}
-              onPress={() => setShowProfileModal(true)}
-            >
-              <Ionicons name="alert-circle" size={24} color={colors.warning} />
-              <View style={styles.incompleteContent}>
-                <Text style={[styles.incompleteTitle, { color: colors.text }]}>
-                  Profil incomplet
-                </Text>
-                <Text
-                  style={[
-                    styles.incompleteText,
-                    { color: colors.textSecondary },
-                  ]}
-                >
-                  Complétez votre profil pour commencer
-                </Text>
-              </View>
-              <Ionicons
-                name="chevron-forward"
-                size={24}
-                color={colors.warning}
-              />
-            </TouchableOpacity>
-          )}
-
-          {/* Missions disponibles */}
+          {/* Section Missions disponibles */}
           <View style={styles.missionsSection}>
             <View style={styles.sectionHeader}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>
-                Missions disponibles
+                Missions à proximité
               </Text>
-              {availableMissions.length > 0 && (
-                <View
-                  style={[
-                    styles.missionCount,
-                    { backgroundColor: colors.primary + "20" },
-                  ]}
-                >
-                  <Text
-                    style={[styles.missionCountText, { color: colors.primary }]}
-                  >
-                    {availableMissions.length}
-                  </Text>
-                </View>
-              )}
+              <TouchableOpacity onPress={() => router.push("/missions")}>
+                <Text style={[styles.sectionLink, { color: colors.primary }]}>
+                  Voir tout
+                </Text>
+              </TouchableOpacity>
             </View>
 
-            {!profileComplete ? (
-              <BlurView
-                intensity={30}
-                tint={colorScheme}
-                style={styles.emptyContainer}
-              >
-                <View
-                  style={[
-                    styles.emptyIcon,
-                    { backgroundColor: colors.primary + "10" },
-                  ]}
-                >
-                  <Ionicons name="construct" size={50} color={colors.primary} />
-                </View>
-                <Text style={[styles.emptyTitle, { color: colors.text }]}>
-                  Profil incomplet
-                </Text>
-                <Text
-                  style={[styles.emptyText, { color: colors.textSecondary }]}
-                >
-                  Complétez votre profil pour voir les missions disponibles
-                </Text>
+            {availableMissions.length > 0 ? (
+              availableMissions.slice(0, 3).map((mission, index) => (
                 <TouchableOpacity
-                  style={[
-                    styles.emptyButton,
-                    { backgroundColor: colors.primary },
-                  ]}
-                  onPress={() => router.push("/(onboarding)/welcome")}
-                >
-                  <Text style={styles.emptyButtonText}>
-                    Compléter mon profil
-                  </Text>
-                </TouchableOpacity>
-              </BlurView>
-            ) : availableMissions.length > 0 ? (
-              availableMissions.map((mission, index) => (
-                <Animated.View
                   key={mission._id}
                   style={[
                     styles.missionCard,
-                    {
-                      opacity: fadeAnim,
-                      transform: [
-                        {
-                          translateX: slideAnim.interpolate({
-                            inputRange: [0, 50],
-                            outputRange: [0, 20 * (index + 1)],
-                          }),
-                        },
-                      ],
-                    },
+                    { backgroundColor: colors.card },
+                    index === 0 && styles.firstMission,
                   ]}
+                  onPress={() => handleMissionPress(mission)}
+                  activeOpacity={0.7}
                 >
-                  <LinearGradient
-                    colors={[colors.surface, colors.surface]}
-                    style={styles.missionGradient}
-                  >
-                    <View style={styles.missionHeader}>
-                      <View style={styles.missionUser}>
-                        <View
-                          style={[
-                            styles.missionAvatar,
-                            { backgroundColor: colors.primary + "20" },
-                          ]}
-                        >
-                          <Text
-                            style={[
-                              styles.missionAvatarText,
-                              { color: colors.primary },
-                            ]}
-                          >
-                            {mission.client.firstName[0]}
-                            {mission.client.lastName[0]}
-                          </Text>
-                        </View>
-                        <View style={styles.missionUserInfo}>
-                          <Text
-                            style={[
-                              styles.missionUserName,
-                              { color: colors.text },
-                            ]}
-                          >
-                            {mission.client.firstName} {mission.client.lastName}
-                          </Text>
-                          <Text
-                            style={[
-                              styles.missionType,
-                              { color: colors.primary },
-                            ]}
-                          >
-                            {mission.type}
-                          </Text>
-                        </View>
-                      </View>
-                      <View
-                        style={[
-                          styles.missionDistance,
-                          { backgroundColor: colors.primary + "10" },
+                  <View style={styles.missionHeader}>
+                    <View style={styles.missionLeft}>
+                      <LinearGradient
+                        colors={[
+                          colors.primary + "20",
+                          colors.secondary + "10",
                         ]}
+                        style={styles.missionIcon}
                       >
                         <Ionicons
-                          name="location"
-                          size={12}
+                          name={getMissionIcon(mission.problem.category)}
+                          size={20}
                           color={colors.primary}
                         />
+                      </LinearGradient>
+                      <View>
+                        <Text
+                          style={[styles.missionType, { color: colors.text }]}
+                        >
+                          {getMissionType(mission.type)}
+                        </Text>
                         <Text
                           style={[
-                            styles.missionDistanceText,
-                            { color: colors.primary },
+                            styles.missionClient,
+                            { color: colors.textSecondary },
                           ]}
                         >
-                          {mission.distance} km
+                          {mission.client.firstName} {mission.client.lastName}
                         </Text>
                       </View>
                     </View>
-
-                    <Text
+                    <View
                       style={[
-                        styles.missionDescription,
-                        { color: colors.textSecondary },
+                        styles.missionDistance,
+                        { backgroundColor: colors.primary + "10" },
                       ]}
-                      numberOfLines={2}
                     >
-                      {mission.problem.description}
-                    </Text>
-
-                    <View style={styles.missionFooter}>
-                      <View style={styles.missionMeta}>
-                        <View
-                          style={[
-                            styles.missionTime,
-                            {
-                              backgroundColor:
-                                getTimeColor(mission.estimatedTimeMinutes) +
-                                "20",
-                            },
-                          ]}
-                        >
-                          <Ionicons
-                            name="time"
-                            size={14}
-                            color={getTimeColor(mission.estimatedTimeMinutes)}
-                          />
-                          <Text
-                            style={[
-                              styles.missionTimeText,
-                              {
-                                color: getTimeColor(
-                                  mission.estimatedTimeMinutes
-                                ),
-                              },
-                            ]}
-                          >
-                            {mission.estimatedTime}
-                          </Text>
-                        </View>
-                        <View style={styles.missionReward}>
-                          <Text
-                            style={[
-                              styles.missionRewardText,
-                              { color: colors.success },
-                            ]}
-                          >
-                            +{mission.reward} €
-                          </Text>
-                        </View>
-                      </View>
-
-                      <View style={styles.missionActions}>
-                        <TouchableOpacity
-                          style={[
-                            styles.acceptButton,
-                            { backgroundColor: colors.success },
-                          ]}
-                          onPress={() => acceptMission(mission._id)}
-                        >
-                          <Text style={styles.acceptButtonText}>Accepter</Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          style={[
-                            styles.detailsButton,
-                            { borderColor: colors.border },
-                          ]}
-                          onPress={() =>
-                            router.push(`/missions/${mission._id}`)
-                          }
-                        >
-                          <Text
-                            style={[
-                              styles.detailsButtonText,
-                              { color: colors.textSecondary },
-                            ]}
-                          >
-                            Détails
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
+                      <Ionicons
+                        name="location-outline"
+                        size={12}
+                        color={colors.primary}
+                      />
+                      <Text
+                        style={[
+                          styles.missionDistanceText,
+                          { color: colors.primary },
+                        ]}
+                      >
+                        {formatDistance(mission.distance)}
+                      </Text>
                     </View>
-                  </LinearGradient>
-                </Animated.View>
+                  </View>
+
+                  <Text
+                    style={[
+                      styles.missionDescription,
+                      { color: colors.textSecondary },
+                    ]}
+                    numberOfLines={1}
+                  >
+                    {mission.problem.description}
+                  </Text>
+
+                  <View style={styles.missionFooter}>
+                    <View
+                      style={[
+                        styles.missionTime,
+                        {
+                          backgroundColor:
+                            getTimeColor(mission.estimatedTimeMinutes) + "15",
+                        },
+                      ]}
+                    >
+                      <Ionicons
+                        name="time-outline"
+                        size={14}
+                        color={getTimeColor(mission.estimatedTimeMinutes)}
+                      />
+                      <Text
+                        style={[
+                          styles.missionTimeText,
+                          { color: getTimeColor(mission.estimatedTimeMinutes) },
+                        ]}
+                      >
+                        {mission.estimatedTime}
+                      </Text>
+                    </View>
+                    <Text
+                      style={[styles.missionReward, { color: colors.success }]}
+                    >
+                      ${mission.reward}
+                    </Text>
+                  </View>
+                </TouchableOpacity>
               ))
             ) : (
-              <BlurView
-                intensity={30}
-                tint={colorScheme}
-                style={styles.emptyContainer}
+              <View
+                style={[
+                  styles.emptyContainer,
+                  { backgroundColor: colors.card },
+                ]}
               >
-                <View
-                  style={[
-                    styles.emptyIcon,
-                    { backgroundColor: colors.primary + "10" },
-                  ]}
+                <LinearGradient
+                  colors={[colors.primary + "10", colors.secondary + "05"]}
+                  style={styles.emptyIconContainer}
                 >
                   <Ionicons
                     name="car-outline"
-                    size={50}
-                    color={colors.primary}
+                    size={32}
+                    color={colors.textSecondary}
                   />
-                </View>
+                </LinearGradient>
                 <Text style={[styles.emptyTitle, { color: colors.text }]}>
-                  Aucune mission disponible
+                  Aucune mission
                 </Text>
                 <Text
                   style={[styles.emptyText, { color: colors.textSecondary }]}
                 >
-                  Les nouvelles missions apparaîtront ici
+                  Les missions apparaîtront ici en temps réel
                 </Text>
-              </BlurView>
+              </View>
             )}
           </View>
 
-          {/* Conseil du jour */}
-          <LinearGradient
-            colors={[colors.primary + "10", colors.secondary + "05"]}
-            style={styles.tipCard}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-          >
-            <View
-              style={[
-                styles.tipIcon,
-                { backgroundColor: colors.primary + "20" },
-              ]}
-            >
-              <Ionicons name="bulb" size={24} color={colors.primary} />
-            </View>
-            <View style={styles.tipContent}>
-              <Text style={[styles.tipTitle, { color: colors.text }]}>
-                Conseil du jour
-              </Text>
-              <Text style={[styles.tipText, { color: colors.textSecondary }]}>
-                Restez dans un rayon de 10 km pour augmenter vos chances de
-                missions
-              </Text>
-            </View>
-          </LinearGradient>
+          {/* Espace pour le tab bar */}
+          <View style={styles.tabBarSpace} />
         </Animated.View>
       </ScrollView>
+
+      {/* Modal Mission */}
+      <Modal
+        visible={showMissionModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowMissionModal(false)}
+      >
+        <BlurView intensity={90} tint={colorScheme} style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            onPress={() => setShowMissionModal(false)}
+            activeOpacity={1}
+          />
+          {selectedMission && (
+            <Animated.View
+              style={[
+                styles.modalContent,
+                {
+                  backgroundColor: colors.card,
+                  transform: [{ scale: scaleAnim }],
+                },
+              ]}
+            >
+              <View style={styles.modalHeader}>
+                <LinearGradient
+                  colors={[colors.primary + "20", colors.secondary + "10"]}
+                  style={styles.modalIcon}
+                >
+                  <Ionicons
+                    name={getMissionIcon(selectedMission.problem.category)}
+                    size={32}
+                    color={colors.primary}
+                  />
+                </LinearGradient>
+                <View style={styles.modalTitleContainer}>
+                  <Text style={[styles.modalTitle, { color: colors.text }]}>
+                    {getMissionType(selectedMission.type)}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.modalClient,
+                      { color: colors.textSecondary },
+                    ]}
+                  >
+                    {selectedMission.client.firstName}{" "}
+                    {selectedMission.client.lastName}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.modalDetails}>
+                <View style={styles.modalDetail}>
+                  <Ionicons
+                    name="location-outline"
+                    size={18}
+                    color={colors.primary}
+                  />
+                  <Text
+                    style={[styles.modalDetailText, { color: colors.text }]}
+                  >
+                    {formatDistance(selectedMission.distance)}
+                  </Text>
+                </View>
+                <View style={styles.modalDetail}>
+                  <Ionicons
+                    name="time-outline"
+                    size={18}
+                    color={getTimeColor(selectedMission.estimatedTimeMinutes)}
+                  />
+                  <Text
+                    style={[
+                      styles.modalDetailText,
+                      {
+                        color: getTimeColor(
+                          selectedMission.estimatedTimeMinutes
+                        ),
+                      },
+                    ]}
+                  >
+                    {selectedMission.estimatedTime}
+                  </Text>
+                </View>
+                <View style={styles.modalDetail}>
+                  <Ionicons
+                    name="cash-outline"
+                    size={18}
+                    color={colors.success}
+                  />
+                  <Text
+                    style={[styles.modalDetailText, { color: colors.success }]}
+                  >
+                    ${selectedMission.reward}
+                  </Text>
+                </View>
+              </View>
+
+              <View
+                style={[
+                  styles.modalDescription,
+                  { backgroundColor: colors.background },
+                ]}
+              >
+                <Text
+                  style={[styles.modalDescriptionText, { color: colors.text }]}
+                >
+                  {selectedMission.problem.description}
+                </Text>
+                <Text
+                  style={[
+                    styles.modalAddressText,
+                    { color: colors.textSecondary },
+                  ]}
+                >
+                  {selectedMission.location.address}
+                </Text>
+              </View>
+
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={[
+                    styles.modalAcceptButton,
+                    { backgroundColor: colors.success },
+                  ]}
+                  onPress={handleAcceptMission}
+                >
+                  <Text style={styles.modalAcceptText}>
+                    Accepter la mission
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.modalCloseButton,
+                    { borderColor: colors.border },
+                  ]}
+                  onPress={() => setShowMissionModal(false)}
+                >
+                  <Text
+                    style={[
+                      styles.modalCloseText,
+                      { color: colors.textSecondary },
+                    ]}
+                  >
+                    Fermer
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </Animated.View>
+          )}
+        </BlurView>
+      </Modal>
     </View>
   );
 }
+
+// Fonctions utilitaires pour les missions
+const getMissionIcon = (category: string) => {
+  const icons: Record<string, keyof typeof Ionicons.glyphMap> = {
+    battery: "battery-dead",
+    tire: "car",
+    fuel: "water",
+    towing: "construct",
+    lockout: "key",
+    diagnostic: "medkit",
+    jumpstart: "flash",
+    minor_repair: "build",
+  };
+  return icons[category] || "help-circle";
+};
+
+const getMissionType = (type: string) => {
+  const types: Record<string, string> = {
+    battery: "Batterie",
+    tire: "Pneu",
+    fuel: "Essence",
+    towing: "Remorquage",
+    lockout: "Clés",
+    diagnostic: "Diagnostic",
+    jumpstart: "Démarrage",
+    minor_repair: "Réparation",
+  };
+  return types[type] || type;
+};
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
-  welcomeOverlay: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    justifyContent: "center",
-    alignItems: "center",
-    zIndex: 1000,
-  },
-  welcomeTitle: {
-    fontSize: 28,
-    fontWeight: "bold",
-    color: "#fff",
-    marginTop: 20,
-    marginBottom: 10,
-  },
-  welcomeSubtitle: {
-    fontSize: 16,
-    color: "#fff",
-    opacity: 0.9,
-  },
-  loadingContent: {
+  loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     gap: 20,
   },
   loadingLogo: {
-    width: 120,
-    height: 120,
-    borderRadius: 60,
+    width: 80,
+    height: 80,
+    borderRadius: 40,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 20,
   },
   loadingText: {
-    fontSize: 16,
-    marginTop: 20,
-  },
-  content: {
-    flex: 1,
+    fontSize: 20,
+    fontWeight: "600",
   },
   header: {
-    paddingTop: Platform.OS === "ios" ? 60 : 40,
-    paddingBottom: 20,
-    paddingHorizontal: 20,
+    paddingTop: Platform.OS === "ios" ? 0 : StatusBar.currentHeight,
     borderBottomLeftRadius: 30,
     borderBottomRightRadius: 30,
+  },
+  headerSafeArea: {
+    paddingTop: Platform.OS === "ios" ? 50 : 30,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
   },
   headerTop: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
     marginBottom: 20,
+    marginHorizontal: 10,
   },
   headerGreeting: {
     fontSize: 14,
     color: "#fff",
-    opacity: 0.9,
+    opacity: 0.8,
     marginBottom: 4,
   },
+  headerNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
   headerName: {
-    fontSize: 24,
+    fontSize: 22,
     fontWeight: "bold",
     color: "#fff",
   },
-  availabilityButton: {
+  headerLevel: {
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
+  headerLevelText: {
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  statusButton: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 10,
-    borderRadius: 25,
+    borderRadius: 30,
     gap: 8,
   },
-  availabilityDot: {
+  statusDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
     backgroundColor: "#fff",
   },
-  availabilityText: {
+  statusText: {
     color: "#fff",
     fontSize: 14,
     fontWeight: "600",
@@ -1015,7 +839,7 @@ const styles = StyleSheet.create({
     justifyContent: "space-around",
     backgroundColor: "rgba(255,255,255,0.15)",
     borderRadius: 20,
-    padding: 15,
+    padding: 16,
   },
   headerStat: {
     alignItems: "center",
@@ -1033,28 +857,29 @@ const styles = StyleSheet.create({
   },
   headerStatDivider: {
     width: 1,
-    height: "80%",
+    height: "70%",
     backgroundColor: "rgba(255,255,255,0.3)",
     alignSelf: "center",
   },
+  content: {
+    flex: 1,
+    padding: 16,
+  },
   statsGrid: {
     flexDirection: "row",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    marginTop: -20,
-    gap: 10,
+    gap: 12,
+    marginBottom: 24,
   },
   statCard: {
     flex: 1,
     alignItems: "center",
-    padding: 15,
-    borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.1)",
+    padding: 12,
+    borderRadius: 16,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   statIcon: {
     width: 36,
@@ -1064,103 +889,88 @@ const styles = StyleSheet.create({
     alignItems: "center",
     marginBottom: 8,
   },
-  statValue: {
-    fontSize: 18,
+  statCardValue: {
+    fontSize: 16,
     fontWeight: "bold",
     marginBottom: 2,
   },
-  statLabel: {
-    fontSize: 11,
+  statCardLabel: {
+    fontSize: 10,
   },
   missionsSection: {
-    padding: 20,
+    gap: 12,
   },
   sectionHeader: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 15,
+    alignItems: "center",
+    marginBottom: 4,
+    paddingHorizontal: 4,
   },
   sectionTitle: {
     fontSize: 18,
-    fontWeight: "bold",
-  },
-  missionCount: {
-    paddingHorizontal: 10,
-    paddingVertical: 4,
-    borderRadius: 15,
-  },
-  missionCountText: {
-    fontSize: 12,
     fontWeight: "600",
   },
-  missionCard: {
-    borderRadius: 20,
-    marginBottom: 12,
-    overflow: "hidden",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
+  sectionLink: {
+    fontSize: 13,
+    fontWeight: "500",
   },
-  missionGradient: {
+  missionCard: {
     padding: 16,
+    borderRadius: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  firstMission: {
+    borderWidth: 2,
+    borderColor: "rgba(184, 134, 11, 0.3)",
   },
   missionHeader: {
     flexDirection: "row",
-    alignItems: "center",
     justifyContent: "space-between",
-    marginBottom: 12,
+    alignItems: "center",
+    marginBottom: 10,
   },
-  missionUser: {
+  missionLeft: {
     flexDirection: "row",
     alignItems: "center",
     gap: 12,
   },
-  missionAvatar: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+  missionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
     justifyContent: "center",
     alignItems: "center",
   },
-  missionAvatarText: {
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  missionUserInfo: {
-    gap: 2,
-  },
-  missionUserName: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
   missionType: {
-    fontSize: 13,
-    fontWeight: "500",
+    fontSize: 14,
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  missionClient: {
+    fontSize: 12,
   },
   missionDistance: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: 10,
     paddingVertical: 5,
-    borderRadius: 15,
+    borderRadius: 16,
     gap: 4,
   },
   missionDistanceText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "500",
   },
   missionDescription: {
-    fontSize: 14,
-    marginBottom: 16,
-    lineHeight: 20,
+    fontSize: 13,
+    marginBottom: 12,
   },
   missionFooter: {
-    gap: 12,
-  },
-  missionMeta: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
@@ -1170,97 +980,40 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 10,
     paddingVertical: 5,
-    borderRadius: 15,
+    borderRadius: 16,
     gap: 4,
   },
   missionTimeText: {
-    fontSize: 12,
+    fontSize: 11,
     fontWeight: "500",
   },
   missionReward: {
-    flexDirection: "row",
-    alignItems: "center",
-  },
-  missionRewardText: {
-    fontSize: 18,
-    fontWeight: "bold",
-  },
-  missionActions: {
-    flexDirection: "row",
-    gap: 10,
-  },
-  acceptButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 15,
-    alignItems: "center",
-  },
-  acceptButtonText: {
-    color: "#fff",
-    fontSize: 15,
-    fontWeight: "600",
-  },
-  detailsButton: {
-    flex: 1,
-    paddingVertical: 12,
-    borderRadius: 15,
-    borderWidth: 1,
-    alignItems: "center",
-  },
-  detailsButtonText: {
-    fontSize: 15,
-    fontWeight: "500",
+    fontSize: 16,
+    fontWeight: "700",
   },
   emptyContainer: {
     alignItems: "center",
-    padding: 40,
+    padding: 32,
     borderRadius: 20,
-    overflow: "hidden",
+    gap: 12,
   },
-  emptyIcon: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
+  emptyIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 15,
   },
   emptyTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    marginBottom: 8,
-  },
-  emptyText: {
-    fontSize: 14,
-    textAlign: "center",
-  },
-  tipCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginHorizontal: 20,
-    marginBottom: 30,
-    padding: 16,
-    borderRadius: 20,
-    gap: 15,
-  },
-  tipIcon: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  tipContent: {
-    flex: 1,
-  },
-  tipTitle: {
     fontSize: 16,
     fontWeight: "600",
-    marginBottom: 4,
   },
-  tipText: {
+  emptyText: {
     fontSize: 13,
-    lineHeight: 18,
+    textAlign: "center",
+  },
+  tabBarSpace: {
+    height: 80,
   },
   modalOverlay: {
     flex: 1,
@@ -1269,96 +1022,92 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     width: "90%",
-    padding: 30,
-    borderRadius: 30,
-    alignItems: "center",
+    maxWidth: 400,
+    padding: 24,
+    borderRadius: 28,
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 12,
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
     elevation: 10,
   },
-  modalIcon: {
-    width: 100,
-    height: 100,
-    borderRadius: 50,
-    justifyContent: "center",
+  modalHeader: {
+    flexDirection: "row",
     alignItems: "center",
+    gap: 16,
     marginBottom: 20,
   },
-  modalTitle: {
-    fontSize: 24,
-    fontWeight: "bold",
-    textAlign: "center",
-    marginBottom: 15,
-  },
-  modalText: {
-    fontSize: 16,
-    textAlign: "center",
-    marginBottom: 25,
-    lineHeight: 22,
-  },
-  modalSteps: {
-    width: "100%",
-    marginBottom: 30,
-    gap: 12,
-  },
-  modalStep: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  modalStepDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
-  },
-  modalStepText: {
-    fontSize: 14,
-  },
-  modalButtons: {
-    width: "100%",
-    gap: 10,
-  },
-  modalButton: {
-    padding: 16,
-    borderRadius: 15,
+  modalIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: "center",
     alignItems: "center",
   },
-  modalButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  incompleteCard: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginHorizontal: 20,
-    marginTop: 20,
-    padding: 16,
-    borderRadius: 16,
-    gap: 12,
-  },
-  incompleteContent: {
+  modalTitleContainer: {
     flex: 1,
   },
-  incompleteTitle: {
-    fontSize: 16,
-    fontWeight: "600",
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
     marginBottom: 2,
   },
-  incompleteText: {
-    fontSize: 13,
-  },
-  emptyButton: {
-    marginTop: 20,
-    paddingHorizontal: 25,
-    paddingVertical: 12,
-    borderRadius: 25,
-  },
-  emptyButtonText: {
-    color: "#fff",
+  modalClient: {
     fontSize: 14,
+  },
+  modalDetails: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    marginBottom: 20,
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: "rgba(0,0,0,0.05)",
+  },
+  modalDetail: {
+    alignItems: "center",
+    gap: 4,
+  },
+  modalDetailText: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  modalDescription: {
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 20,
+    gap: 8,
+  },
+  modalDescriptionText: {
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: "center",
+  },
+  modalAddressText: {
+    fontSize: 12,
+    textAlign: "center",
+  },
+  modalActions: {
+    gap: 10,
+  },
+  modalAcceptButton: {
+    padding: 16,
+    borderRadius: 30,
+    alignItems: "center",
+  },
+  modalAcceptText: {
+    color: "#fff",
+    fontSize: 16,
     fontWeight: "600",
+  },
+  modalCloseButton: {
+    padding: 14,
+    borderRadius: 30,
+    borderWidth: 1,
+    alignItems: "center",
+  },
+  modalCloseText: {
+    fontSize: 14,
+    fontWeight: "500",
   },
 });

@@ -1,63 +1,51 @@
-// constants/theme.ts
 export const Colors = {
   light: {
-    // Fond
-    background: "#FFFFFF",
-    surface: "#F8F9FA",
+    background: "#F9FAFB",
+    surface: "#FFFFFF",
     card: "#FFFFFF",
 
-    // Texte
-    text: "#1A1B1E",
-    textSecondary: "#6C757D",
+    text: "#111827",
+    textSecondary: "#6B7280",
 
-    // Accents
-    primary: "#B8860B", // Or antique
-    secondary: "#800020", // Bordeaux profond
-    accent: "#D4AF37", // Or brillant
+    primary: "#2563EB", // bleu moderne
+    secondary: "#7C3AED", // violet
+    accent: "#06B6D4", // cyan
 
-    // États
-    success: "#2E7D32",
-    warning: "#ED6C02",
-    error: "#D32F2F",
-    info: "#0288D1",
+    success: "#22C55E",
+    warning: "#F59E0B",
+    error: "#EF4444",
+    info: "#3B82F6",
 
-    // Gris
-    border: "#E9ECEF",
-    disabled: "#ADB5BD",
-    placeholder: "#CED4DA",
+    border: "#E5E7EB",
+    disabled: "#9CA3AF",
+    placeholder: "#D1D5DB",
 
-    // Tab bar
-    tabIconDefault: "#ADB5BD",
-    tabIconSelected: "#B8860B",
+    tabIconDefault: "#9CA3AF",
+    tabIconSelected: "#2563EB",
   },
+
   dark: {
-    // Fond
-    background: "#0A0A0A",
-    surface: "#1E1E1E",
-    card: "#2D2D2D",
+    background: "#0F172A",
+    surface: "#1E293B",
+    card: "#1E293B",
 
-    // Texte
-    text: "#FFFFFF",
-    textSecondary: "#B0B0B0",
+    text: "#F8FAFC",
+    textSecondary: "#94A3B8",
 
-    // Accents
-    primary: "#D4AF37", // Or brillant
-    secondary: "#9B1D1D", // Bordeaux clair
-    accent: "#F0B90B", // Or vif
+    primary: "#3B82F6",
+    secondary: "#8B5CF6",
+    accent: "#22D3EE",
 
-    // États
-    success: "#4CAF50",
-    warning: "#FFB74D",
-    error: "#EF5350",
-    info: "#42A5F5",
+    success: "#4ADE80",
+    warning: "#FBBF24",
+    error: "#F87171",
+    info: "#60A5FA",
 
-    // Gris
-    border: "#404040",
-    disabled: "#6C757D",
-    placeholder: "#808080",
+    border: "#334155",
+    disabled: "#64748B",
+    placeholder: "#475569",
 
-    // Tab bar
-    tabIconDefault: "#808080",
-    tabIconSelected: "#D4AF37",
+    tabIconDefault: "#64748B",
+    tabIconSelected: "#3B82F6",
   },
 };

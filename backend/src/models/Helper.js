@@ -32,6 +32,7 @@ const helperSchema = new mongoose.Schema({
     },
     radius: { type: Number, default: 20 } // Rayon en km
   },
+  address: { type: String, default: '' },
   availability: {
     isAvailable: { type: Boolean, default: true },
     schedule: [{
@@ -57,6 +58,10 @@ const helperSchema = new mongoose.Schema({
       price: Number
     }]
   },
+  photo: {
+    type: String,
+    default: null
+  },
   stats: {
     totalInterventions: { type: Number, default: 0 },
     completedInterventions: { type: Number, default: 0 },
@@ -66,10 +71,26 @@ const helperSchema = new mongoose.Schema({
     totalEarnings: { type: Number, default: 0 }
   },
   documents: [{
-    type: { type: String, enum: ['license', 'insurance', 'certification'] },
-    url: String,
+    type: { 
+      type: String, 
+      enum: ['license', 'insurance', 'certification'],
+      required: true 
+    },
+    url: { type: String, default: null },
     verified: { type: Boolean, default: false },
-    uploadedAt: Date
+    uploadedAt: Date,
+    fileName: String,
+    fileSize: Number,
+    mimeType: String,
+    // Nouveaux champs
+    status: {
+      type: String,
+      enum: ['missing', 'pending', 'verified', 'rejected'],
+      default: 'missing'
+    },
+    rejectionReason: String,
+    reviewedAt: Date,
+    reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: 'User' }
   }],
   reviews: [{
     user: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },

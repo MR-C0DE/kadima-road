@@ -71,7 +71,8 @@ export default function LoginScreen() {
 
     setLoading(true);
     try {
-      const response = await api.post("/auth/login", {
+      // ✅ Route CORRECTE pour Kadima Road
+      const response = await api.post("/auth/user/login", {
         email,
         password,
       });

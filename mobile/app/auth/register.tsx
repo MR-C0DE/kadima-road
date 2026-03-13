@@ -117,7 +117,8 @@ export default function RegisterScreen() {
 
     setLoading(true);
     try {
-      await api.post("/auth/register", {
+      // ✅ Route CORRECTE pour Kadima Road
+      const response = await api.post("/auth/user/register", {
         firstName: form.firstName,
         lastName: form.lastName,
         email: form.email,

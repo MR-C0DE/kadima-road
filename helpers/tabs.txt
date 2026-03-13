@@ -1,0 +1,6287 @@
+import { Tabs } from "expo-router";
+import React, { useEffect, useRef } from "react";
+import { useAuth } from "../../contexts/AuthContext";
+import { useTheme } from "../../contexts/ThemeContext";
+import { Ionicons } from "@expo/vector-icons";
+import { Colors } from "@/constants/theme";
+import { Platform, Animated, StyleSheet, View, Text } from "react-native";
+import { BlurView } from "expo-blur";
+
+export default function TabLayout() {
+  const { user } = useAuth();
+  const { effectiveTheme } = useTheme();
+  const colors = Colors[effectiveTheme];
+
+  // Animations
+  const tabAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.timing(tabAnim, {
+      toValue: 1,
+      duration: 600,
+      useNativeDriver: true,
+    }).start();
+  }, []);
+
+  const tabBarTranslateY = tabAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [100, 0],
+  });
+
+  return (
+    <Tabs
+      screenOptions={{
+        headerShown: false,
+        tabBarActiveTintColor: colors.primary,
+        tabBarInactiveTintColor: colors.tabIconDefault,
+        tabBarStyle: {
+          position: "absolute",
+          bottom: Platform.OS === "ios" ? 0 : 0,
+          left: 20,
+          right: 20,
+          backgroundColor: "transparent",
+          borderTopWidth: 0,
+          elevation: 0,
+          shadowOpacity: 0,
+          height: Platform.OS === "ios" ? 75 : 65,
+          borderRadius: 35,
+          transform: [{ translateY: tabBarTranslateY }],
+        },
+        tabBarBackground: () => (
+          <BlurView
+            intensity={80}
+            tint={effectiveTheme === "dark" ? "dark" : "light"}
+            style={StyleSheet.absoluteFill}
+          />
+        ),
+        tabBarItemStyle: {
+          paddingVertical: 8,
+        },
+        tabBarLabel: ({ focused, color, children }) => {
+          if (!focused) return null;
+          return (
+            <Animated.View
+              style={[
+                styles.tabLabel,
+                {
+                  backgroundColor: colors.primary + "20",
+                },
+              ]}
+            >
+              <Text style={[styles.tabLabelText, { color }]}>{children}</Text>
+            </Animated.View>
+          );
+        },
+        tabBarIconStyle: {
+          marginTop: Platform.OS === "ios" ? 0 : 5,
+        },
+      }}
+    >
+      <Tabs.Screen
+        name="index"
+        options={{
+          title: "Accueil",
+          tabBarIcon: ({ color, size, focused }) => (
+            <View style={styles.iconContainer}>
+              <Ionicons
+                name={focused ? "home" : "home-outline"}
+                size={focused ? 26 : 24}
+                color={color}
+              />
+              {focused && (
+                <View style={[styles.activeDot, { backgroundColor: color }]} />
+              )}
+            </View>
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="missions"
+        options={{
+          title: "Missions",
+          tabBarIcon: ({ color, size, focused }) => (
+            <View style={styles.iconContainer}>
+              <Ionicons
+                name={focused ? "car" : "car-outline"}
+                size={focused ? 26 : 24}
+                color={color}
+              />
+              {focused && (
+                <View style={[styles.activeDot, { backgroundColor: color }]} />
+              )}
+            </View>
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="gains"
+        options={{
+          title: "Gains",
+          tabBarIcon: ({ color, size, focused }) => (
+            <View style={styles.iconContainer}>
+              <Ionicons
+                name={focused ? "wallet" : "wallet-outline"}
+                size={focused ? 26 : 24}
+                color={color}
+              />
+              {focused && (
+                <View style={[styles.activeDot, { backgroundColor: color }]} />
+              )}
+            </View>
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="planning"
+        options={{
+          title: "Planning",
+          tabBarIcon: ({ color, size, focused }) => (
+            <View style={styles.iconContainer}>
+              <Ionicons
+                name={focused ? "calendar" : "calendar-outline"}
+                size={focused ? 26 : 24}
+                color={color}
+              />
+              {focused && (
+                <View style={[styles.activeDot, { backgroundColor: color }]} />
+              )}
+            </View>
+          ),
+        }}
+      />
+
+      <Tabs.Screen
+        name="profile"
+        options={{
+          title: "Profil",
+          tabBarIcon: ({ color, size, focused }) => (
+            <View style={styles.iconContainer}>
+              <Ionicons
+                name={focused ? "person" : "person-outline"}
+                size={focused ? 26 : 24}
+                color={color}
+              />
+              {focused && (
+                <View style={[styles.activeDot, { backgroundColor: color }]} />
+              )}
+            </View>
+          ),
+        }}
+      />
+    </Tabs>
+  );
+}
+
+const styles = StyleSheet.create({
+  iconContainer: {
+    alignItems: "center",
+    justifyContent: "center",
+    position: "relative",
+  },
+  activeDot: {
+    position: "absolute",
+    bottom: -8,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+  },
+  tabLabel: {
+    position: "absolute",
+    top: -25,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 15,
+    alignSelf: "center",
+  },
+  tabLabelText: {
+    fontSize: 11,
+    fontWeight: "500",
+  },
+});
+import React, { useEffect, useState, useRef } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Alert,
+  ActivityIndicator,
+  ScrollView,
+  RefreshControl,
+  Dimensions,
+  Animated,
+  Easing,
+  Platform,
+  StatusBar,
+} from "react-native";
+import { useRouter } from "expo-router";
+import { useAuth } from "../../contexts/AuthContext";
+import { api } from "../../config/api";
+import { Colors } from "@/constants/theme";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import * as Haptics from "expo-haptics";
+import { BlurView } from "expo-blur";
+
+const { width } = Dimensions.get("window");
+
+interface EarningsStats {
+  todayEarnings: number;
+  weekEarnings: number;
+  monthEarnings: number;
+  totalEarnings: number;
+  pendingEarnings: number;
+  completedMissions: number;
+  averagePerMission: number;
+  responseRate: number;
+  cancellationRate: number;
+}
+
+interface Transaction {
+  _id: string;
+  date: string;
+  amount: number;
+  type: string;
+  status: "completed" | "pending" | "cancelled";
+  client: {
+    firstName: string;
+    lastName: string;
+  };
+  missionType: string;
+}
+
+export default function GainsScreen() {
+  const router = useRouter();
+  const { user } = useAuth();
+  const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme ?? "light"];
+
+  // États
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [stats, setStats] = useState<EarningsStats>({
+    todayEarnings: 0,
+    weekEarnings: 0,
+    monthEarnings: 0,
+    totalEarnings: 0,
+    pendingEarnings: 0,
+    completedMissions: 0,
+    averagePerMission: 0,
+    responseRate: 100,
+    cancellationRate: 0,
+  });
+  const [transactions, setTransactions] = useState<Transaction[]>([]);
+  const [selectedPeriod, setSelectedPeriod] = useState<
+    "day" | "week" | "month" | "year"
+  >("week");
+
+  // Animations
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const scaleAnim = useRef(new Animated.Value(0.95)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 600,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    loadEarnings();
+  }, []);
+
+  useEffect(() => {
+    Animated.sequence([
+      Animated.timing(fadeAnim, {
+        toValue: 0.5,
+        duration: 200,
+        useNativeDriver: true,
+      }),
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 400,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, [selectedPeriod]);
+
+  const loadEarnings = async () => {
+    try {
+      const statsResponse = await api.get("/helpers/earnings/stats");
+      setStats(statsResponse.data.data);
+
+      const transactionsResponse = await api.get(
+        `/helpers/earnings/transactions?period=${selectedPeriod}`
+      );
+      setTransactions(transactionsResponse.data.data || []);
+    } catch (error) {
+      console.log("Erreur chargement gains:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    await loadEarnings();
+    setRefreshing(false);
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "completed":
+        return colors.success;
+      case "pending":
+        return colors.warning;
+      case "cancelled":
+        return colors.error;
+      default:
+        return colors.icon;
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "completed":
+        return "checkmark-circle";
+      case "pending":
+        return "time";
+      case "cancelled":
+        return "close-circle";
+      default:
+        return "ellipse";
+    }
+  };
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case "completed":
+        return "Terminée";
+      case "pending":
+        return "En attente";
+      case "cancelled":
+        return "Annulée";
+      default:
+        return "";
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString("fr-FR", {
+      day: "2-digit",
+      month: "short",
+    });
+  };
+
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString("fr-FR", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <StatusBar barStyle="dark-content" />
+        <Animated.View
+          style={[
+            styles.loadingContent,
+            {
+              opacity: fadeAnim,
+              transform: [{ scale: scaleAnim }],
+            },
+          ]}
+        >
+          <LinearGradient
+            colors={[colors.primary, colors.secondary]}
+            style={styles.loadingLogo}
+          >
+            <Ionicons name="wallet" size={40} color="#fff" />
+          </LinearGradient>
+          <Text style={[styles.loadingText, { color: colors.primary }]}>
+            Kadima
+          </Text>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </Animated.View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar
+        barStyle="light-content"
+        backgroundColor="transparent"
+        translucent
+      />
+
+      {/* Header avec dégradé et flèche retour */}
+      <LinearGradient
+        colors={[colors.primary, colors.secondary]}
+        style={styles.header}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        <View style={styles.headerContent}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.headerButton}
+          >
+            <Ionicons name="arrow-back" size={24} color="#fff" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Gains</Text>
+          <TouchableOpacity onPress={onRefresh} style={styles.headerButton}>
+            <Ionicons
+              name="refresh"
+              size={24}
+              color="#fff"
+              style={{
+                transform: [{ rotate: refreshing ? "180deg" : "0deg" }],
+              }}
+            />
+          </TouchableOpacity>
+        </View>
+      </LinearGradient>
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
+      >
+        <Animated.View
+          style={[
+            styles.content,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }],
+            },
+          ]}
+        >
+          {/* Carte de gains totaux */}
+          <LinearGradient
+            colors={[colors.primary, colors.secondary]}
+            style={styles.totalCard}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <View style={styles.totalCardTop}>
+              <Text style={styles.totalCardLabel}>Gains totaux</Text>
+              <View style={styles.totalCardBadge}>
+                <Ionicons name="ribbon" size={12} color="#fff" />
+                <Text style={styles.totalCardBadgeText}>Top helper</Text>
+              </View>
+            </View>
+
+            <Text style={styles.totalCardValue}>
+              ${stats.totalEarnings.toFixed(2)}
+            </Text>
+
+            <View style={styles.totalCardFooter}>
+              <View style={styles.totalCardFooterItem}>
+                <Ionicons name="car" size={14} color="#fff" />
+                <Text style={styles.totalCardFooterText}>
+                  {stats.completedMissions} missions
+                </Text>
+              </View>
+              <View style={styles.totalCardFooterItem}>
+                <Ionicons name="trending-up" size={14} color="#fff" />
+                <Text style={styles.totalCardFooterText}>
+                  ${stats.averagePerMission.toFixed(2)}/mission
+                </Text>
+              </View>
+            </View>
+          </LinearGradient>
+
+          {/* Sélecteur de période */}
+          <View
+            style={[styles.periodContainer, { backgroundColor: colors.card }]}
+          >
+            <View style={styles.periodSelector}>
+              {["day", "week", "month", "year"].map((period) => (
+                <TouchableOpacity
+                  key={period}
+                  style={[
+                    styles.periodButton,
+                    selectedPeriod === period && {
+                      backgroundColor: colors.primary + "10",
+                    },
+                  ]}
+                  onPress={() => setSelectedPeriod(period as any)}
+                >
+                  <Text
+                    style={[
+                      styles.periodButtonText,
+                      {
+                        color:
+                          selectedPeriod === period
+                            ? colors.primary
+                            : colors.textSecondary,
+                      },
+                    ]}
+                  >
+                    {period === "day" && "Jour"}
+                    {period === "week" && "Semaine"}
+                    {period === "month" && "Mois"}
+                    {period === "year" && "Année"}
+                  </Text>
+                  {selectedPeriod === period && (
+                    <View
+                      style={[
+                        styles.periodActiveDot,
+                        { backgroundColor: colors.primary },
+                      ]}
+                    />
+                  )}
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            <View style={styles.periodEarnings}>
+              <Text
+                style={[
+                  styles.periodEarningsLabel,
+                  { color: colors.textSecondary },
+                ]}
+              >
+                Gains de la période
+              </Text>
+              <Text
+                style={[styles.periodEarningsValue, { color: colors.text }]}
+              >
+                ${stats[`${selectedPeriod}Earnings`]?.toFixed(2)}
+              </Text>
+            </View>
+
+            <View style={styles.periodProgress}>
+              <View
+                style={[styles.progressBar, { backgroundColor: colors.border }]}
+              >
+                <View
+                  style={[
+                    styles.progressFill,
+                    {
+                      backgroundColor: colors.primary,
+                      width: `${
+                        (stats[`${selectedPeriod}Earnings`] /
+                          stats.totalEarnings) *
+                        100
+                      }%`,
+                    },
+                  ]}
+                />
+              </View>
+              <Text
+                style={[styles.progressText, { color: colors.textSecondary }]}
+              >
+                {(
+                  (stats[`${selectedPeriod}Earnings`] / stats.totalEarnings) *
+                  100
+                ).toFixed(1)}
+                %
+              </Text>
+            </View>
+          </View>
+
+          {/* Stats rapides */}
+          <View style={styles.statsGrid}>
+            <View style={[styles.statCard, { backgroundColor: colors.card }]}>
+              <View
+                style={[
+                  styles.statIcon,
+                  { backgroundColor: colors.warning + "15" },
+                ]}
+              >
+                <Ionicons name="time" size={20} color={colors.warning} />
+              </View>
+              <Text style={[styles.statValue, { color: colors.text }]}>
+                ${stats.pendingEarnings.toFixed(2)}
+              </Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+                En attente
+              </Text>
+            </View>
+
+            <View style={[styles.statCard, { backgroundColor: colors.card }]}>
+              <View
+                style={[
+                  styles.statIcon,
+                  { backgroundColor: colors.success + "15" },
+                ]}
+              >
+                <Ionicons
+                  name="checkmark-circle"
+                  size={20}
+                  color={colors.success}
+                />
+              </View>
+              <Text style={[styles.statValue, { color: colors.text }]}>
+                {stats.responseRate}%
+              </Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+                Réponse
+              </Text>
+            </View>
+
+            <View style={[styles.statCard, { backgroundColor: colors.card }]}>
+              <View
+                style={[
+                  styles.statIcon,
+                  { backgroundColor: colors.error + "15" },
+                ]}
+              >
+                <Ionicons name="close-circle" size={20} color={colors.error} />
+              </View>
+              <Text style={[styles.statValue, { color: colors.text }]}>
+                {stats.cancellationRate}%
+              </Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+                Annulations
+              </Text>
+            </View>
+          </View>
+
+          {/* Transactions */}
+          <View style={styles.transactionsSection}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                Dernières transactions
+              </Text>
+              <TouchableOpacity>
+                <Text style={[styles.sectionLink, { color: colors.primary }]}>
+                  Voir tout
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {transactions.length > 0 ? (
+              transactions.slice(0, 5).map((transaction, index) => (
+                <Animated.View
+                  key={transaction._id}
+                  style={[
+                    styles.transactionCard,
+                    { backgroundColor: colors.card },
+                    index === 0 && styles.firstTransaction,
+                  ]}
+                >
+                  <View style={styles.transactionLeft}>
+                    <View
+                      style={[
+                        styles.transactionIcon,
+                        {
+                          backgroundColor:
+                            getStatusColor(transaction.status) + "15",
+                        },
+                      ]}
+                    >
+                      <Ionicons
+                        name={getStatusIcon(transaction.status)}
+                        size={20}
+                        color={getStatusColor(transaction.status)}
+                      />
+                    </View>
+
+                    <View style={styles.transactionInfo}>
+                      <Text
+                        style={[styles.transactionType, { color: colors.text }]}
+                      >
+                        {transaction.missionType}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.transactionClient,
+                          { color: colors.textSecondary },
+                        ]}
+                      >
+                        {transaction.client.firstName}{" "}
+                        {transaction.client.lastName}
+                      </Text>
+                      <View style={styles.transactionMeta}>
+                        <Ionicons
+                          name="calendar-outline"
+                          size={10}
+                          color={colors.textSecondary}
+                        />
+                        <Text
+                          style={[
+                            styles.transactionDate,
+                            { color: colors.textSecondary },
+                          ]}
+                        >
+                          {formatDate(transaction.date)} •{" "}
+                          {formatTime(transaction.date)}
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+
+                  <View style={styles.transactionRight}>
+                    <Text
+                      style={[
+                        styles.transactionAmount,
+                        { color: getStatusColor(transaction.status) },
+                      ]}
+                    >
+                      {transaction.status === "completed" ? "+" : ""}$
+                      {transaction.amount.toFixed(2)}
+                    </Text>
+                    <View
+                      style={[
+                        styles.transactionStatusBadge,
+                        {
+                          backgroundColor:
+                            getStatusColor(transaction.status) + "15",
+                        },
+                      ]}
+                    >
+                      <Text
+                        style={[
+                          styles.transactionStatusText,
+                          { color: getStatusColor(transaction.status) },
+                        ]}
+                      >
+                        {getStatusText(transaction.status)}
+                      </Text>
+                    </View>
+                  </View>
+                </Animated.View>
+              ))
+            ) : (
+              <View
+                style={[
+                  styles.emptyContainer,
+                  { backgroundColor: colors.card },
+                ]}
+              >
+                <LinearGradient
+                  colors={[colors.primary + "10", colors.secondary + "05"]}
+                  style={styles.emptyIcon}
+                >
+                  <Ionicons
+                    name="card-outline"
+                    size={32}
+                    color={colors.textSecondary}
+                  />
+                </LinearGradient>
+                <Text style={[styles.emptyTitle, { color: colors.text }]}>
+                  Aucune transaction
+                </Text>
+                <Text
+                  style={[styles.emptyText, { color: colors.textSecondary }]}
+                >
+                  Vos gains apparaîtront ici après vos premières missions
+                </Text>
+              </View>
+            )}
+          </View>
+
+          {/* Espace pour la tab bar */}
+          <View style={styles.bottomSpace} />
+        </Animated.View>
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  header: {
+    paddingTop: Platform.OS === "ios" ? 60 : 40,
+    paddingBottom: 20,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+  },
+  headerContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+  },
+  headerButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#fff",
+  },
+  loadingContent: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 20,
+  },
+  loadingLogo: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    fontSize: 18,
+    fontWeight: "600",
+  },
+  content: {
+    flex: 1,
+    padding: 16,
+    gap: 16,
+  },
+  totalCard: {
+    padding: 20,
+    borderRadius: 24,
+    gap: 12,
+  },
+  totalCardTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  totalCardLabel: {
+    fontSize: 14,
+    color: "#fff",
+    opacity: 0.9,
+  },
+  totalCardBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255,255,255,0.2)",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  totalCardBadgeText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "500",
+  },
+  totalCardValue: {
+    fontSize: 40,
+    fontWeight: "bold",
+    color: "#fff",
+  },
+  totalCardFooter: {
+    flexDirection: "row",
+    gap: 16,
+  },
+  totalCardFooterItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  totalCardFooterText: {
+    color: "#fff",
+    fontSize: 12,
+    opacity: 0.9,
+  },
+  periodContainer: {
+    padding: 16,
+    borderRadius: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  periodSelector: {
+    flexDirection: "row",
+    marginBottom: 16,
+    gap: 4,
+  },
+  periodButton: {
+    flex: 1,
+    paddingVertical: 8,
+    alignItems: "center",
+    borderRadius: 12,
+    position: "relative",
+  },
+  periodButtonText: {
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  periodActiveDot: {
+    position: "absolute",
+    bottom: -4,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+  },
+  periodEarnings: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  periodEarningsLabel: {
+    fontSize: 13,
+  },
+  periodEarningsValue: {
+    fontSize: 22,
+    fontWeight: "bold",
+  },
+  periodProgress: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  progressBar: {
+    flex: 1,
+    height: 4,
+    borderRadius: 2,
+    overflow: "hidden",
+  },
+  progressFill: {
+    height: "100%",
+    borderRadius: 2,
+  },
+  progressText: {
+    fontSize: 11,
+    fontWeight: "500",
+  },
+  statsGrid: {
+    flexDirection: "row",
+    gap: 10,
+  },
+  statCard: {
+    flex: 1,
+    alignItems: "center",
+    padding: 12,
+    borderRadius: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  statIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 6,
+  },
+  statValue: {
+    fontSize: 15,
+    fontWeight: "bold",
+    marginBottom: 2,
+  },
+  statLabel: {
+    fontSize: 10,
+  },
+  transactionsSection: {
+    gap: 12,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    paddingHorizontal: 4,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+  },
+  sectionLink: {
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  transactionCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 16,
+    borderRadius: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  firstTransaction: {
+    borderWidth: 1,
+    borderColor: "rgba(184, 134, 11, 0.3)",
+  },
+  transactionLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    flex: 1,
+  },
+  transactionIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  transactionInfo: {
+    flex: 1,
+    gap: 2,
+  },
+  transactionType: {
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  transactionClient: {
+    fontSize: 12,
+  },
+  transactionMeta: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 2,
+  },
+  transactionDate: {
+    fontSize: 10,
+  },
+  transactionRight: {
+    alignItems: "flex-end",
+    gap: 4,
+  },
+  transactionAmount: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  transactionStatusBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+  },
+  transactionStatusText: {
+    fontSize: 9,
+    fontWeight: "600",
+  },
+  emptyContainer: {
+    alignItems: "center",
+    padding: 32,
+    borderRadius: 20,
+    gap: 12,
+  },
+  emptyIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  emptyText: {
+    fontSize: 13,
+    textAlign: "center",
+  },
+  bottomSpace: {
+    height: 80,
+  },
+});
+import React, { useEffect, useState, useRef } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Alert,
+  ActivityIndicator,
+  ScrollView,
+  RefreshControl,
+  Dimensions,
+  Animated,
+  Easing,
+  Platform,
+  Modal,
+  StatusBar,
+  SafeAreaView,
+} from "react-native";
+import { useRouter } from "expo-router";
+import { useAuth } from "../../contexts/AuthContext";
+import { api } from "../../config/api";
+import { Colors } from "@/constants/theme";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import * as Haptics from "expo-haptics";
+import { BlurView } from "expo-blur";
+
+const { width } = Dimensions.get("window");
+
+// Types
+interface Mission {
+  id: string;
+  type: string;
+  distance: number;
+  reward: number;
+  clientName: string;
+  time: string;
+  timeMinutes: number;
+  description: string;
+  icon: keyof typeof Ionicons.glyphMap;
+}
+
+// Données mockées
+const MOCK_MISSIONS: Mission[] = [
+  {
+    id: "1",
+    type: "Dépannage batterie",
+    distance: 2.3,
+    reward: 45,
+    clientName: "Marie L.",
+    time: "12 min",
+    timeMinutes: 12,
+    description: "Batterie déchargée - Peugeot 208",
+    icon: "battery-dead",
+  },
+  {
+    id: "2",
+    type: "Changement pneu",
+    distance: 4.8,
+    reward: 55,
+    clientName: "Thomas P.",
+    time: "18 min",
+    timeMinutes: 18,
+    description: "Pneu crevé - Roue arrière droite",
+    icon: "car",
+  },
+  {
+    id: "3",
+    type: "Clés enfermées",
+    distance: 1.2,
+    reward: 35,
+    clientName: "Sophie M.",
+    time: "8 min",
+    timeMinutes: 8,
+    description: "Clés enfermées dans le véhicule",
+    icon: "key",
+  },
+];
+
+export default function HomeScreen() {
+  const router = useRouter();
+  const { user } = useAuth();
+  const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme ?? "light"];
+
+  // États
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [isAvailable, setIsAvailable] = useState(true);
+  const [selectedMission, setSelectedMission] = useState<Mission | null>(null);
+  const [showMissionModal, setShowMissionModal] = useState(false);
+  const [missions] = useState<Mission[]>(MOCK_MISSIONS);
+
+  // Stats
+  const [stats] = useState({
+    todayEarnings: 128,
+    todayMissions: 3,
+    rating: 4.92,
+    totalMissions: 342,
+    rank: 12,
+    level: "Expert",
+  });
+
+  // Animations
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+  const scaleAnim = useRef(new Animated.Value(0.95)).current;
+
+  useEffect(() => {
+    // Animation d'entrée
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Simuler chargement
+    setTimeout(() => setLoading(false), 800);
+  }, []);
+
+  const onRefresh = () => {
+    setRefreshing(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    setTimeout(() => setRefreshing(false), 1000);
+  };
+
+  const toggleAvailability = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    setIsAvailable(!isAvailable);
+  };
+
+  const handleMissionPress = (mission: Mission) => {
+    setSelectedMission(mission);
+    setShowMissionModal(true);
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+  };
+
+  const handleAcceptMission = () => {
+    Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    setShowMissionModal(false);
+    Alert.alert(
+      "✅ Mission acceptée",
+      "Rendez-vous dans l'onglet Missions pour plus de détails"
+    );
+  };
+
+  const getTimeColor = (minutes: number) => {
+    if (minutes < 10) return colors.success;
+    if (minutes < 20) return colors.warning;
+    return colors.error;
+  };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <StatusBar barStyle="dark-content" />
+        <View style={styles.loadingContainer}>
+          <LinearGradient
+            colors={[colors.primary, colors.secondary]}
+            style={styles.loadingLogo}
+          >
+            <Ionicons name="flash" size={40} color="#fff" />
+          </LinearGradient>
+          <Text style={[styles.loadingText, { color: colors.primary }]}>
+            Kadima
+          </Text>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar
+        barStyle="light-content"
+        backgroundColor="transparent"
+        translucent
+      />
+
+      {/* Header avec dégradé */}
+      <LinearGradient
+        colors={[colors.primary, colors.secondary]}
+        style={styles.header}
+      >
+        <SafeAreaView style={styles.headerSafeArea}>
+          <View style={styles.headerTop}>
+            <View>
+              <Text style={styles.headerGreeting}>Bonjour,</Text>
+              <View style={styles.headerNameRow}>
+                <Text style={styles.headerName}>
+                  {user?.name?.split(" ")[0] || "Helper"}
+                </Text>
+                <View style={styles.headerLevel}>
+                  <Text style={styles.headerLevelText}>{stats.level}</Text>
+                </View>
+              </View>
+            </View>
+            <TouchableOpacity
+              style={[
+                styles.statusButton,
+                {
+                  backgroundColor: isAvailable ? colors.success : colors.error,
+                },
+              ]}
+              onPress={toggleAvailability}
+              activeOpacity={0.8}
+            >
+              <View style={styles.statusDot} />
+              <Text style={styles.statusText}>
+                {isAvailable ? "Disponible" : "Indisponible"}
+              </Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* Stats header */}
+          <View style={styles.headerStats}>
+            <View style={styles.headerStat}>
+              <Text style={styles.headerStatValue}>{stats.todayMissions}</Text>
+              <Text style={styles.headerStatLabel}>aujourd'hui</Text>
+            </View>
+            <View style={styles.headerStatDivider} />
+            <View style={styles.headerStat}>
+              <Text style={styles.headerStatValue}>{stats.todayEarnings}$</Text>
+              <Text style={styles.headerStatLabel}>gagnés</Text>
+            </View>
+            <View style={styles.headerStatDivider} />
+            <View style={styles.headerStat}>
+              <Text style={styles.headerStatValue}>#{stats.rank}</Text>
+              <Text style={styles.headerStatLabel}>classement</Text>
+            </View>
+          </View>
+        </SafeAreaView>
+      </LinearGradient>
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
+      >
+        <Animated.View
+          style={[
+            styles.content,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }],
+            },
+          ]}
+        >
+          {/* Grille de stats */}
+          <View style={styles.statsGrid}>
+            <View style={[styles.statCard, { backgroundColor: colors.card }]}>
+              <View
+                style={[
+                  styles.statIcon,
+                  { backgroundColor: colors.primary + "15" },
+                ]}
+              >
+                <Ionicons name="star" size={18} color={colors.primary} />
+              </View>
+              <Text style={[styles.statCardValue, { color: colors.text }]}>
+                {stats.rating}
+              </Text>
+              <Text
+                style={[styles.statCardLabel, { color: colors.textSecondary }]}
+              >
+                Note
+              </Text>
+            </View>
+
+            <View style={[styles.statCard, { backgroundColor: colors.card }]}>
+              <View
+                style={[
+                  styles.statIcon,
+                  { backgroundColor: colors.primary + "15" },
+                ]}
+              >
+                <Ionicons
+                  name="checkmark-circle"
+                  size={18}
+                  color={colors.primary}
+                />
+              </View>
+              <Text style={[styles.statCardValue, { color: colors.text }]}>
+                {stats.totalMissions}
+              </Text>
+              <Text
+                style={[styles.statCardLabel, { color: colors.textSecondary }]}
+              >
+                Missions
+              </Text>
+            </View>
+
+            <View style={[styles.statCard, { backgroundColor: colors.card }]}>
+              <View
+                style={[
+                  styles.statIcon,
+                  { backgroundColor: colors.primary + "15" },
+                ]}
+              >
+                <Ionicons name="trending-up" size={18} color={colors.primary} />
+              </View>
+              <Text style={[styles.statCardValue, { color: colors.text }]}>
+                98%
+              </Text>
+              <Text
+                style={[styles.statCardLabel, { color: colors.textSecondary }]}
+              >
+                Réponse
+              </Text>
+            </View>
+          </View>
+
+          {/* Section Missions */}
+          <View style={styles.missionsSection}>
+            <View style={styles.sectionHeader}>
+              <Text style={[styles.sectionTitle, { color: colors.text }]}>
+                Missions à proximité
+              </Text>
+              <TouchableOpacity onPress={() => router.push("/missions")}>
+                <Text style={[styles.sectionLink, { color: colors.primary }]}>
+                  Voir tout
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {missions.map((mission, index) => (
+              <TouchableOpacity
+                key={mission.id}
+                style={[
+                  styles.missionCard,
+                  { backgroundColor: colors.card },
+                  index === 0 && styles.firstMission,
+                ]}
+                onPress={() => handleMissionPress(mission)}
+                activeOpacity={0.7}
+              >
+                <View style={styles.missionHeader}>
+                  <View style={styles.missionLeft}>
+                    <LinearGradient
+                      colors={[colors.primary + "20", colors.secondary + "10"]}
+                      style={styles.missionIcon}
+                    >
+                      <Ionicons
+                        name={mission.icon}
+                        size={20}
+                        color={colors.primary}
+                      />
+                    </LinearGradient>
+                    <View>
+                      <Text
+                        style={[styles.missionType, { color: colors.text }]}
+                      >
+                        {mission.type}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.missionClient,
+                          { color: colors.textSecondary },
+                        ]}
+                      >
+                        {mission.clientName}
+                      </Text>
+                    </View>
+                  </View>
+                  <View
+                    style={[
+                      styles.missionDistance,
+                      { backgroundColor: colors.primary + "10" },
+                    ]}
+                  >
+                    <Ionicons
+                      name="location-outline"
+                      size={12}
+                      color={colors.primary}
+                    />
+                    <Text
+                      style={[
+                        styles.missionDistanceText,
+                        { color: colors.primary },
+                      ]}
+                    >
+                      {mission.distance} km
+                    </Text>
+                  </View>
+                </View>
+
+                <Text
+                  style={[
+                    styles.missionDescription,
+                    { color: colors.textSecondary },
+                  ]}
+                  numberOfLines={1}
+                >
+                  {mission.description}
+                </Text>
+
+                <View style={styles.missionFooter}>
+                  <View
+                    style={[
+                      styles.missionTime,
+                      {
+                        backgroundColor:
+                          getTimeColor(mission.timeMinutes) + "15",
+                      },
+                    ]}
+                  >
+                    <Ionicons
+                      name="time-outline"
+                      size={14}
+                      color={getTimeColor(mission.timeMinutes)}
+                    />
+                    <Text
+                      style={[
+                        styles.missionTimeText,
+                        { color: getTimeColor(mission.timeMinutes) },
+                      ]}
+                    >
+                      {mission.time}
+                    </Text>
+                  </View>
+                  <Text
+                    style={[styles.missionReward, { color: colors.success }]}
+                  >
+                    {mission.reward} $
+                  </Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+
+          {/* Espace pour le tab bar */}
+          <View style={styles.tabBarSpace} />
+        </Animated.View>
+      </ScrollView>
+
+      {/* Modal Mission */}
+      <Modal
+        visible={showMissionModal}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setShowMissionModal(false)}
+      >
+        <BlurView intensity={90} tint={colorScheme} style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            onPress={() => setShowMissionModal(false)}
+            activeOpacity={1}
+          />
+          {selectedMission && (
+            <Animated.View
+              style={[
+                styles.modalContent,
+                {
+                  backgroundColor: colors.card,
+                  transform: [{ scale: scaleAnim }],
+                },
+              ]}
+            >
+              <View style={styles.modalHeader}>
+                <LinearGradient
+                  colors={[colors.primary + "20", colors.secondary + "10"]}
+                  style={styles.modalIcon}
+                >
+                  <Ionicons
+                    name={selectedMission.icon}
+                    size={32}
+                    color={colors.primary}
+                  />
+                </LinearGradient>
+                <View style={styles.modalTitleContainer}>
+                  <Text style={[styles.modalTitle, { color: colors.text }]}>
+                    {selectedMission.type}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.modalClient,
+                      { color: colors.textSecondary },
+                    ]}
+                  >
+                    {selectedMission.clientName}
+                  </Text>
+                </View>
+              </View>
+
+              <View style={styles.modalDetails}>
+                <View style={styles.modalDetail}>
+                  <Ionicons
+                    name="location-outline"
+                    size={18}
+                    color={colors.primary}
+                  />
+                  <Text
+                    style={[styles.modalDetailText, { color: colors.text }]}
+                  >
+                    {selectedMission.distance} km
+                  </Text>
+                </View>
+                <View style={styles.modalDetail}>
+                  <Ionicons
+                    name="time-outline"
+                    size={18}
+                    color={getTimeColor(selectedMission.timeMinutes)}
+                  />
+                  <Text
+                    style={[
+                      styles.modalDetailText,
+                      { color: getTimeColor(selectedMission.timeMinutes) },
+                    ]}
+                  >
+                    {selectedMission.time}
+                  </Text>
+                </View>
+                <View style={styles.modalDetail}>
+                  <Ionicons
+                    name="cash-outline"
+                    size={18}
+                    color={colors.success}
+                  />
+                  <Text
+                    style={[styles.modalDetailText, { color: colors.success }]}
+                  >
+                    {selectedMission.reward} $
+                  </Text>
+                </View>
+              </View>
+
+              <View
+                style={[
+                  styles.modalDescription,
+                  { backgroundColor: colors.background },
+                ]}
+              >
+                <Text
+                  style={[styles.modalDescriptionText, { color: colors.text }]}
+                >
+                  {selectedMission.description}
+                </Text>
+              </View>
+
+              <View style={styles.modalActions}>
+                <TouchableOpacity
+                  style={[
+                    styles.modalAcceptButton,
+                    { backgroundColor: colors.success },
+                  ]}
+                  onPress={handleAcceptMission}
+                >
+                  <Text style={styles.modalAcceptText}>
+                    Accepter la mission
+                  </Text>
+                </TouchableOpacity>
+                <TouchableOpacity
+                  style={[
+                    styles.modalCloseButton,
+                    { borderColor: colors.border },
+                  ]}
+                  onPress={() => setShowMissionModal(false)}
+                >
+                  <Text
+                    style={[
+                      styles.modalCloseText,
+                      { color: colors.textSecondary },
+                    ]}
+                  >
+                    Fermer
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </Animated.View>
+          )}
+        </BlurView>
+      </Modal>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 20,
+  },
+  loadingLogo: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    fontSize: 20,
+    fontWeight: "600",
+  },
+  header: {
+    paddingTop: Platform.OS === "ios" ? 0 : StatusBar.currentHeight,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+  },
+  headerSafeArea: {
+    paddingTop: Platform.OS === "ios" ? 50 : 30,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+  },
+  headerTop: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+    marginHorizontal: 10,
+  },
+  headerGreeting: {
+    fontSize: 14,
+    color: "#fff",
+    opacity: 0.8,
+    marginBottom: 4,
+  },
+  headerNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  headerName: {
+    fontSize: 22,
+    fontWeight: "bold",
+    color: "#fff",
+  },
+  headerLevel: {
+    backgroundColor: "rgba(255,255,255,0.2)",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+  },
+  headerLevelText: {
+    color: "#fff",
+    fontSize: 11,
+    fontWeight: "600",
+  },
+  statusButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 30,
+    gap: 8,
+  },
+  statusDot: {
+    width: 8,
+    height: 8,
+    borderRadius: 4,
+    backgroundColor: "#fff",
+  },
+  statusText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  headerStats: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    backgroundColor: "rgba(255,255,255,0.15)",
+    borderRadius: 20,
+    padding: 16,
+  },
+  headerStat: {
+    alignItems: "center",
+  },
+  headerStatValue: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#fff",
+    marginBottom: 2,
+  },
+  headerStatLabel: {
+    fontSize: 11,
+    color: "#fff",
+    opacity: 0.8,
+  },
+  headerStatDivider: {
+    width: 1,
+    height: "70%",
+    backgroundColor: "rgba(255,255,255,0.3)",
+    alignSelf: "center",
+  },
+  content: {
+    flex: 1,
+    padding: 16,
+  },
+  statsGrid: {
+    flexDirection: "row",
+    gap: 12,
+    marginBottom: 24,
+  },
+  statCard: {
+    flex: 1,
+    alignItems: "center",
+    padding: 12,
+    borderRadius: 16,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  statIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 8,
+  },
+  statCardValue: {
+    fontSize: 16,
+    fontWeight: "bold",
+    marginBottom: 2,
+  },
+  statCardLabel: {
+    fontSize: 10,
+  },
+  missionsSection: {
+    gap: 12,
+  },
+  sectionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 4,
+    paddingHorizontal: 4,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+  },
+  sectionLink: {
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  missionCard: {
+    padding: 16,
+    borderRadius: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  firstMission: {
+    borderWidth: 2,
+    borderColor: "rgba(184, 134, 11, 0.3)",
+  },
+  missionHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  missionLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  missionIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  missionType: {
+    fontSize: 14,
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  missionClient: {
+    fontSize: 12,
+  },
+  missionDistance: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 16,
+    gap: 4,
+  },
+  missionDistanceText: {
+    fontSize: 11,
+    fontWeight: "500",
+  },
+  missionDescription: {
+    fontSize: 13,
+    marginBottom: 12,
+  },
+  missionFooter: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  missionTime: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 5,
+    borderRadius: 16,
+    gap: 4,
+  },
+  missionTimeText: {
+    fontSize: 11,
+    fontWeight: "500",
+  },
+  missionReward: {
+    fontSize: 16,
+    fontWeight: "700",
+  },
+  tabBarSpace: {
+    height: 80,
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContent: {
+    width: "90%",
+    maxWidth: 400,
+    padding: 24,
+    borderRadius: 28,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+    marginBottom: 20,
+  },
+  modalIcon: {
+    width: 60,
+    height: 60,
+    borderRadius: 30,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalTitleContainer: {
+    flex: 1,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "700",
+    marginBottom: 2,
+  },
+  modalClient: {
+    fontSize: 14,
+  },
+  modalDetails: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    marginBottom: 20,
+    paddingVertical: 16,
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: "rgba(0,0,0,0.05)",
+  },
+  modalDetail: {
+    alignItems: "center",
+    gap: 4,
+  },
+  modalDetailText: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  modalDescription: {
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 20,
+  },
+  modalDescriptionText: {
+    fontSize: 14,
+    lineHeight: 20,
+    textAlign: "center",
+  },
+  modalActions: {
+    gap: 10,
+  },
+  modalAcceptButton: {
+    padding: 16,
+    borderRadius: 30,
+    alignItems: "center",
+  },
+  modalAcceptText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  modalCloseButton: {
+    padding: 14,
+    borderRadius: 30,
+    borderWidth: 1,
+    alignItems: "center",
+  },
+  modalCloseText: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+});
+import React, { useEffect, useState, useRef } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Alert,
+  ActivityIndicator,
+  ScrollView,
+  RefreshControl,
+  Dimensions,
+  Animated,
+  Easing,
+  Platform,
+  StatusBar,
+} from "react-native";
+import { useRouter } from "expo-router";
+import { useAuth } from "../../contexts/AuthContext";
+import { api } from "../../config/api";
+import { Colors } from "@/constants/theme";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import * as Haptics from "expo-haptics";
+
+const { width } = Dimensions.get("window");
+
+interface Mission {
+  _id: string;
+  type: string;
+  status:
+    | "pending"
+    | "accepted"
+    | "en_route"
+    | "arrived"
+    | "in_progress"
+    | "completed"
+    | "cancelled";
+  distance: number;
+  reward: number;
+  client: {
+    firstName: string;
+    lastName: string;
+    phone: string;
+    photo?: string;
+  };
+  problem: {
+    description: string;
+    category: string;
+  };
+  location: {
+    address: string;
+    coordinates: [number, number];
+  };
+  createdAt: string;
+  acceptedAt?: string;
+  completedAt?: string;
+  estimatedTime?: string;
+}
+
+export default function MissionsScreen() {
+  const router = useRouter();
+  const { user } = useAuth();
+  const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme ?? "light"];
+
+  // États
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [activeTab, setActiveTab] = useState<"current" | "history">("current");
+  const [currentMissions, setCurrentMissions] = useState<Mission[]>([]);
+  const [historyMissions, setHistoryMissions] = useState<Mission[]>([]);
+
+  // Animations
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const scaleAnim = useRef(new Animated.Value(0.95)).current;
+  const tabIndicatorAnim = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 600,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    loadMissions();
+  }, []);
+
+  useEffect(() => {
+    Animated.spring(tabIndicatorAnim, {
+      toValue: activeTab === "current" ? 0 : 1,
+      friction: 8,
+      tension: 40,
+      useNativeDriver: true,
+    }).start();
+  }, [activeTab]);
+
+  const loadMissions = async () => {
+    try {
+      const currentResponse = await api.get("/helpers/missions/current");
+      setCurrentMissions(currentResponse.data.data || []);
+
+      const historyResponse = await api.get("/helpers/missions/history");
+      setHistoryMissions(historyResponse.data.data || []);
+    } catch (error) {
+      console.log("Erreur chargement missions:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    await loadMissions();
+    setRefreshing(false);
+  };
+
+  const updateMissionStatus = async (missionId: string, newStatus: string) => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+
+    try {
+      await api.put(`/helpers/missions/${missionId}/status`, {
+        status: newStatus,
+      });
+      await loadMissions();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert("Succès", "Statut de la mission mis à jour");
+    } catch (error) {
+      Alert.alert("Erreur", "Impossible de mettre à jour le statut");
+    }
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "accepted":
+        return "#4CAF50";
+      case "en_route":
+        return "#2196F3";
+      case "arrived":
+        return "#FF9800";
+      case "in_progress":
+        return "#9C27B0";
+      case "completed":
+        return "#4CAF50";
+      case "cancelled":
+        return "#F44336";
+      default:
+        return "#FFC107";
+    }
+  };
+
+  const getStatusIcon = (status: string) => {
+    switch (status) {
+      case "accepted":
+        return "checkmark-circle";
+      case "en_route":
+        return "car";
+      case "arrived":
+        return "location";
+      case "in_progress":
+        return "construct";
+      case "completed":
+        return "checkmark-done";
+      case "cancelled":
+        return "close-circle";
+      default:
+        return "time";
+    }
+  };
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case "accepted":
+        return "Acceptée";
+      case "en_route":
+        return "En route";
+      case "arrived":
+        return "Arrivé";
+      case "in_progress":
+        return "En cours";
+      case "completed":
+        return "Terminée";
+      case "cancelled":
+        return "Annulée";
+      default:
+        return "En attente";
+    }
+  };
+
+  const getNextStatusOptions = (currentStatus: string) => {
+    const options = {
+      accepted: ["en_route", "cancelled"],
+      en_route: ["arrived", "cancelled"],
+      arrived: ["in_progress", "cancelled"],
+      in_progress: ["completed", "cancelled"],
+    };
+    return options[currentStatus] || [];
+  };
+
+  const formatTime = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleTimeString("fr-FR", {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString("fr-FR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  };
+
+  const tabIndicatorPosition = tabIndicatorAnim.interpolate({
+    inputRange: [0, 1],
+    outputRange: [0, width / 2 - 20],
+  });
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <StatusBar barStyle="dark-content" />
+        <Animated.View
+          style={[
+            styles.loadingContent,
+            {
+              opacity: fadeAnim,
+              transform: [{ scale: scaleAnim }],
+            },
+          ]}
+        >
+          <LinearGradient
+            colors={[colors.primary, colors.secondary]}
+            style={styles.loadingLogo}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <Ionicons name="car" size={40} color="#fff" />
+          </LinearGradient>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+            Chargement de vos missions...
+          </Text>
+        </Animated.View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle="light-content" />
+
+      {/* Header avec dégradé */}
+      <LinearGradient
+        colors={[colors.primary, colors.secondary]}
+        style={styles.header}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.headerButton}
+        >
+          <Ionicons name="arrow-back" size={24} color="#fff" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Missions</Text>
+        <TouchableOpacity onPress={onRefresh} style={styles.headerButton}>
+          <Ionicons name="refresh" size={24} color="#fff" />
+        </TouchableOpacity>
+      </LinearGradient>
+
+      {/* Tabs */}
+      <View style={[styles.tabContainer, { backgroundColor: colors.card }]}>
+        <TouchableOpacity
+          style={styles.tabButton}
+          onPress={() => setActiveTab("current")}
+        >
+          <Text
+            style={[
+              styles.tabText,
+              {
+                color:
+                  activeTab === "current"
+                    ? colors.primary
+                    : colors.textSecondary,
+              },
+            ]}
+          >
+            En cours
+          </Text>
+          {currentMissions.length > 0 && (
+            <View
+              style={[styles.tabBadge, { backgroundColor: colors.primary }]}
+            >
+              <Text style={styles.tabBadgeText}>{currentMissions.length}</Text>
+            </View>
+          )}
+        </TouchableOpacity>
+
+        <TouchableOpacity
+          style={styles.tabButton}
+          onPress={() => setActiveTab("history")}
+        >
+          <Text
+            style={[
+              styles.tabText,
+              {
+                color:
+                  activeTab === "history"
+                    ? colors.primary
+                    : colors.textSecondary,
+              },
+            ]}
+          >
+            Historique
+          </Text>
+        </TouchableOpacity>
+
+        <Animated.View
+          style={[
+            styles.tabIndicator,
+            {
+              backgroundColor: colors.primary,
+              transform: [{ translateX: tabIndicatorPosition }],
+            },
+          ]}
+        />
+      </View>
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
+      >
+        <Animated.View
+          style={[
+            styles.content,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }],
+            },
+          ]}
+        >
+          {/* Missions en cours */}
+          {activeTab === "current" && (
+            <>
+              {currentMissions.length > 0 ? (
+                currentMissions.map((mission) => (
+                  <View
+                    key={mission._id}
+                    style={[
+                      styles.missionCard,
+                      { backgroundColor: colors.card },
+                    ]}
+                  >
+                    {/* En-tête avec statut */}
+                    <View style={styles.missionHeader}>
+                      <View style={styles.missionUser}>
+                        <LinearGradient
+                          colors={[
+                            colors.primary + "20",
+                            colors.secondary + "10",
+                          ]}
+                          style={styles.missionAvatar}
+                        >
+                          <Text
+                            style={[
+                              styles.missionAvatarText,
+                              { color: colors.primary },
+                            ]}
+                          >
+                            {mission.client.firstName[0]}
+                            {mission.client.lastName[0]}
+                          </Text>
+                        </LinearGradient>
+                        <View>
+                          <Text
+                            style={[
+                              styles.missionUserName,
+                              { color: colors.text },
+                            ]}
+                          >
+                            {mission.client.firstName} {mission.client.lastName}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.missionType,
+                              { color: colors.textSecondary },
+                            ]}
+                          >
+                            {mission.type}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View
+                        style={[
+                          styles.statusBadge,
+                          {
+                            backgroundColor:
+                              getStatusColor(mission.status) + "15",
+                          },
+                        ]}
+                      >
+                        <Ionicons
+                          name={getStatusIcon(mission.status)}
+                          size={12}
+                          color={getStatusColor(mission.status)}
+                        />
+                        <Text
+                          style={[
+                            styles.statusText,
+                            { color: getStatusColor(mission.status) },
+                          ]}
+                        >
+                          {getStatusText(mission.status)}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Description */}
+                    <Text
+                      style={[
+                        styles.missionDescription,
+                        { color: colors.textSecondary },
+                      ]}
+                    >
+                      {mission.problem.description}
+                    </Text>
+
+                    {/* Informations */}
+                    <View style={styles.missionInfo}>
+                      <View style={styles.infoItem}>
+                        <Ionicons
+                          name="location-outline"
+                          size={14}
+                          color={colors.primary}
+                        />
+                        <Text style={[styles.infoText, { color: colors.text }]}>
+                          {mission.distance} km
+                        </Text>
+                      </View>
+                      <View style={styles.infoItem}>
+                        <Ionicons
+                          name="cash-outline"
+                          size={14}
+                          color={colors.success}
+                        />
+                        <Text
+                          style={[styles.infoText, { color: colors.success }]}
+                        >
+                          {mission.reward} $
+                        </Text>
+                      </View>
+                      <View style={styles.infoItem}>
+                        <Ionicons
+                          name="time-outline"
+                          size={14}
+                          color={colors.textSecondary}
+                        />
+                        <Text
+                          style={[
+                            styles.infoText,
+                            { color: colors.textSecondary },
+                          ]}
+                        >
+                          {formatTime(mission.createdAt)}
+                        </Text>
+                      </View>
+                    </View>
+
+                    {/* Adresse */}
+                    <View style={styles.addressContainer}>
+                      <Ionicons
+                        name="navigate-outline"
+                        size={14}
+                        color={colors.primary}
+                      />
+                      <Text
+                        style={[
+                          styles.addressText,
+                          { color: colors.textSecondary },
+                        ]}
+                        numberOfLines={1}
+                      >
+                        {mission.location.address}
+                      </Text>
+                    </View>
+
+                    {/* Actions */}
+                    <View style={styles.missionActions}>
+                      {getNextStatusOptions(mission.status).map(
+                        (nextStatus) => (
+                          <TouchableOpacity
+                            key={nextStatus}
+                            style={[
+                              styles.actionButton,
+                              nextStatus === "cancelled"
+                                ? styles.cancelButton
+                                : styles.primaryButton,
+                              {
+                                borderColor:
+                                  nextStatus === "cancelled"
+                                    ? colors.error
+                                    : colors.primary,
+                              },
+                            ]}
+                            onPress={() =>
+                              updateMissionStatus(mission._id, nextStatus)
+                            }
+                          >
+                            <Ionicons
+                              name={
+                                nextStatus === "en_route"
+                                  ? "car"
+                                  : nextStatus === "arrived"
+                                  ? "location"
+                                  : nextStatus === "in_progress"
+                                  ? "construct"
+                                  : nextStatus === "completed"
+                                  ? "checkmark"
+                                  : "close"
+                              }
+                              size={16}
+                              color={
+                                nextStatus === "cancelled"
+                                  ? colors.error
+                                  : colors.primary
+                              }
+                            />
+                            <Text
+                              style={[
+                                styles.actionButtonText,
+                                {
+                                  color:
+                                    nextStatus === "cancelled"
+                                      ? colors.error
+                                      : colors.primary,
+                                },
+                              ]}
+                            >
+                              {nextStatus === "en_route"
+                                ? "En route"
+                                : nextStatus === "arrived"
+                                ? "Arrivé"
+                                : nextStatus === "in_progress"
+                                ? "Commencer"
+                                : nextStatus === "completed"
+                                ? "Terminer"
+                                : "Annuler"}
+                            </Text>
+                          </TouchableOpacity>
+                        )
+                      )}
+
+                      <TouchableOpacity
+                        style={[
+                          styles.contactButton,
+                          { backgroundColor: colors.background },
+                        ]}
+                        onPress={() => {
+                          Alert.alert(
+                            "Contacter le client",
+                            `${mission.client.firstName} ${mission.client.lastName}`,
+                            [
+                              { text: "Annuler", style: "cancel" },
+                              {
+                                text: "Appeler",
+                                onPress: () =>
+                                  Alert.alert("Appel", mission.client.phone),
+                              },
+                            ]
+                          );
+                        }}
+                      >
+                        <Ionicons
+                          name="call-outline"
+                          size={18}
+                          color={colors.primary}
+                        />
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                ))
+              ) : (
+                <View
+                  style={[
+                    styles.emptyContainer,
+                    { backgroundColor: colors.card },
+                  ]}
+                >
+                  <LinearGradient
+                    colors={[colors.primary + "10", colors.secondary + "05"]}
+                    style={styles.emptyIconContainer}
+                  >
+                    <Ionicons
+                      name="car-outline"
+                      size={32}
+                      color={colors.textSecondary}
+                    />
+                  </LinearGradient>
+                  <Text style={[styles.emptyTitle, { color: colors.text }]}>
+                    Aucune mission en cours
+                  </Text>
+                  <Text
+                    style={[styles.emptyText, { color: colors.textSecondary }]}
+                  >
+                    Les missions que vous acceptez apparaîtront ici
+                  </Text>
+                </View>
+              )}
+            </>
+          )}
+
+          {/* Historique */}
+          {activeTab === "history" && (
+            <>
+              {historyMissions.length > 0 ? (
+                historyMissions.map((mission) => (
+                  <View
+                    key={mission._id}
+                    style={[
+                      styles.missionCard,
+                      { backgroundColor: colors.card },
+                    ]}
+                  >
+                    {/* Version simplifiée pour l'historique */}
+                    <View style={styles.missionHeader}>
+                      <View style={styles.missionUser}>
+                        <LinearGradient
+                          colors={[
+                            colors.primary + "20",
+                            colors.secondary + "10",
+                          ]}
+                          style={styles.missionAvatar}
+                        >
+                          <Text
+                            style={[
+                              styles.missionAvatarText,
+                              { color: colors.primary },
+                            ]}
+                          >
+                            {mission.client.firstName[0]}
+                            {mission.client.lastName[0]}
+                          </Text>
+                        </LinearGradient>
+                        <View>
+                          <Text
+                            style={[
+                              styles.missionUserName,
+                              { color: colors.text },
+                            ]}
+                          >
+                            {mission.client.firstName} {mission.client.lastName}
+                          </Text>
+                          <Text
+                            style={[
+                              styles.missionDate,
+                              { color: colors.textSecondary },
+                            ]}
+                          >
+                            {formatDate(mission.createdAt)}
+                          </Text>
+                        </View>
+                      </View>
+
+                      <View
+                        style={[
+                          styles.statusBadge,
+                          {
+                            backgroundColor:
+                              getStatusColor(mission.status) + "15",
+                          },
+                        ]}
+                      >
+                        <Ionicons
+                          name={getStatusIcon(mission.status)}
+                          size={12}
+                          color={getStatusColor(mission.status)}
+                        />
+                        <Text
+                          style={[
+                            styles.statusText,
+                            { color: getStatusColor(mission.status) },
+                          ]}
+                        >
+                          {getStatusText(mission.status)}
+                        </Text>
+                      </View>
+                    </View>
+
+                    <View style={styles.historyInfo}>
+                      <View style={styles.infoItem}>
+                        <Ionicons
+                          name="cash-outline"
+                          size={14}
+                          color={colors.success}
+                        />
+                        <Text
+                          style={[styles.infoText, { color: colors.success }]}
+                        >
+                          {mission.reward} $
+                        </Text>
+                      </View>
+                      <View style={styles.infoItem}>
+                        <Ionicons
+                          name="location-outline"
+                          size={14}
+                          color={colors.primary}
+                        />
+                        <Text
+                          style={[
+                            styles.infoText,
+                            { color: colors.textSecondary },
+                          ]}
+                        >
+                          {mission.distance} km
+                        </Text>
+                      </View>
+                    </View>
+                  </View>
+                ))
+              ) : (
+                <View
+                  style={[
+                    styles.emptyContainer,
+                    { backgroundColor: colors.card },
+                  ]}
+                >
+                  <LinearGradient
+                    colors={[colors.primary + "10", colors.secondary + "05"]}
+                    style={styles.emptyIconContainer}
+                  >
+                    <Ionicons
+                      name="time-outline"
+                      size={32}
+                      color={colors.textSecondary}
+                    />
+                  </LinearGradient>
+                  <Text style={[styles.emptyTitle, { color: colors.text }]}>
+                    Aucun historique
+                  </Text>
+                  <Text
+                    style={[styles.emptyText, { color: colors.textSecondary }]}
+                  >
+                    Vos missions terminées apparaîtront ici
+                  </Text>
+                </View>
+              )}
+            </>
+          )}
+        </Animated.View>
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingTop: Platform.OS === "ios" ? 60 : 40,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+  },
+  headerButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#fff",
+  },
+  loadingContent: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 20,
+  },
+  loadingLogo: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    fontSize: 14,
+  },
+  tabContainer: {
+    flexDirection: "row",
+    marginHorizontal: 20,
+    marginTop: 16,
+    padding: 4,
+    borderRadius: 16,
+    position: "relative",
+  },
+  tabButton: {
+    flex: 1,
+    paddingVertical: 10,
+    alignItems: "center",
+    flexDirection: "row",
+    justifyContent: "center",
+    gap: 6,
+  },
+  tabText: {
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  tabBadge: {
+    paddingHorizontal: 6,
+    paddingVertical: 2,
+    borderRadius: 10,
+    minWidth: 20,
+    alignItems: "center",
+  },
+  tabBadgeText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  tabIndicator: {
+    position: "absolute",
+    bottom: 4,
+    left: 4,
+    width: (width - 40) / 2 - 8,
+    height: 32,
+    borderRadius: 12,
+    zIndex: -1,
+  },
+  content: {
+    padding: 20,
+    gap: 12,
+  },
+  missionCard: {
+    padding: 16,
+    borderRadius: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 3,
+  },
+  missionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 12,
+  },
+  missionUser: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  missionAvatar: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  missionAvatarText: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  missionUserName: {
+    fontSize: 15,
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  missionType: {
+    fontSize: 12,
+  },
+  missionDate: {
+    fontSize: 11,
+  },
+  statusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    gap: 4,
+  },
+  statusText: {
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  missionDescription: {
+    fontSize: 13,
+    marginBottom: 12,
+    lineHeight: 18,
+  },
+  missionInfo: {
+    flexDirection: "row",
+    gap: 16,
+    marginBottom: 8,
+  },
+  infoItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  infoText: {
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  addressContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    marginBottom: 16,
+    paddingVertical: 8,
+    paddingHorizontal: 10,
+    borderRadius: 12,
+    backgroundColor: "rgba(0,0,0,0.02)",
+  },
+  addressText: {
+    flex: 1,
+    fontSize: 12,
+  },
+  missionActions: {
+    flexDirection: "row",
+    gap: 8,
+    alignItems: "center",
+  },
+  actionButton: {
+    flex: 1,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: 10,
+    paddingHorizontal: 12,
+    borderRadius: 30,
+    borderWidth: 1,
+    gap: 6,
+  },
+  primaryButton: {
+    backgroundColor: "transparent",
+  },
+  cancelButton: {
+    backgroundColor: "transparent",
+  },
+  actionButtonText: {
+    fontSize: 12,
+    fontWeight: "600",
+  },
+  contactButton: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.05)",
+  },
+  historyInfo: {
+    flexDirection: "row",
+    gap: 16,
+    marginTop: 8,
+  },
+  emptyContainer: {
+    alignItems: "center",
+    padding: 32,
+    borderRadius: 24,
+    gap: 12,
+  },
+  emptyIconContainer: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  emptyTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  emptyText: {
+    fontSize: 13,
+    textAlign: "center",
+  },
+});
+import React, { useEffect, useState, useRef } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Alert,
+  ActivityIndicator,
+  ScrollView,
+  RefreshControl,
+  Dimensions,
+  Animated,
+  Easing,
+  Platform,
+  Switch,
+  StatusBar,
+} from "react-native";
+import { useRouter } from "expo-router";
+import { useAuth } from "../../contexts/AuthContext";
+import { api } from "../../config/api";
+import { Colors } from "@/constants/theme";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import * as Haptics from "expo-haptics";
+
+const { width } = Dimensions.get("window");
+
+interface DaySchedule {
+  day: string;
+  isActive: boolean;
+  startTime: string;
+  endTime: string;
+}
+
+const DAYS = [
+  { id: "monday", label: "Lundi", short: "L" },
+  { id: "tuesday", label: "Mardi", short: "M" },
+  { id: "wednesday", label: "Mercredi", short: "M" },
+  { id: "thursday", label: "Jeudi", short: "J" },
+  { id: "friday", label: "Vendredi", short: "V" },
+  { id: "saturday", label: "Samedi", short: "S" },
+  { id: "sunday", label: "Dimanche", short: "D" },
+];
+
+const TIME_SLOTS = [
+  "00:00",
+  "01:00",
+  "02:00",
+  "03:00",
+  "04:00",
+  "05:00",
+  "06:00",
+  "07:00",
+  "08:00",
+  "09:00",
+  "10:00",
+  "11:00",
+  "12:00",
+  "13:00",
+  "14:00",
+  "15:00",
+  "16:00",
+  "17:00",
+  "18:00",
+  "19:00",
+  "20:00",
+  "21:00",
+  "22:00",
+  "23:00",
+];
+
+export default function PlanningScreen() {
+  const router = useRouter();
+  const { user } = useAuth();
+  const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme ?? "light"];
+
+  // États
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [globalAvailability, setGlobalAvailability] = useState(true);
+  const [schedule, setSchedule] = useState<DaySchedule[]>(
+    DAYS.map((day) => ({
+      day: day.id,
+      isActive: true,
+      startTime: "09:00",
+      endTime: "18:00",
+    }))
+  );
+  const [selectedDay, setSelectedDay] = useState<string>("monday");
+  const [showTimePicker, setShowTimePicker] = useState<"start" | "end" | null>(
+    null
+  );
+
+  // Animations
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const scaleAnim = useRef(new Animated.Value(0.95)).current;
+  const timePickerOpacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 600,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    loadAvailability();
+  }, []);
+
+  useEffect(() => {
+    Animated.timing(timePickerOpacity, {
+      toValue: showTimePicker ? 1 : 0,
+      duration: 200,
+      useNativeDriver: true,
+    }).start();
+  }, [showTimePicker]);
+
+  const loadAvailability = async () => {
+    try {
+      const response = await api.get("/helpers/availability");
+      const data = response.data.data;
+
+      setGlobalAvailability(data.isAvailable);
+
+      if (data.schedule && data.schedule.length > 0) {
+        setSchedule(data.schedule);
+      }
+    } catch (error) {
+      console.log("Erreur chargement planning:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    await loadAvailability();
+    setRefreshing(false);
+  };
+
+  const toggleGlobalAvailability = async () => {
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+
+    const newStatus = !globalAvailability;
+
+    try {
+      await api.put("/helpers/availability", {
+        isAvailable: newStatus,
+      });
+      setGlobalAvailability(newStatus);
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    } catch (error) {
+      Alert.alert("Erreur", "Impossible de changer votre statut");
+    }
+  };
+
+  const toggleDayActive = (dayId: string) => {
+    const newSchedule = schedule.map((day) =>
+      day.day === dayId ? { ...day, isActive: !day.isActive } : day
+    );
+    setSchedule(newSchedule);
+  };
+
+  const updateDayTime = (
+    dayId: string,
+    type: "start" | "end",
+    time: string
+  ) => {
+    const newSchedule = schedule.map((day) =>
+      day.day === dayId ? { ...day, [`${type}Time`]: time } : day
+    );
+    setSchedule(newSchedule);
+  };
+
+  const saveSchedule = async () => {
+    if (Platform.OS !== "web") {
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+    }
+
+    try {
+      await api.put("/helpers/availability", {
+        isAvailable: globalAvailability,
+        schedule: schedule.filter((day) => day.isActive),
+      });
+      Alert.alert("Succès", "Planning mis à jour");
+    } catch (error) {
+      Alert.alert("Erreur", "Impossible de sauvegarder le planning");
+    }
+  };
+
+  const getCurrentDaySchedule = () => {
+    return schedule.find((d) => d.day === selectedDay);
+  };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <StatusBar barStyle="dark-content" />
+        <Animated.View
+          style={[
+            styles.loadingContent,
+            {
+              opacity: fadeAnim,
+              transform: [{ scale: scaleAnim }],
+            },
+          ]}
+        >
+          <LinearGradient
+            colors={[colors.primary, colors.secondary]}
+            style={styles.loadingLogo}
+          >
+            <Ionicons name="calendar" size={40} color="#fff" />
+          </LinearGradient>
+          <Text style={[styles.loadingText, { color: colors.primary }]}>
+            Kadima
+          </Text>
+          <ActivityIndicator size="large" color={colors.primary} />
+        </Animated.View>
+      </View>
+    );
+  }
+
+  const currentDaySchedule = getCurrentDaySchedule();
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar
+        barStyle="light-content"
+        backgroundColor="transparent"
+        translucent
+      />
+
+      {/* Header avec dégradé */}
+      <LinearGradient
+        colors={[colors.primary, colors.secondary]}
+        style={styles.header}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        <View style={styles.headerContent}>
+          <TouchableOpacity
+            onPress={() => router.back()}
+            style={styles.headerButton}
+          >
+            <Ionicons name="arrow-back" size={24} color="#fff" />
+          </TouchableOpacity>
+          <Text style={styles.headerTitle}>Planning</Text>
+          <TouchableOpacity onPress={onRefresh} style={styles.headerButton}>
+            <Ionicons
+              name="refresh"
+              size={24}
+              color="#fff"
+              style={{
+                transform: [{ rotate: refreshing ? "180deg" : "0deg" }],
+              }}
+            />
+          </TouchableOpacity>
+        </View>
+      </LinearGradient>
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
+      >
+        <Animated.View
+          style={[
+            styles.content,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }],
+            },
+          ]}
+        >
+          {/* Statut global */}
+          <View style={[styles.statusCard, { backgroundColor: colors.card }]}>
+            <View style={styles.statusLeft}>
+              <View
+                style={[
+                  styles.statusIcon,
+                  {
+                    backgroundColor:
+                      (globalAvailability ? colors.success : colors.error) +
+                      "15",
+                  },
+                ]}
+              >
+                <Ionicons
+                  name={globalAvailability ? "sunny" : "moon"}
+                  size={24}
+                  color={globalAvailability ? colors.success : colors.error}
+                />
+              </View>
+              <View>
+                <Text
+                  style={[styles.statusLabel, { color: colors.textSecondary }]}
+                >
+                  Disponibilité
+                </Text>
+                <Text
+                  style={[
+                    styles.statusValue,
+                    {
+                      color: globalAvailability ? colors.success : colors.error,
+                    },
+                  ]}
+                >
+                  {globalAvailability ? "Disponible" : "Indisponible"}
+                </Text>
+              </View>
+            </View>
+            <Switch
+              value={globalAvailability}
+              onValueChange={toggleGlobalAvailability}
+              trackColor={{ false: colors.border, true: colors.primary }}
+              thumbColor={globalAvailability ? colors.primary : "#f4f3f4"}
+            />
+          </View>
+
+          {/* Sélecteur de jours - DESIGN ÉPURÉ */}
+          <View style={styles.daysWrapper}>
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.daysScrollContent}
+            >
+              {DAYS.map((day) => {
+                const isSelected = selectedDay === day.id;
+                const isActive = schedule.find(
+                  (d) => d.day === day.id
+                )?.isActive;
+
+                return (
+                  <TouchableOpacity
+                    key={day.id}
+                    style={[
+                      styles.dayItem,
+                      isSelected && styles.dayItemSelected,
+                    ]}
+                    onPress={() => setSelectedDay(day.id)}
+                  >
+                    <Text
+                      style={[
+                        styles.dayItemShort,
+                        {
+                          color: isSelected
+                            ? colors.primary
+                            : colors.textSecondary,
+                        },
+                      ]}
+                    >
+                      {day.short}
+                    </Text>
+                    {isActive && (
+                      <View
+                        style={[
+                          styles.dayItemDot,
+                          { backgroundColor: colors.success },
+                        ]}
+                      />
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </ScrollView>
+          </View>
+
+          {/* Planning du jour */}
+          <View style={[styles.dayCard, { backgroundColor: colors.card }]}>
+            <View style={styles.dayHeader}>
+              <View>
+                <Text style={[styles.dayTitle, { color: colors.text }]}>
+                  {DAYS.find((d) => d.id === selectedDay)?.label}
+                </Text>
+                <Text
+                  style={[styles.daySchedule, { color: colors.textSecondary }]}
+                >
+                  {currentDaySchedule?.isActive
+                    ? `${currentDaySchedule.startTime} - ${currentDaySchedule.endTime}`
+                    : "Jour non travaillé"}
+                </Text>
+              </View>
+              <Switch
+                value={currentDaySchedule?.isActive || false}
+                onValueChange={() => toggleDayActive(selectedDay)}
+                trackColor={{ false: colors.border, true: colors.primary }}
+              />
+            </View>
+
+            {currentDaySchedule?.isActive && (
+              <View style={styles.timeContainer}>
+                {/* Heure de début */}
+                <TouchableOpacity
+                  style={[
+                    styles.timeButton,
+                    { backgroundColor: colors.background },
+                  ]}
+                  onPress={() =>
+                    setShowTimePicker(
+                      showTimePicker === "start" ? null : "start"
+                    )
+                  }
+                >
+                  <View style={styles.timeButtonLeft}>
+                    <Ionicons
+                      name="time-outline"
+                      size={18}
+                      color={colors.primary}
+                    />
+                    <Text
+                      style={[
+                        styles.timeButtonLabel,
+                        { color: colors.textSecondary },
+                      ]}
+                    >
+                      Début
+                    </Text>
+                  </View>
+                  <View style={styles.timeButtonRight}>
+                    <Text
+                      style={[styles.timeButtonValue, { color: colors.text }]}
+                    >
+                      {currentDaySchedule.startTime}
+                    </Text>
+                    <Ionicons
+                      name={
+                        showTimePicker === "start"
+                          ? "chevron-up"
+                          : "chevron-down"
+                      }
+                      size={18}
+                      color={colors.textSecondary}
+                    />
+                  </View>
+                </TouchableOpacity>
+
+                {/* Time picker début */}
+                {showTimePicker === "start" && (
+                  <Animated.View
+                    style={[
+                      styles.timePickerContainer,
+                      { opacity: timePickerOpacity },
+                    ]}
+                  >
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.timePickerContent}
+                    >
+                      {TIME_SLOTS.map((time) => (
+                        <TouchableOpacity
+                          key={time}
+                          style={[
+                            styles.timeSlot,
+                            currentDaySchedule.startTime === time && {
+                              backgroundColor: colors.primary,
+                            },
+                          ]}
+                          onPress={() => {
+                            updateDayTime(selectedDay, "start", time);
+                            setShowTimePicker(null);
+                          }}
+                        >
+                          <Text
+                            style={[
+                              styles.timeSlotText,
+                              {
+                                color:
+                                  currentDaySchedule.startTime === time
+                                    ? "#fff"
+                                    : colors.text,
+                              },
+                            ]}
+                          >
+                            {time}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </Animated.View>
+                )}
+
+                {/* Heure de fin */}
+                <TouchableOpacity
+                  style={[
+                    styles.timeButton,
+                    { backgroundColor: colors.background },
+                  ]}
+                  onPress={() =>
+                    setShowTimePicker(showTimePicker === "end" ? null : "end")
+                  }
+                >
+                  <View style={styles.timeButtonLeft}>
+                    <Ionicons
+                      name="time-outline"
+                      size={18}
+                      color={colors.primary}
+                    />
+                    <Text
+                      style={[
+                        styles.timeButtonLabel,
+                        { color: colors.textSecondary },
+                      ]}
+                    >
+                      Fin
+                    </Text>
+                  </View>
+                  <View style={styles.timeButtonRight}>
+                    <Text
+                      style={[styles.timeButtonValue, { color: colors.text }]}
+                    >
+                      {currentDaySchedule.endTime}
+                    </Text>
+                    <Ionicons
+                      name={
+                        showTimePicker === "end" ? "chevron-up" : "chevron-down"
+                      }
+                      size={18}
+                      color={colors.textSecondary}
+                    />
+                  </View>
+                </TouchableOpacity>
+
+                {/* Time picker fin */}
+                {showTimePicker === "end" && (
+                  <Animated.View
+                    style={[
+                      styles.timePickerContainer,
+                      { opacity: timePickerOpacity },
+                    ]}
+                  >
+                    <ScrollView
+                      horizontal
+                      showsHorizontalScrollIndicator={false}
+                      contentContainerStyle={styles.timePickerContent}
+                    >
+                      {TIME_SLOTS.map((time) => (
+                        <TouchableOpacity
+                          key={time}
+                          style={[
+                            styles.timeSlot,
+                            currentDaySchedule.endTime === time && {
+                              backgroundColor: colors.primary,
+                            },
+                          ]}
+                          onPress={() => {
+                            updateDayTime(selectedDay, "end", time);
+                            setShowTimePicker(null);
+                          }}
+                        >
+                          <Text
+                            style={[
+                              styles.timeSlotText,
+                              {
+                                color:
+                                  currentDaySchedule.endTime === time
+                                    ? "#fff"
+                                    : colors.text,
+                              },
+                            ]}
+                          >
+                            {time}
+                          </Text>
+                        </TouchableOpacity>
+                      ))}
+                    </ScrollView>
+                  </Animated.View>
+                )}
+              </View>
+            )}
+          </View>
+
+          {/* Résumé de la semaine */}
+          <View style={[styles.summaryCard, { backgroundColor: colors.card }]}>
+            <Text style={[styles.summaryTitle, { color: colors.text }]}>
+              Résumé de la semaine
+            </Text>
+            <View style={styles.summaryGrid}>
+              {DAYS.map((day) => {
+                const daySchedule = schedule.find((d) => d.day === day.id);
+                const isActive = daySchedule?.isActive && globalAvailability;
+                return (
+                  <View key={day.id} style={styles.summaryItem}>
+                    <Text
+                      style={[
+                        styles.summaryDay,
+                        {
+                          color: isActive
+                            ? colors.primary
+                            : colors.textSecondary,
+                        },
+                      ]}
+                    >
+                      {day.short}
+                    </Text>
+                    {isActive ? (
+                      <Text
+                        style={[
+                          styles.summaryTime,
+                          { color: colors.textSecondary },
+                        ]}
+                      >
+                        {daySchedule.startTime}
+                      </Text>
+                    ) : (
+                      <View
+                        style={[
+                          styles.summaryDot,
+                          { backgroundColor: colors.border },
+                        ]}
+                      />
+                    )}
+                  </View>
+                );
+              })}
+            </View>
+          </View>
+
+          {/* Bouton sauvegarder */}
+          <TouchableOpacity style={styles.saveButton} onPress={saveSchedule}>
+            <LinearGradient
+              colors={[colors.primary, colors.secondary]}
+              style={styles.saveButtonGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <Ionicons name="checkmark-circle" size={20} color="#fff" />
+              <Text style={styles.saveButtonText}>Sauvegarder</Text>
+            </LinearGradient>
+          </TouchableOpacity>
+
+          <View style={styles.bottomSpace} />
+        </Animated.View>
+      </ScrollView>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  header: {
+    paddingTop: Platform.OS === "ios" ? 60 : 40,
+    paddingBottom: 20,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+  },
+  headerContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: 20,
+  },
+  headerButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#fff",
+  },
+  loadingContent: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 20,
+  },
+  loadingLogo: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    fontSize: 18,
+    fontWeight: "600",
+  },
+  content: {
+    flex: 1,
+    padding: 16,
+    gap: 16,
+  },
+  statusCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 16,
+    borderRadius: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
+  },
+  statusLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  statusIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  statusLabel: {
+    fontSize: 12,
+    marginBottom: 2,
+  },
+  statusValue: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  daysWrapper: {
+    marginVertical: 4,
+  },
+  daysScrollContent: {
+    paddingHorizontal: 4,
+    gap: 12,
+  },
+  dayItem: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: "center",
+    alignItems: "center",
+    position: "relative",
+  },
+  dayItemSelected: {
+    backgroundColor: "rgba(184, 134, 11, 0.1)",
+  },
+  dayItemShort: {
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  dayItemDot: {
+    position: "absolute",
+    bottom: 4,
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+  },
+  dayCard: {
+    padding: 20,
+    borderRadius: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  dayHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+  },
+  dayTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+  daySchedule: {
+    fontSize: 13,
+  },
+  timeContainer: {
+    marginTop: 20,
+    gap: 8,
+  },
+  timeButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 16,
+    borderRadius: 16,
+  },
+  timeButtonLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  timeButtonLabel: {
+    fontSize: 14,
+  },
+  timeButtonRight: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+  },
+  timeButtonValue: {
+    fontSize: 15,
+    fontWeight: "500",
+  },
+  timePickerContainer: {
+    marginVertical: 4,
+  },
+  timePickerContent: {
+    paddingVertical: 8,
+    gap: 8,
+  },
+  timeSlot: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+    backgroundColor: "rgba(0,0,0,0.03)",
+  },
+  timeSlotText: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  summaryCard: {
+    padding: 20,
+    borderRadius: 24,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 4,
+  },
+  summaryTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 16,
+  },
+  summaryGrid: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+  },
+  summaryItem: {
+    alignItems: "center",
+    gap: 4,
+  },
+  summaryDay: {
+    fontSize: 13,
+    fontWeight: "600",
+  },
+  summaryTime: {
+    fontSize: 11,
+  },
+  summaryDot: {
+    width: 4,
+    height: 4,
+    borderRadius: 2,
+  },
+  saveButton: {
+    borderRadius: 30,
+    overflow: "hidden",
+    marginTop: 8,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.2,
+    shadowRadius: 8,
+    elevation: 5,
+  },
+  saveButtonGradient: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 16,
+    gap: 8,
+  },
+  saveButtonText: {
+    color: "#fff",
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  bottomSpace: {
+    height: 80,
+  },
+});
+import React, { useEffect, useState, useRef } from "react";
+import {
+  View,
+  Text,
+  StyleSheet,
+  TouchableOpacity,
+  Alert,
+  ActivityIndicator,
+  ScrollView,
+  RefreshControl,
+  Dimensions,
+  Animated,
+  Easing,
+  Platform,
+  TextInput,
+  Modal,
+  Switch,
+  Linking,
+  StatusBar,
+} from "react-native";
+import { useRouter } from "expo-router";
+import { useAuth } from "../../contexts/AuthContext";
+import { useTheme } from "../../contexts/ThemeContext";
+import { api } from "../../config/api";
+import { Colors } from "@/constants/theme";
+import { useColorScheme } from "@/hooks/use-color-scheme";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
+import * as Haptics from "expo-haptics";
+import { BlurView } from "expo-blur";
+import * as ImagePicker from "expo-image-picker";
+import * as DocumentPicker from "expo-document-picker";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+
+const { width, height } = Dimensions.get("window");
+
+interface HelperProfile {
+  _id: string;
+  user: {
+    firstName: string;
+    lastName: string;
+    email: string;
+    phone: string;
+    photo?: string;
+  };
+  status: "pending" | "active" | "suspended" | "inactive";
+  certification: {
+    isCertified: boolean;
+    certifiedAt?: string;
+    expiresAt?: string;
+    certificateNumber?: string;
+  };
+  services: string[];
+  equipment: Array<{
+    name: string;
+    has: boolean;
+    lastChecked?: string;
+  }>;
+  serviceArea: {
+    radius: number;
+    address?: string;
+    coordinates?: [number, number];
+  };
+  pricing: {
+    basePrice: number;
+    perKm: number;
+    services: Array<{
+      service: string;
+      price: number;
+    }>;
+  };
+  availability: {
+    isAvailable: boolean;
+    schedule: Array<{
+      day: string;
+      startTime: string;
+      endTime: string;
+    }>;
+  };
+  stats: {
+    totalInterventions: number;
+    completedInterventions: number;
+    averageRating: number;
+    totalEarnings: number;
+    responseRate: number;
+    averageResponseTime: number;
+  };
+  documents: Array<{
+    type: string;
+    url: string;
+    verified: boolean;
+    uploadedAt: string;
+  }>;
+  preferences: {
+    language: string;
+    notifications: {
+      email: boolean;
+      sms: boolean;
+      push: boolean;
+    };
+    theme: "light" | "dark" | "system";
+  };
+  createdAt: string;
+}
+
+interface PricingService {
+  service: string;
+  price: number;
+}
+
+const SERVICES_LIST = [
+  {
+    id: "battery",
+    label: "Batterie",
+    icon: "battery-dead",
+    description: "Dépannage batterie",
+    color: "#FF6B6B",
+  },
+  {
+    id: "tire",
+    label: "Pneu",
+    icon: "car-sport",
+    description: "Changement de pneu",
+    color: "#4ECDC4",
+  },
+  {
+    id: "fuel",
+    label: "Essence",
+    icon: "water",
+    description: "Livraison de carburant",
+    color: "#45B7D1",
+  },
+  {
+    id: "towing",
+    label: "Remorquage",
+    icon: "construct",
+    description: "Remorquage léger",
+    color: "#96CEB4",
+  },
+  {
+    id: "lockout",
+    label: "Clés enfermées",
+    icon: "key",
+    description: "Ouverture de porte",
+    color: "#FFEAA7",
+  },
+  {
+    id: "diagnostic",
+    label: "Diagnostic",
+    icon: "medkit",
+    description: "Diagnostic rapide",
+    color: "#DDA0DD",
+  },
+  {
+    id: "jumpstart",
+    label: "Démarrage",
+    icon: "flash",
+    description: "Aide au démarrage",
+    color: "#FFD93D",
+  },
+  {
+    id: "minor_repair",
+    label: "Petite réparation",
+    icon: "build",
+    description: "Réparations mineures",
+    color: "#6C5B7B",
+  },
+];
+
+const EQUIPMENT_LIST = [
+  {
+    id: "cables",
+    label: "Câbles de démarrage",
+    icon: "flash",
+    category: "Électrique",
+  },
+  { id: "jack", label: "Cric", icon: "car", category: "Levage" },
+  { id: "triangle", label: "Triangle", icon: "warning", category: "Sécurité" },
+  {
+    id: "vest",
+    label: "Gilet de sécurité",
+    icon: "shirt",
+    category: "Sécurité",
+  },
+  {
+    id: "tire_iron",
+    label: "Clé à roue",
+    icon: "construct",
+    category: "Outillage",
+  },
+  {
+    id: "compressor",
+    label: "Compresseur",
+    icon: "airplane",
+    category: "Pneumatique",
+  },
+  {
+    id: "battery_booster",
+    label: "Booster batterie",
+    icon: "battery-charging",
+    category: "Électrique",
+  },
+  {
+    id: "tow_rope",
+    label: "Câble de remorquage",
+    icon: "git-network",
+    category: "Remorquage",
+  },
+];
+
+const LANGUAGES = [
+  { id: "fr", label: "Français", icon: "language" },
+  { id: "en", label: "English", icon: "language" },
+];
+
+const THEMES = [
+  { id: "light", label: "Clair", icon: "sunny" },
+  { id: "dark", label: "Sombre", icon: "moon" },
+  { id: "system", label: "Système", icon: "phone-portrait" },
+];
+
+export default function ProfileScreen() {
+  const router = useRouter();
+  const { user, logout } = useAuth();
+  const { setTheme } = useTheme();
+  const colorScheme = useColorScheme();
+  const colors = Colors[colorScheme ?? "light"];
+
+  // États
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+  const [profile, setProfile] = useState<HelperProfile | null>(null);
+
+  // États pour les modales
+  const [activeModal, setActiveModal] = useState<string | null>(null);
+  const [editValue, setEditValue] = useState("");
+  const [selectedServices, setSelectedServices] = useState<string[]>([]);
+  const [selectedEquipment, setSelectedEquipment] = useState<string[]>([]);
+  const [pricingServices, setPricingServices] = useState<PricingService[]>([]);
+  const [basePrice, setBasePrice] = useState("");
+  const [perKm, setPerKm] = useState("");
+  const [radius, setRadius] = useState("");
+  const [address, setAddress] = useState("");
+  const [notifications, setNotifications] = useState({
+    email: true,
+    sms: true,
+    push: true,
+  });
+  const [selectedLanguage, setSelectedLanguage] = useState("fr");
+  const [selectedTheme, setSelectedTheme] = useState<
+    "light" | "dark" | "system"
+  >("system");
+
+  // Animations
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const scaleAnim = useRef(new Animated.Value(0.95)).current;
+
+  useEffect(() => {
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 600,
+        easing: Easing.out(Easing.cubic),
+        useNativeDriver: true,
+      }),
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    loadProfile();
+  }, []);
+
+  const loadProfile = async () => {
+    try {
+      const response = await api.get("/auth/helper/profile");
+      setProfile(response.data.data);
+
+      if (response.data.data.services) {
+        setSelectedServices(response.data.data.services);
+      }
+      if (response.data.data.equipment) {
+        setSelectedEquipment(
+          response.data.data.equipment.map((e: any) => e.name)
+        );
+      }
+      if (response.data.data.pricing) {
+        setBasePrice(response.data.data.pricing.basePrice.toString());
+        setPerKm(response.data.data.pricing.perKm.toString());
+        setPricingServices(response.data.data.pricing.services || []);
+      }
+      if (response.data.data.serviceArea) {
+        setRadius(response.data.data.serviceArea.radius?.toString() || "20");
+        setAddress(response.data.data.serviceArea.address || "");
+      }
+      if (response.data.data.preferences) {
+        setNotifications(
+          response.data.data.preferences.notifications || {
+            email: true,
+            sms: true,
+            push: true,
+          }
+        );
+        setSelectedLanguage(response.data.data.preferences.language || "fr");
+        setSelectedTheme(response.data.data.preferences.theme || "system");
+      }
+    } catch (error) {
+      console.log("Erreur chargement profil:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    if (Platform.OS !== "web") {
+      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    await loadProfile();
+    setRefreshing(false);
+  };
+
+  const handleLogout = () => {
+    Alert.alert(
+      "Déconnexion",
+      "Voulez-vous vraiment vous déconnecter ?",
+      [
+        { text: "Annuler", style: "cancel" },
+        {
+          text: "Se déconnecter",
+          onPress: async () => {
+            await logout();
+            router.replace("/auth/login");
+          },
+          style: "destructive",
+        },
+      ],
+      { cancelable: true }
+    );
+  };
+
+  const updateField = async (field: string, value: any) => {
+    try {
+      await api.put("/helpers/profile/me", { [field]: value });
+      await loadProfile();
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      Alert.alert("Succès", "Profil mis à jour");
+    } catch (error) {
+      Alert.alert("Erreur", "Impossible de mettre à jour le profil");
+    }
+  };
+
+  const saveServices = async () => {
+    setActiveModal(null);
+    await updateField("services", selectedServices);
+  };
+
+  const saveEquipment = async () => {
+    const equipmentList = selectedEquipment.map((name) => ({
+      name,
+      has: true,
+      lastChecked: new Date().toISOString(),
+    }));
+    setActiveModal(null);
+    await updateField("equipment", equipmentList);
+  };
+
+  const savePricing = async () => {
+    const pricingData = {
+      basePrice: parseFloat(basePrice) || 0,
+      perKm: parseFloat(perKm) || 0,
+      services: pricingServices,
+    };
+    setActiveModal(null);
+    await updateField("pricing", pricingData);
+  };
+
+  const saveServiceArea = async () => {
+    const areaData = {
+      radius: parseFloat(radius) || 20,
+      address: address,
+    };
+    setActiveModal(null);
+    await updateField("serviceArea", areaData);
+  };
+
+  const savePreferences = async () => {
+    try {
+      const preferencesData = {
+        language: selectedLanguage,
+        notifications: notifications,
+        theme: selectedTheme,
+      };
+
+      // Sauvegarder dans l'API
+      await updateField("preferences", preferencesData);
+
+      // Sauvegarder le thème localement ET mettre à jour le contexte
+      await AsyncStorage.setItem("userTheme", selectedTheme);
+      setTheme(selectedTheme); // Met à jour le thème immédiatement
+
+      setActiveModal(null);
+      Alert.alert("Succès", "Préférences mises à jour");
+    } catch (error) {
+      Alert.alert("Erreur", "Impossible de sauvegarder les préférences");
+    }
+  };
+
+  const pickImage = async () => {
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [1, 1],
+      quality: 0.8,
+    });
+
+    if (!result.canceled) {
+      Alert.alert("Succès", "Photo de profil mise à jour");
+    }
+  };
+
+  const pickDocument = async (type: string) => {
+    const result = await DocumentPicker.getDocumentAsync({
+      type: "*/*",
+      copyToCacheDirectory: true,
+    });
+
+    if (!result.canceled) {
+      Alert.alert("Succès", "Document uploadé");
+    }
+  };
+
+  const formatDate = (dateString: string) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString("fr-FR", {
+      day: "2-digit",
+      month: "2-digit",
+      year: "numeric",
+    });
+  };
+
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case "active":
+        return "#4CAF50";
+      case "pending":
+        return "#FF9800";
+      case "suspended":
+        return "#F44336";
+      default:
+        return "#9E9E9E";
+    }
+  };
+
+  const getStatusText = (status: string) => {
+    switch (status) {
+      case "active":
+        return "Actif";
+      case "pending":
+        return "En attente";
+      case "suspended":
+        return "Suspendu";
+      case "inactive":
+        return "Inactif";
+      default:
+        return status;
+    }
+  };
+
+  if (loading) {
+    return (
+      <View style={[styles.container, { backgroundColor: colors.background }]}>
+        <StatusBar barStyle="dark-content" />
+        <Animated.View
+          style={[
+            styles.loadingContent,
+            {
+              opacity: fadeAnim,
+              transform: [{ scale: scaleAnim }],
+            },
+          ]}
+        >
+          <LinearGradient
+            colors={[colors.primary, colors.secondary]}
+            style={styles.loadingLogo}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <Ionicons name="person" size={40} color="#fff" />
+          </LinearGradient>
+          <ActivityIndicator size="large" color={colors.primary} />
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+            Chargement de votre profil...
+          </Text>
+        </Animated.View>
+      </View>
+    );
+  }
+
+  return (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <StatusBar barStyle="light-content" />
+
+      {/* Header avec dégradé */}
+      <LinearGradient
+        colors={[colors.primary, colors.secondary]}
+        style={styles.header}
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+      >
+        <TouchableOpacity
+          onPress={() => router.back()}
+          style={styles.headerButton}
+        >
+          <Ionicons name="arrow-back" size={24} color="#fff" />
+        </TouchableOpacity>
+        <Text style={styles.headerTitle}>Profil</Text>
+        <TouchableOpacity onPress={onRefresh} style={styles.headerButton}>
+          <Ionicons name="refresh" size={24} color="#fff" />
+        </TouchableOpacity>
+      </LinearGradient>
+
+      <ScrollView
+        showsVerticalScrollIndicator={false}
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            tintColor={colors.primary}
+            colors={[colors.primary]}
+          />
+        }
+      >
+        <Animated.View
+          style={[
+            styles.content,
+            {
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }],
+            },
+          ]}
+        >
+          {/* Carte de profil */}
+          <View style={[styles.profileCard, { backgroundColor: colors.card }]}>
+            <View style={styles.profileHeader}>
+              <TouchableOpacity
+                onPress={pickImage}
+                style={styles.avatarContainer}
+              >
+                <LinearGradient
+                  colors={[colors.primary, colors.secondary]}
+                  style={styles.avatarGradient}
+                >
+                  <View style={styles.avatarInner}>
+                    <Text style={styles.avatarText}>
+                      {profile?.user.firstName?.[0]}
+                      {profile?.user.lastName?.[0]}
+                    </Text>
+                  </View>
+                </LinearGradient>
+                <View
+                  style={[
+                    styles.editBadge,
+                    { backgroundColor: colors.primary },
+                  ]}
+                >
+                  <Ionicons name="camera" size={12} color="#fff" />
+                </View>
+              </TouchableOpacity>
+
+              <View style={styles.profileInfo}>
+                <Text style={[styles.profileName, { color: colors.text }]}>
+                  {profile?.user.firstName} {profile?.user.lastName}
+                </Text>
+                <View style={styles.badgeContainer}>
+                  <View
+                    style={[
+                      styles.statusBadge,
+                      {
+                        backgroundColor:
+                          getStatusColor(profile?.status || "pending") + "20",
+                      },
+                    ]}
+                  >
+                    <View
+                      style={[
+                        styles.statusDot,
+                        {
+                          backgroundColor: getStatusColor(
+                            profile?.status || "pending"
+                          ),
+                        },
+                      ]}
+                    />
+                    <Text
+                      style={[
+                        styles.statusText,
+                        { color: getStatusColor(profile?.status || "pending") },
+                      ]}
+                    >
+                      {getStatusText(profile?.status || "pending")}
+                    </Text>
+                  </View>
+
+                  {profile?.certification.isCertified && (
+                    <View
+                      style={[
+                        styles.certBadge,
+                        { backgroundColor: "#4CAF50" + "20" },
+                      ]}
+                    >
+                      <Ionicons name="ribbon" size={12} color="#4CAF50" />
+                      <Text style={[styles.certText, { color: "#4CAF50" }]}>
+                        Certifié
+                      </Text>
+                    </View>
+                  )}
+                </View>
+              </View>
+            </View>
+
+            <View style={styles.contactSection}>
+              <View style={styles.contactRow}>
+                <Ionicons
+                  name="mail-outline"
+                  size={18}
+                  color={colors.primary}
+                />
+                <Text style={[styles.contactText, { color: colors.text }]}>
+                  {profile?.user.email}
+                </Text>
+              </View>
+              <View style={styles.contactRow}>
+                <Ionicons
+                  name="call-outline"
+                  size={18}
+                  color={colors.primary}
+                />
+                <Text style={[styles.contactText, { color: colors.text }]}>
+                  {profile?.user.phone}
+                </Text>
+              </View>
+            </View>
+          </View>
+
+          {/* Statistiques */}
+          <View style={styles.statsGrid}>
+            <View style={[styles.statBox, { backgroundColor: colors.card }]}>
+              <Ionicons name="car" size={24} color={colors.primary} />
+              <Text style={[styles.statNumber, { color: colors.text }]}>
+                {profile?.stats.totalInterventions || 0}
+              </Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+                Interventions
+              </Text>
+            </View>
+
+            <View style={[styles.statBox, { backgroundColor: colors.card }]}>
+              <Ionicons name="star" size={24} color="#FFD700" />
+              <Text style={[styles.statNumber, { color: colors.text }]}>
+                {profile?.stats.averageRating?.toFixed(1) || "0.0"}
+              </Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+                Note
+              </Text>
+            </View>
+
+            <View style={[styles.statBox, { backgroundColor: colors.card }]}>
+              <Ionicons name="trending-up" size={24} color="#4CAF50" />
+              <Text style={[styles.statNumber, { color: colors.text }]}>
+                {profile?.stats.responseRate || 0}%
+              </Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+                Acceptation
+              </Text>
+            </View>
+
+            <View style={[styles.statBox, { backgroundColor: colors.card }]}>
+              <Ionicons name="wallet" size={24} color="#FF9800" />
+              <Text style={[styles.statNumber, { color: colors.text }]}>
+                {profile?.stats.totalEarnings?.toFixed(0) || 0}$
+              </Text>
+              <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
+                Gains
+              </Text>
+            </View>
+          </View>
+
+          {/* Menu sections */}
+          <View style={styles.menuSection}>
+            <Text style={[styles.sectionTitle, { color: colors.text }]}>
+              Gestion
+            </Text>
+
+            <TouchableOpacity
+              style={[styles.menuItem, { backgroundColor: colors.card }]}
+              onPress={() => {
+                setActiveModal("services");
+                setSelectedServices(profile?.services || []);
+              }}
+            >
+              <LinearGradient
+                colors={[colors.primary + "20", colors.secondary + "10"]}
+                style={styles.menuIconContainer}
+              >
+                <Ionicons name="construct" size={24} color={colors.primary} />
+              </LinearGradient>
+              <View style={styles.menuContent}>
+                <Text style={[styles.menuTitle, { color: colors.text }]}>
+                  Services
+                </Text>
+                <Text
+                  style={[styles.menuSubtitle, { color: colors.textSecondary }]}
+                >
+                  {profile?.services?.length || 0} services proposés
+                </Text>
+              </View>
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={colors.textSecondary}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.menuItem, { backgroundColor: colors.card }]}
+              onPress={() => {
+                setActiveModal("equipment");
+                setSelectedEquipment(
+                  profile?.equipment.map((e) => e.name) || []
+                );
+              }}
+            >
+              <LinearGradient
+                colors={[colors.primary + "20", colors.secondary + "10"]}
+                style={styles.menuIconContainer}
+              >
+                <Ionicons name="build" size={24} color={colors.primary} />
+              </LinearGradient>
+              <View style={styles.menuContent}>
+                <Text style={[styles.menuTitle, { color: colors.text }]}>
+                  Équipement
+                </Text>
+                <Text
+                  style={[styles.menuSubtitle, { color: colors.textSecondary }]}
+                >
+                  {profile?.equipment?.length || 0} équipements
+                </Text>
+              </View>
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={colors.textSecondary}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.menuItem, { backgroundColor: colors.card }]}
+              onPress={() => {
+                setActiveModal("zone");
+                setRadius(profile?.serviceArea.radius?.toString() || "20");
+                setAddress(profile?.serviceArea.address || "");
+              }}
+            >
+              <LinearGradient
+                colors={[colors.primary + "20", colors.secondary + "10"]}
+                style={styles.menuIconContainer}
+              >
+                <Ionicons name="location" size={24} color={colors.primary} />
+              </LinearGradient>
+              <View style={styles.menuContent}>
+                <Text style={[styles.menuTitle, { color: colors.text }]}>
+                  Zone d'intervention
+                </Text>
+                <Text
+                  style={[styles.menuSubtitle, { color: colors.textSecondary }]}
+                >
+                  {profile?.serviceArea.radius || 20} km -{" "}
+                  {profile?.serviceArea.address || "Adresse non définie"}
+                </Text>
+              </View>
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={colors.textSecondary}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.menuItem, { backgroundColor: colors.card }]}
+              onPress={() => {
+                setActiveModal("pricing");
+                setBasePrice(profile?.pricing.basePrice?.toString() || "25");
+                setPerKm(profile?.pricing.perKm?.toString() || "1");
+                setPricingServices(profile?.pricing.services || []);
+              }}
+            >
+              <LinearGradient
+                colors={[colors.primary + "20", colors.secondary + "10"]}
+                style={styles.menuIconContainer}
+              >
+                <Ionicons name="cash" size={24} color={colors.primary} />
+              </LinearGradient>
+              <View style={styles.menuContent}>
+                <Text style={[styles.menuTitle, { color: colors.text }]}>
+                  Tarifs
+                </Text>
+                <Text
+                  style={[styles.menuSubtitle, { color: colors.textSecondary }]}
+                >
+                  {profile?.pricing.basePrice || 25}$ de base +{" "}
+                  {profile?.pricing.perKm || 1}$/km
+                </Text>
+              </View>
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={colors.textSecondary}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.menuItem, { backgroundColor: colors.card }]}
+              onPress={() => setActiveModal("documents")}
+            >
+              <LinearGradient
+                colors={[colors.primary + "20", colors.secondary + "10"]}
+                style={styles.menuIconContainer}
+              >
+                <Ionicons name="document" size={24} color={colors.primary} />
+              </LinearGradient>
+              <View style={styles.menuContent}>
+                <Text style={[styles.menuTitle, { color: colors.text }]}>
+                  Documents
+                </Text>
+                <Text
+                  style={[styles.menuSubtitle, { color: colors.textSecondary }]}
+                >
+                  {profile?.documents?.length || 0} documents
+                </Text>
+              </View>
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={colors.textSecondary}
+              />
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={[styles.menuItem, { backgroundColor: colors.card }]}
+              onPress={() => {
+                setActiveModal("preferences");
+                setNotifications(
+                  profile?.preferences?.notifications || {
+                    email: true,
+                    sms: true,
+                    push: true,
+                  }
+                );
+                setSelectedLanguage(profile?.preferences?.language || "fr");
+                setSelectedTheme(profile?.preferences?.theme || "system");
+              }}
+            >
+              <LinearGradient
+                colors={[colors.primary + "20", colors.secondary + "10"]}
+                style={styles.menuIconContainer}
+              >
+                <Ionicons name="settings" size={24} color={colors.primary} />
+              </LinearGradient>
+              <View style={styles.menuContent}>
+                <Text style={[styles.menuTitle, { color: colors.text }]}>
+                  Préférences
+                </Text>
+                <Text
+                  style={[styles.menuSubtitle, { color: colors.textSecondary }]}
+                >
+                  Langue, thème, notifications
+                </Text>
+              </View>
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={colors.textSecondary}
+              />
+            </TouchableOpacity>
+          </View>
+
+          {/* Support et déconnexion */}
+          <View style={styles.footerSection}>
+            <TouchableOpacity
+              style={[styles.supportButton, { backgroundColor: colors.card }]}
+              onPress={() => Linking.openURL("mailto:support@kadima.com")}
+            >
+              <Ionicons
+                name="help-circle-outline"
+                size={20}
+                color={colors.primary}
+              />
+              <Text style={[styles.supportText, { color: colors.text }]}>
+                Centre d'aide
+              </Text>
+            </TouchableOpacity>
+
+            <TouchableOpacity
+              style={styles.logoutButton}
+              onPress={handleLogout}
+            >
+              <LinearGradient
+                colors={["#F44336", "#D32F2F"]}
+                style={styles.logoutGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+              >
+                <Ionicons name="log-out-outline" size={20} color="#fff" />
+                <Text style={styles.logoutText}>Se déconnecter</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+
+            <Text style={[styles.versionText, { color: colors.textSecondary }]}>
+              Version 1.0.0
+            </Text>
+          </View>
+        </Animated.View>
+      </ScrollView>
+
+      {/* Modale Services */}
+      <Modal
+        visible={activeModal === "services"}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setActiveModal(null)}
+      >
+        <BlurView intensity={90} tint={colorScheme} style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            onPress={() => setActiveModal(null)}
+          />
+          <Animated.View
+            style={[
+              styles.modalContent,
+              {
+                backgroundColor: colors.card,
+                transform: [{ scale: scaleAnim }],
+              },
+            ]}
+          >
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
+                Services
+              </Text>
+              <TouchableOpacity
+                onPress={() => setActiveModal(null)}
+                style={styles.modalClose}
+              >
+                <Ionicons name="close" size={24} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {SERVICES_LIST.map((service) => (
+                <TouchableOpacity
+                  key={service.id}
+                  style={[
+                    styles.modalItem,
+                    { borderColor: colors.border },
+                    selectedServices.includes(service.id) &&
+                      styles.modalItemSelected,
+                  ]}
+                  onPress={() => {
+                    if (selectedServices.includes(service.id)) {
+                      setSelectedServices(
+                        selectedServices.filter((s) => s !== service.id)
+                      );
+                    } else {
+                      setSelectedServices([...selectedServices, service.id]);
+                    }
+                  }}
+                >
+                  <View
+                    style={[
+                      styles.modalItemIcon,
+                      { backgroundColor: service.color + "20" },
+                    ]}
+                  >
+                    <Ionicons
+                      name={service.icon}
+                      size={22}
+                      color={service.color}
+                    />
+                  </View>
+                  <View style={styles.modalItemContent}>
+                    <Text
+                      style={[styles.modalItemTitle, { color: colors.text }]}
+                    >
+                      {service.label}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.modalItemDesc,
+                        { color: colors.textSecondary },
+                      ]}
+                    >
+                      {service.description}
+                    </Text>
+                  </View>
+                  {selectedServices.includes(service.id) && (
+                    <View
+                      style={[
+                        styles.modalCheck,
+                        { backgroundColor: colors.primary },
+                      ]}
+                    >
+                      <Ionicons name="checkmark" size={16} color="#fff" />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            <TouchableOpacity style={styles.modalButton} onPress={saveServices}>
+              <LinearGradient
+                colors={[colors.primary, colors.secondary]}
+                style={styles.modalButtonGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+              >
+                <Text style={styles.modalButtonText}>Enregistrer</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </Animated.View>
+        </BlurView>
+      </Modal>
+
+      {/* Modale Équipement */}
+      <Modal
+        visible={activeModal === "equipment"}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setActiveModal(null)}
+      >
+        <BlurView intensity={90} tint={colorScheme} style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            onPress={() => setActiveModal(null)}
+          />
+          <Animated.View
+            style={[
+              styles.modalContent,
+              {
+                backgroundColor: colors.card,
+                transform: [{ scale: scaleAnim }],
+              },
+            ]}
+          >
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
+                Équipement
+              </Text>
+              <TouchableOpacity
+                onPress={() => setActiveModal(null)}
+                style={styles.modalClose}
+              >
+                <Ionicons name="close" size={24} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {EQUIPMENT_LIST.map((item) => (
+                <TouchableOpacity
+                  key={item.id}
+                  style={[
+                    styles.modalItem,
+                    { borderColor: colors.border },
+                    selectedEquipment.includes(item.id) &&
+                      styles.modalItemSelected,
+                  ]}
+                  onPress={() => {
+                    if (selectedEquipment.includes(item.id)) {
+                      setSelectedEquipment(
+                        selectedEquipment.filter((e) => e !== item.id)
+                      );
+                    } else {
+                      setSelectedEquipment([...selectedEquipment, item.id]);
+                    }
+                  }}
+                >
+                  <View
+                    style={[
+                      styles.modalItemIcon,
+                      { backgroundColor: colors.primary + "20" },
+                    ]}
+                  >
+                    <Ionicons
+                      name={item.icon}
+                      size={22}
+                      color={colors.primary}
+                    />
+                  </View>
+                  <View style={styles.modalItemContent}>
+                    <Text
+                      style={[styles.modalItemTitle, { color: colors.text }]}
+                    >
+                      {item.label}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.modalItemDesc,
+                        { color: colors.textSecondary },
+                      ]}
+                    >
+                      {item.category}
+                    </Text>
+                  </View>
+                  {selectedEquipment.includes(item.id) && (
+                    <View
+                      style={[
+                        styles.modalCheck,
+                        { backgroundColor: colors.primary },
+                      ]}
+                    >
+                      <Ionicons name="checkmark" size={16} color="#fff" />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={saveEquipment}
+            >
+              <LinearGradient
+                colors={[colors.primary, colors.secondary]}
+                style={styles.modalButtonGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+              >
+                <Text style={styles.modalButtonText}>Enregistrer</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </Animated.View>
+        </BlurView>
+      </Modal>
+
+      {/* Modale Zone */}
+      <Modal
+        visible={activeModal === "zone"}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setActiveModal(null)}
+      >
+        <BlurView intensity={90} tint={colorScheme} style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            onPress={() => setActiveModal(null)}
+          />
+          <Animated.View
+            style={[
+              styles.modalContent,
+              {
+                backgroundColor: colors.card,
+                transform: [{ scale: scaleAnim }],
+              },
+            ]}
+          >
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
+                Zone d'intervention
+              </Text>
+              <TouchableOpacity
+                onPress={() => setActiveModal(null)}
+                style={styles.modalClose}
+              >
+                <Ionicons name="close" size={24} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <View style={styles.modalBody}>
+              <Text
+                style={[styles.modalLabel, { color: colors.textSecondary }]}
+              >
+                Rayon d'action
+              </Text>
+              <ScrollView
+                horizontal
+                showsHorizontalScrollIndicator={false}
+                style={styles.radiusScroll}
+              >
+                {[5, 10, 15, 20, 25, 30, 40, 50].map((r) => (
+                  <TouchableOpacity
+                    key={r}
+                    style={[
+                      styles.radiusButton,
+                      parseInt(radius) === r && {
+                        backgroundColor: colors.primary,
+                      },
+                    ]}
+                    onPress={() => setRadius(r.toString())}
+                  >
+                    <Text
+                      style={[
+                        styles.radiusText,
+                        {
+                          color: parseInt(radius) === r ? "#fff" : colors.text,
+                        },
+                      ]}
+                    >
+                      {r} km
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </ScrollView>
+
+              <Text
+                style={[
+                  styles.modalLabel,
+                  { color: colors.textSecondary, marginTop: 20 },
+                ]}
+              >
+                Adresse
+              </Text>
+              <TextInput
+                style={[
+                  styles.modalInput,
+                  {
+                    backgroundColor: colors.background,
+                    color: colors.text,
+                    borderColor: colors.border,
+                  },
+                ]}
+                placeholder="Votre adresse de base"
+                placeholderTextColor={colors.placeholder}
+                value={address}
+                onChangeText={setAddress}
+              />
+            </View>
+
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={saveServiceArea}
+            >
+              <LinearGradient
+                colors={[colors.primary, colors.secondary]}
+                style={styles.modalButtonGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+              >
+                <Text style={styles.modalButtonText}>Enregistrer</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </Animated.View>
+        </BlurView>
+      </Modal>
+
+      {/* Modale Tarifs */}
+      <Modal
+        visible={activeModal === "pricing"}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setActiveModal(null)}
+      >
+        <BlurView intensity={90} tint={colorScheme} style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            onPress={() => setActiveModal(null)}
+          />
+          <Animated.View
+            style={[
+              styles.modalContent,
+              {
+                backgroundColor: colors.card,
+                transform: [{ scale: scaleAnim }],
+              },
+            ]}
+          >
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
+                Tarifs
+              </Text>
+              <TouchableOpacity
+                onPress={() => setActiveModal(null)}
+                style={styles.modalClose}
+              >
+                <Ionicons name="close" size={24} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <View style={styles.modalBody}>
+                <View style={styles.priceRow}>
+                  <View style={styles.priceInputContainer}>
+                    <Text
+                      style={[
+                        styles.modalLabel,
+                        { color: colors.textSecondary },
+                      ]}
+                    >
+                      Prix de base
+                    </Text>
+                    <TextInput
+                      style={[
+                        styles.priceInput,
+                        {
+                          backgroundColor: colors.background,
+                          color: colors.text,
+                          borderColor: colors.border,
+                        },
+                      ]}
+                      placeholder="25"
+                      placeholderTextColor={colors.placeholder}
+                      value={basePrice}
+                      onChangeText={setBasePrice}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                  <View style={styles.priceInputContainer}>
+                    <Text
+                      style={[
+                        styles.modalLabel,
+                        { color: colors.textSecondary },
+                      ]}
+                    >
+                      Frais/km
+                    </Text>
+                    <TextInput
+                      style={[
+                        styles.priceInput,
+                        {
+                          backgroundColor: colors.background,
+                          color: colors.text,
+                          borderColor: colors.border,
+                        },
+                      ]}
+                      placeholder="1"
+                      placeholderTextColor={colors.placeholder}
+                      value={perKm}
+                      onChangeText={setPerKm}
+                      keyboardType="numeric"
+                    />
+                  </View>
+                </View>
+
+                <Text
+                  style={[
+                    styles.modalLabel,
+                    { color: colors.textSecondary, marginTop: 20 },
+                  ]}
+                >
+                  Tarifs spécifiques
+                </Text>
+                {SERVICES_LIST.filter((s) =>
+                  selectedServices.includes(s.id)
+                ).map((service) => {
+                  const existingPrice = pricingServices.find(
+                    (p) => p.service === service.id
+                  );
+                  return (
+                    <View key={service.id} style={styles.servicePriceRow}>
+                      <Text
+                        style={[
+                          styles.servicePriceLabel,
+                          { color: colors.text },
+                        ]}
+                      >
+                        {service.label}
+                      </Text>
+                      <TextInput
+                        style={[
+                          styles.smallInput,
+                          {
+                            backgroundColor: colors.background,
+                            color: colors.text,
+                            borderColor: colors.border,
+                          },
+                        ]}
+                        placeholder={basePrice}
+                        placeholderTextColor={colors.placeholder}
+                        value={existingPrice?.price?.toString() || ""}
+                        onChangeText={(text) => {
+                          const newPrice = parseFloat(text) || 0;
+                          const newServices = pricingServices.filter(
+                            (p) => p.service !== service.id
+                          );
+                          if (newPrice > 0) {
+                            newServices.push({
+                              service: service.id,
+                              price: newPrice,
+                            });
+                          }
+                          setPricingServices(newServices);
+                        }}
+                        keyboardType="numeric"
+                      />
+                    </View>
+                  );
+                })}
+              </View>
+            </ScrollView>
+
+            <TouchableOpacity style={styles.modalButton} onPress={savePricing}>
+              <LinearGradient
+                colors={[colors.primary, colors.secondary]}
+                style={styles.modalButtonGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+              >
+                <Text style={styles.modalButtonText}>Enregistrer</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </Animated.View>
+        </BlurView>
+      </Modal>
+
+      {/* Modale Documents */}
+      <Modal
+        visible={activeModal === "documents"}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setActiveModal(null)}
+      >
+        <BlurView intensity={90} tint={colorScheme} style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            onPress={() => setActiveModal(null)}
+          />
+          <Animated.View
+            style={[
+              styles.modalContent,
+              {
+                backgroundColor: colors.card,
+                transform: [{ scale: scaleAnim }],
+              },
+            ]}
+          >
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
+                Documents
+              </Text>
+              <TouchableOpacity
+                onPress={() => setActiveModal(null)}
+                style={styles.modalClose}
+              >
+                <Ionicons name="close" size={24} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              {profile?.documents && profile.documents.length > 0 ? (
+                profile.documents.map((doc, index) => (
+                  <View
+                    key={index}
+                    style={[
+                      styles.documentItem,
+                      { borderColor: colors.border },
+                    ]}
+                  >
+                    <View style={styles.documentInfo}>
+                      <View
+                        style={[
+                          styles.documentIcon,
+                          {
+                            backgroundColor: doc.verified
+                              ? "#4CAF50" + "20"
+                              : "#FF9800" + "20",
+                          },
+                        ]}
+                      >
+                        <Ionicons
+                          name={doc.verified ? "checkmark-circle" : "time"}
+                          size={20}
+                          color={doc.verified ? "#4CAF50" : "#FF9800"}
+                        />
+                      </View>
+                      <View>
+                        <Text
+                          style={[styles.documentName, { color: colors.text }]}
+                        >
+                          {doc.type === "license"
+                            ? "Permis de conduire"
+                            : doc.type === "insurance"
+                            ? "Assurance"
+                            : doc.type === "certification"
+                            ? "Certification"
+                            : doc.type}
+                        </Text>
+                        <Text
+                          style={[
+                            styles.documentDate,
+                            { color: colors.textSecondary },
+                          ]}
+                        >
+                          {formatDate(doc.uploadedAt)}
+                        </Text>
+                      </View>
+                    </View>
+                    <Text
+                      style={[
+                        styles.documentStatus,
+                        { color: doc.verified ? "#4CAF50" : "#FF9800" },
+                      ]}
+                    >
+                      {doc.verified ? "Validé" : "En attente"}
+                    </Text>
+                  </View>
+                ))
+              ) : (
+                <Text
+                  style={[styles.emptyText, { color: colors.textSecondary }]}
+                >
+                  Aucun document uploadé
+                </Text>
+              )}
+
+              <View style={styles.uploadButtons}>
+                <TouchableOpacity
+                  style={[styles.uploadButton, { borderColor: colors.primary }]}
+                  onPress={() => pickDocument("license")}
+                >
+                  <Ionicons
+                    name="cloud-upload-outline"
+                    size={18}
+                    color={colors.primary}
+                  />
+                  <Text
+                    style={[styles.uploadButtonText, { color: colors.primary }]}
+                  >
+                    Permis de conduire
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.uploadButton, { borderColor: colors.primary }]}
+                  onPress={() => pickDocument("insurance")}
+                >
+                  <Ionicons
+                    name="cloud-upload-outline"
+                    size={18}
+                    color={colors.primary}
+                  />
+                  <Text
+                    style={[styles.uploadButtonText, { color: colors.primary }]}
+                  >
+                    Assurance
+                  </Text>
+                </TouchableOpacity>
+
+                <TouchableOpacity
+                  style={[styles.uploadButton, { borderColor: colors.primary }]}
+                  onPress={() => pickDocument("certification")}
+                >
+                  <Ionicons
+                    name="cloud-upload-outline"
+                    size={18}
+                    color={colors.primary}
+                  />
+                  <Text
+                    style={[styles.uploadButtonText, { color: colors.primary }]}
+                  >
+                    Certification
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            </ScrollView>
+
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={() => setActiveModal(null)}
+            >
+              <LinearGradient
+                colors={[colors.primary, colors.secondary]}
+                style={styles.modalButtonGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+              >
+                <Text style={styles.modalButtonText}>Fermer</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </Animated.View>
+        </BlurView>
+      </Modal>
+
+      {/* Modale Préférences */}
+      <Modal
+        visible={activeModal === "preferences"}
+        transparent
+        animationType="fade"
+        onRequestClose={() => setActiveModal(null)}
+      >
+        <BlurView intensity={90} tint={colorScheme} style={styles.modalOverlay}>
+          <TouchableOpacity
+            style={StyleSheet.absoluteFill}
+            onPress={() => setActiveModal(null)}
+          />
+          <Animated.View
+            style={[
+              styles.modalContent,
+              {
+                backgroundColor: colors.card,
+                transform: [{ scale: scaleAnim }],
+              },
+            ]}
+          >
+            <View style={styles.modalHeader}>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
+                Préférences
+              </Text>
+              <TouchableOpacity
+                onPress={() => setActiveModal(null)}
+                style={styles.modalClose}
+              >
+                <Ionicons name="close" size={24} color={colors.textSecondary} />
+              </TouchableOpacity>
+            </View>
+
+            <ScrollView showsVerticalScrollIndicator={false}>
+              <Text style={[styles.preferenceSection, { color: colors.text }]}>
+                Langue
+              </Text>
+              {LANGUAGES.map((lang) => (
+                <TouchableOpacity
+                  key={lang.id}
+                  style={[
+                    styles.preferenceItem,
+                    selectedLanguage === lang.id && {
+                      backgroundColor: colors.primary + "10",
+                    },
+                  ]}
+                  onPress={() => setSelectedLanguage(lang.id)}
+                >
+                  <Ionicons
+                    name={lang.icon}
+                    size={22}
+                    color={
+                      selectedLanguage === lang.id
+                        ? colors.primary
+                        : colors.textSecondary
+                    }
+                  />
+                  <Text
+                    style={[
+                      styles.preferenceText,
+                      {
+                        color:
+                          selectedLanguage === lang.id
+                            ? colors.primary
+                            : colors.text,
+                      },
+                    ]}
+                  >
+                    {lang.label}
+                  </Text>
+                  {selectedLanguage === lang.id && (
+                    <View
+                      style={[
+                        styles.preferenceCheck,
+                        { backgroundColor: colors.primary },
+                      ]}
+                    >
+                      <Ionicons name="checkmark" size={14} color="#fff" />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              ))}
+
+              <Text
+                style={[
+                  styles.preferenceSection,
+                  { color: colors.text, marginTop: 20 },
+                ]}
+              >
+                Thème
+              </Text>
+              {THEMES.map((theme) => (
+                <TouchableOpacity
+                  key={theme.id}
+                  style={[
+                    styles.preferenceItem,
+                    selectedTheme === theme.id && {
+                      backgroundColor: colors.primary + "10",
+                    },
+                  ]}
+                  onPress={() =>
+                    setSelectedTheme(theme.id as "light" | "dark" | "system")
+                  }
+                >
+                  <Ionicons
+                    name={theme.icon}
+                    size={22}
+                    color={
+                      selectedTheme === theme.id
+                        ? colors.primary
+                        : colors.textSecondary
+                    }
+                  />
+                  <Text
+                    style={[
+                      styles.preferenceText,
+                      {
+                        color:
+                          selectedTheme === theme.id
+                            ? colors.primary
+                            : colors.text,
+                      },
+                    ]}
+                  >
+                    {theme.label}
+                  </Text>
+                  {selectedTheme === theme.id && (
+                    <View
+                      style={[
+                        styles.preferenceCheck,
+                        { backgroundColor: colors.primary },
+                      ]}
+                    >
+                      <Ionicons name="checkmark" size={14} color="#fff" />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              ))}
+
+              <Text
+                style={[
+                  styles.preferenceSection,
+                  { color: colors.text, marginTop: 20 },
+                ]}
+              >
+                Notifications
+              </Text>
+
+              <View
+                style={[
+                  styles.notificationItem,
+                  { backgroundColor: colors.background },
+                ]}
+              >
+                <View style={styles.notificationInfo}>
+                  <Ionicons
+                    name="mail-outline"
+                    size={20}
+                    color={colors.primary}
+                  />
+                  <Text
+                    style={[styles.notificationText, { color: colors.text }]}
+                  >
+                    Email
+                  </Text>
+                </View>
+                <Switch
+                  value={notifications.email}
+                  onValueChange={(value) =>
+                    setNotifications({ ...notifications, email: value })
+                  }
+                  trackColor={{ false: colors.border, true: colors.primary }}
+                />
+              </View>
+
+              <View
+                style={[
+                  styles.notificationItem,
+                  { backgroundColor: colors.background },
+                ]}
+              >
+                <View style={styles.notificationInfo}>
+                  <Ionicons
+                    name="chatbubble-outline"
+                    size={20}
+                    color={colors.primary}
+                  />
+                  <Text
+                    style={[styles.notificationText, { color: colors.text }]}
+                  >
+                    SMS
+                  </Text>
+                </View>
+                <Switch
+                  value={notifications.sms}
+                  onValueChange={(value) =>
+                    setNotifications({ ...notifications, sms: value })
+                  }
+                  trackColor={{ false: colors.border, true: colors.primary }}
+                />
+              </View>
+
+              <View
+                style={[
+                  styles.notificationItem,
+                  { backgroundColor: colors.background },
+                ]}
+              >
+                <View style={styles.notificationInfo}>
+                  <Ionicons
+                    name="notifications-outline"
+                    size={20}
+                    color={colors.primary}
+                  />
+                  <Text
+                    style={[styles.notificationText, { color: colors.text }]}
+                  >
+                    Push
+                  </Text>
+                </View>
+                <Switch
+                  value={notifications.push}
+                  onValueChange={(value) =>
+                    setNotifications({ ...notifications, push: value })
+                  }
+                  trackColor={{ false: colors.border, true: colors.primary }}
+                />
+              </View>
+            </ScrollView>
+
+            <TouchableOpacity
+              style={styles.modalButton}
+              onPress={savePreferences}
+            >
+              <LinearGradient
+                colors={[colors.primary, colors.secondary]}
+                style={styles.modalButtonGradient}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+              >
+                <Text style={styles.modalButtonText}>Enregistrer</Text>
+              </LinearGradient>
+            </TouchableOpacity>
+          </Animated.View>
+        </BlurView>
+      </Modal>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+  },
+  header: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingTop: Platform.OS === "ios" ? 60 : 40,
+    paddingBottom: 20,
+    paddingHorizontal: 20,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+  },
+  headerButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontWeight: "600",
+    color: "#fff",
+  },
+  loadingContent: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 20,
+  },
+  loadingLogo: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    fontSize: 14,
+  },
+  content: {
+    padding: 20,
+  },
+  profileCard: {
+    borderRadius: 24,
+    padding: 20,
+    marginBottom: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 12,
+    elevation: 5,
+  },
+  profileHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 16,
+  },
+  avatarContainer: {
+    position: "relative",
+  },
+  avatarGradient: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    padding: 3,
+  },
+  avatarInner: {
+    flex: 1,
+    borderRadius: 37,
+    backgroundColor: "#fff",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  avatarText: {
+    fontSize: 32,
+    fontWeight: "bold",
+    color: "#333",
+  },
+  editBadge: {
+    position: "absolute",
+    bottom: 0,
+    right: 0,
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 2,
+    borderColor: "#fff",
+  },
+  profileInfo: {
+    flex: 1,
+  },
+  profileName: {
+    fontSize: 20,
+    fontWeight: "bold",
+    marginBottom: 8,
+  },
+  badgeContainer: {
+    flexDirection: "row",
+    gap: 8,
+  },
+  statusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderRadius: 20,
+    gap: 4,
+  },
+  statusDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  statusText: {
+    fontSize: 11,
+    fontWeight: "500",
+  },
+  certBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 20,
+    gap: 4,
+  },
+  certText: {
+    fontSize: 11,
+    fontWeight: "500",
+  },
+  contactSection: {
+    marginTop: 16,
+    gap: 8,
+  },
+  contactRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  contactText: {
+    fontSize: 13,
+    flex: 1,
+  },
+  statsGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    gap: 12,
+    marginBottom: 20,
+  },
+  statBox: {
+    width: (width - 52) / 2,
+    padding: 16,
+    borderRadius: 20,
+    alignItems: "center",
+    gap: 4,
+  },
+  statNumber: {
+    fontSize: 20,
+    fontWeight: "bold",
+    marginTop: 4,
+  },
+  statLabel: {
+    fontSize: 11,
+  },
+  menuSection: {
+    gap: 12,
+    marginBottom: 20,
+  },
+  sectionTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 4,
+    marginLeft: 4,
+  },
+  menuItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    borderRadius: 20,
+    gap: 12,
+  },
+  menuIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  menuContent: {
+    flex: 1,
+  },
+  menuTitle: {
+    fontSize: 15,
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  menuSubtitle: {
+    fontSize: 12,
+  },
+  footerSection: {
+    gap: 12,
+  },
+  supportButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 16,
+    borderRadius: 30,
+    gap: 8,
+  },
+  supportText: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  logoutButton: {
+    borderRadius: 30,
+    overflow: "hidden",
+  },
+  logoutGradient: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 16,
+    gap: 8,
+  },
+  logoutText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
+  },
+  versionText: {
+    textAlign: "center",
+    fontSize: 11,
+    marginTop: 8,
+    marginBottom: 20,
+  },
+  // Modales
+  modalOverlay: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalContent: {
+    width: "90%",
+    maxHeight: "80%",
+    borderRadius: 28,
+    padding: 20,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.2,
+    shadowRadius: 16,
+    elevation: 10,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "600",
+  },
+  modalClose: {
+    padding: 4,
+  },
+  modalBody: {
+    gap: 10,
+  },
+  modalLabel: {
+    fontSize: 13,
+    marginBottom: 4,
+  },
+  modalInput: {
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    fontSize: 14,
+  },
+  modalItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderRadius: 16,
+    marginBottom: 8,
+    borderWidth: 1,
+    gap: 12,
+  },
+  modalItemSelected: {
+    borderColor: "transparent",
+    backgroundColor: "rgba(0,0,0,0.02)",
+  },
+  modalItemIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalItemContent: {
+    flex: 1,
+  },
+  modalItemTitle: {
+    fontSize: 15,
+    fontWeight: "500",
+    marginBottom: 2,
+  },
+  modalItemDesc: {
+    fontSize: 12,
+  },
+  modalCheck: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalButton: {
+    marginTop: 20,
+    borderRadius: 30,
+    overflow: "hidden",
+  },
+  modalButtonGradient: {
+    padding: 16,
+    alignItems: "center",
+  },
+  modalButtonText: {
+    color: "#fff",
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  radiusScroll: {
+    flexDirection: "row",
+  },
+  radiusButton: {
+    paddingHorizontal: 16,
+    paddingVertical: 10,
+    borderRadius: 25,
+    marginRight: 8,
+    backgroundColor: "rgba(0,0,0,0.05)",
+  },
+  radiusText: {
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  priceRow: {
+    flexDirection: "row",
+    gap: 12,
+  },
+  priceInputContainer: {
+    flex: 1,
+  },
+  priceInput: {
+    padding: 14,
+    borderRadius: 16,
+    borderWidth: 1,
+    fontSize: 14,
+    marginTop: 4,
+  },
+  servicePriceRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 10,
+  },
+  servicePriceLabel: {
+    fontSize: 14,
+  },
+  smallInput: {
+    width: 80,
+    padding: 10,
+    borderWidth: 1,
+    borderRadius: 12,
+    textAlign: "center",
+    fontSize: 13,
+  },
+  documentItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 12,
+    borderWidth: 1,
+    borderRadius: 16,
+    marginBottom: 8,
+  },
+  documentInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  documentIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  documentName: {
+    fontSize: 14,
+    fontWeight: "500",
+  },
+  documentDate: {
+    fontSize: 11,
+    marginTop: 2,
+  },
+  documentStatus: {
+    fontSize: 12,
+    fontWeight: "500",
+  },
+  uploadButtons: {
+    gap: 8,
+    marginTop: 16,
+  },
+  uploadButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 14,
+    borderWidth: 1,
+    borderRadius: 25,
+    gap: 6,
+  },
+  uploadButtonText: {
+    fontSize: 13,
+    fontWeight: "500",
+  },
+  emptyText: {
+    fontSize: 13,
+    fontStyle: "italic",
+    textAlign: "center",
+    padding: 20,
+  },
+  preferenceSection: {
+    fontSize: 15,
+    fontWeight: "600",
+    marginBottom: 8,
+  },
+  preferenceItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    borderRadius: 16,
+    marginBottom: 6,
+    gap: 10,
+  },
+  preferenceText: {
+    flex: 1,
+    fontSize: 14,
+  },
+  preferenceCheck: {
+    width: 22,
+    height: 22,
+    borderRadius: 11,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  notificationItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 12,
+    borderRadius: 16,
+    marginBottom: 8,
+  },
+  notificationInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  notificationText: {
+    fontSize: 14,
+  },
+});
