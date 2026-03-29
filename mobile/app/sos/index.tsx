@@ -1,81 +1,47 @@
+// app/sos/index.tsx - Version avec flèche de retour (comme les autres pages)
+
 import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
   StyleSheet,
+  TextInput,
   TouchableOpacity,
   Alert,
   ActivityIndicator,
   ScrollView,
-  TextInput,
-  Linking,
   Dimensions,
   Animated,
   Easing,
   Platform,
-  AppState,
+  Modal,
+  FlatList,
+  StatusBar,
+  Linking,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import * as Location from "expo-location";
 import { api } from "../../config/api";
-import { useAuth } from "../../contexts/AuthContext";
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
 import { BlurView } from "expo-blur";
-import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
+import * as Location from "expo-location";
 
 const { width, height } = Dimensions.get("window");
 
-// Types pour l'alerte SOS
-interface SOSAlert {
-  _id: string;
-  status: "active" | "dispatched" | "resolved" | "cancelled";
-  location: {
-    coordinates: [number, number];
-    address: string;
-  };
-  problem: {
-    description: string;
-    category: string;
-    severity: string;
-  };
-  notifications: {
-    nearbyHelpers: Array<{
-      helper: {
-        _id: string;
-        user: {
-          firstName: string;
-          lastName: string;
-          phone: string;
-        };
-        distance: number;
-        eta?: number;
-      };
-      distance: number;
-      responded: boolean;
-      responseTime?: number;
-    }>;
-  };
-  intervention?: {
-    _id: string;
-    helper: {
-      _id: string;
-      user: {
-        firstName: string;
-        lastName: string;
-        phone: string;
-        photo?: string;
-      };
-    };
-    status: string;
-    eta?: number;
-  };
-  createdAt: string;
+// Types
+interface Vehicle {
+  _id?: string;
+  make: string;
+  model: string;
+  year: number;
+  licensePlate: string;
+  isDefault: boolean;
 }
 
+// Types de problèmes SOS
 const SOS_CASES = [
   {
     id: "accident",
@@ -128,7 +94,7 @@ const SOS_CASES = [
   {
     id: "towing",
     label: "Remorquage",
-    icon: "trailer",
+    icon: "car",
     description: "Besoin d'une dépanneuse",
     gradient: ["#800020", "#4A0010"],
     severity: "high",
@@ -144,41 +110,30 @@ const SOS_CASES = [
 ];
 
 export default function SOSScreen() {
-  const { user } = useAuth();
   const router = useRouter();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? "light"];
 
-  // États principaux
-  const [loading, setLoading] = useState(false);
+  // États
+  const [selectedCase, setSelectedCase] = useState<string | null>(null);
+  const [customProblem, setCustomProblem] = useState("");
   const [location, setLocation] = useState<{ lat: number; lng: number } | null>(
     null
   );
   const [address, setAddress] = useState("");
-  const [selectedCase, setSelectedCase] = useState<string | null>(null);
-  const [customProblem, setCustomProblem] = useState("");
-  const [step, setStep] = useState<1 | 2 | 3 | 4>(1); // 1: localisation, 2: choix, 3: recherche, 4: suivi
-
-  // États pour le suivi de l'alerte
-  const [currentAlert, setCurrentAlert] = useState<SOSAlert | null>(null);
-  const [pollingInterval, setPollingInterval] = useState<NodeJS.Timeout | null>(
-    null
-  );
-  const [nearbyHelpersCount, setNearbyHelpersCount] = useState(0);
-  const [timeElapsed, setTimeElapsed] = useState(0);
+  const [loading, setLoading] = useState(false);
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
+  const [loadingVehicles, setLoadingVehicles] = useState(true);
+  const [showVehicleModal, setShowVehicleModal] = useState(false);
 
   // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
   const scaleAnim = useRef(new Animated.Value(0.95)).current;
   const pulseAnim = useRef(new Animated.Value(1)).current;
-  const progressAnim = useRef(new Animated.Value(0)).current;
-
-  // Timer pour le temps écoulé
-  const timerRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    // Animations d'entrée
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -199,7 +154,6 @@ export default function SOSScreen() {
       }),
     ]).start();
 
-    // Animation de pulsation
     Animated.loop(
       Animated.sequence([
         Animated.timing(pulseAnim, {
@@ -218,38 +172,8 @@ export default function SOSScreen() {
     ).start();
 
     getLocation();
-
-    // Cleanup à la fin
-    return () => {
-      if (pollingInterval) clearInterval(pollingInterval);
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
+    loadVehicles();
   }, []);
-
-  // Effet pour le polling quand une alerte est active
-  useEffect(() => {
-    if (step === 3 && currentAlert) {
-      // Commencer le polling
-      const interval = setInterval(() => {
-        checkAlertStatus(currentAlert._id);
-      }, 3000); // Vérifier toutes les 3 secondes
-      setPollingInterval(interval);
-
-      // Démarrer le timer
-      timerRef.current = setInterval(() => {
-        setTimeElapsed((prev) => prev + 1);
-      }, 1000);
-
-      return () => {
-        clearInterval(interval);
-        if (timerRef.current) clearInterval(timerRef.current);
-      };
-    }
-  }, [step, currentAlert]);
-
-  // ============================================
-  // FONCTIONS DE LOCALISATION
-  // ============================================
 
   const getLocation = async () => {
     try {
@@ -265,22 +189,14 @@ export default function SOSScreen() {
         );
         return;
       }
-
       const loc = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
+        accuracy: Location.Accuracy.Highest,
       });
-
-      setLocation({
-        lat: loc.coords.latitude,
-        lng: loc.coords.longitude,
-      });
-
-      // Obtenir l'adresse
+      setLocation({ lat: loc.coords.latitude, lng: loc.coords.longitude });
       const addressResult = await Location.reverseGeocodeAsync({
         latitude: loc.coords.latitude,
         longitude: loc.coords.longitude,
       });
-
       if (addressResult[0]) {
         const addr = addressResult[0];
         setAddress(
@@ -289,16 +205,51 @@ export default function SOSScreen() {
           }`.trim() || "Position obtenue"
         );
       }
-
-      setStep(2);
     } catch (error) {
-      Alert.alert("Erreur", "Impossible d'obtenir votre position");
+      console.error("Erreur localisation:", error);
     }
   };
 
-  // ============================================
-  // FONCTIONS DE L'ALERTE SOS
-  // ============================================
+  const loadVehicles = async () => {
+    try {
+      setLoadingVehicles(true);
+      const response = await api.get("/auth/user/me");
+      const userData = response.data.data;
+      const vehiclesList = userData?.vehicles || [];
+      setVehicles(vehiclesList);
+      const defaultVehicle = vehiclesList.find(
+        (v: Vehicle) => v.isDefault === true
+      );
+      const firstVehicle = vehiclesList[0];
+      if (defaultVehicle) setSelectedVehicle(defaultVehicle);
+      else if (firstVehicle) setSelectedVehicle(firstVehicle);
+    } catch (error) {
+      console.error("Erreur chargement véhicules:", error);
+    } finally {
+      setLoadingVehicles(false);
+    }
+  };
+
+  const refreshLocation = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    await getLocation();
+  };
+
+  const handleEmergencyCall = () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
+    Alert.alert(
+      "Appeler les secours",
+      "Voulez-vous appeler les services d'urgence ?",
+      [
+        { text: "Annuler", style: "cancel" },
+        {
+          text: "Appeler le 911",
+          onPress: () => Linking.openURL("tel:911"),
+          style: "destructive",
+        },
+      ]
+    );
+  };
 
   const handleSendSOS = async () => {
     if (!selectedCase) {
@@ -307,9 +258,18 @@ export default function SOSScreen() {
       return;
     }
 
+    if (!selectedVehicle) {
+      Alert.alert("Erreur", "Veuillez sélectionner un véhicule");
+      return;
+    }
+
     if (selectedCase === "other" && !customProblem.trim()) {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       Alert.alert("Erreur", "Veuillez décrire le problème");
+      return;
+    }
+
+    if (!location) {
+      Alert.alert("Erreur", "Position non disponible");
       return;
     }
 
@@ -323,30 +283,33 @@ export default function SOSScreen() {
           ? customProblem
           : selectedCaseData?.description || "";
 
-      // 1. Créer l'alerte SOS
       const response = await api.post("/sos", {
         location: {
-          coordinates: [location!.lng, location!.lat],
-          address: address,
+          coordinates: [location.lng, location.lat],
+          address,
+          accuracy: 10,
+        },
+        vehicleId: selectedVehicle._id,
+        vehicle: {
+          make: selectedVehicle.make,
+          model: selectedVehicle.model,
+          year: selectedVehicle.year,
+          licensePlate: selectedVehicle.licensePlate,
         },
         problem: {
           description: problemDescription,
           category: selectedCase,
           severity: selectedCaseData?.severity || "medium",
         },
-        vehicle: user?.vehicles?.[0] || {}, // Véhicule par défaut
       });
 
-      const alertData = response.data.data.sosAlert;
-      setCurrentAlert(alertData);
-      setNearbyHelpersCount(
-        alertData.notifications?.nearbyHelpers?.length || 0
-      );
-
-      // 2. Passer à l'étape de recherche
-      setStep(3);
+      router.push({
+        pathname: "/sos/waiting",
+        params: {
+          sosId: response.data.data.sosAlert._id,
+        },
+      });
     } catch (error: any) {
-      console.error("Erreur envoi SOS:", error);
       Alert.alert(
         "Erreur",
         error.response?.data?.message || "Impossible d'envoyer l'alerte SOS"
@@ -356,431 +319,154 @@ export default function SOSScreen() {
     }
   };
 
-  const checkAlertStatus = async (alertId: string) => {
-    try {
-      const response = await api.get(`/sos/${alertId}`);
-      const alert = response.data.data;
-
-      setCurrentAlert(alert);
-
-      // Si un helper a accepté
-      if (alert.status === "dispatched" && alert.intervention) {
-        setStep(4); // Passer à l'étape de suivi
-        if (pollingInterval) clearInterval(pollingInterval);
-        if (timerRef.current) clearInterval(timerRef.current);
-
-        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-
-        // Notification
-        Alert.alert(
-          "✅ Helper trouvé !",
-          `${alert.intervention.helper.user.firstName} ${alert.intervention.helper.user.lastName} a accepté votre demande et arrive.`,
-          [{ text: "OK" }]
-        );
-      }
-    } catch (error) {
-      console.error("Erreur vérification statut:", error);
-    }
+  const isFormValid = () => {
+    if (!selectedCase) return false;
+    if (!selectedVehicle) return false;
+    if (selectedCase === "other") return customProblem.trim().length > 0;
+    return true;
   };
 
-  const cancelSOS = async () => {
-    if (!currentAlert) {
-      router.back();
-      return;
-    }
-
-    Alert.alert(
-      "Annuler l'alerte",
-      "Voulez-vous vraiment annuler cette alerte SOS ?",
-      [
-        { text: "Non", style: "cancel" },
-        {
-          text: "Oui, annuler",
-          style: "destructive",
-          onPress: async () => {
-            try {
-              await api.put(`/sos/${currentAlert._id}/cancel`);
-              if (pollingInterval) clearInterval(pollingInterval);
-              if (timerRef.current) clearInterval(timerRef.current);
-              router.back();
-            } catch (error) {
-              Alert.alert("Erreur", "Impossible d'annuler l'alerte");
-            }
-          },
-        },
-      ]
-    );
-  };
-
-  const handleEmergencyCall = () => {
-    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
-    Alert.alert("Appeler les secours", "Voulez-vous appeler le 911 ?", [
-      { text: "Annuler", style: "cancel" },
-      {
-        text: "Appeler",
-        onPress: () => Linking.openURL("tel:911"),
-        style: "destructive",
-      },
-    ]);
-  };
-
-  const contactHelper = () => {
-    if (currentAlert?.intervention?.helper?.user?.phone) {
-      Linking.openURL(`tel:${currentAlert.intervention.helper.user.phone}`);
-    }
-  };
-
-  // ============================================
-  // FONCTIONS DE FORMATAGE
-  // ============================================
-
-  const formatTime = (seconds: number) => {
-    const mins = Math.floor(seconds / 60);
-    const secs = seconds % 60;
-    return `${mins}:${secs < 10 ? "0" : ""}${secs}`;
-  };
-
-  // ============================================
-  // RENDER DES ÉTAPES
-  // ============================================
-
-  const renderStep1 = () => (
-    <View style={styles.stepContainer}>
-      <ActivityIndicator size="large" color={colors.primary} />
-      <Text style={[styles.stepText, { color: colors.textSecondary }]}>
-        Recherche de votre position...
-      </Text>
-      <Text style={[styles.stepSubtext, { color: colors.textSecondary }]}>
-        Veuillez activer votre GPS
-      </Text>
-    </View>
-  );
-
-  const renderStep2 = () => (
-    <View style={styles.casesContainer}>
-      <View style={[styles.locationInfo, { backgroundColor: colors.surface }]}>
-        <Ionicons name="location" size={20} color={colors.primary} />
-        <Text
-          style={[styles.locationText, { color: colors.textSecondary }]}
-          numberOfLines={1}
+  const renderVehicleModal = () => (
+    <Modal
+      visible={showVehicleModal}
+      animationType="slide"
+      transparent
+      onRequestClose={() => setShowVehicleModal(false)}
+    >
+      <BlurView intensity={80} tint={colorScheme} style={styles.modalOverlay}>
+        <View
+          style={[styles.modalContent, { backgroundColor: colors.surface }]}
         >
-          {address}
-        </Text>
-      </View>
+          <View style={styles.modalHeader}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>
+              Sélectionner un véhicule
+            </Text>
+            <TouchableOpacity onPress={() => setShowVehicleModal(false)}>
+              <Ionicons name="close" size={24} color={colors.text} />
+            </TouchableOpacity>
+          </View>
 
-      <Text style={[styles.sectionTitle, { color: colors.text }]}>
-        Que s'est-il passé ?
-      </Text>
-
-      <View style={styles.casesGrid}>
-        {SOS_CASES.map((caseItem, index) => (
-          <Animated.View
-            key={caseItem.id}
-            style={[
-              styles.caseWrapper,
-              {
-                opacity: fadeAnim,
-                transform: [
-                  {
-                    translateY: slideAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0, 30 * (index + 1)],
-                    }),
-                  },
-                ],
-              },
-            ]}
-          >
-            <TouchableOpacity
-              style={[
-                styles.caseButton,
-                selectedCase === caseItem.id && styles.caseButtonSelected,
-              ]}
-              onPress={() => {
-                Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-                setSelectedCase(caseItem.id);
-              }}
-              activeOpacity={0.7}
-            >
-              <LinearGradient
-                colors={
-                  selectedCase === caseItem.id
-                    ? caseItem.gradient
-                    : ["transparent", "transparent"]
-                }
+          {loadingVehicles ? (
+            <View style={styles.loadingVehicles}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text
+                style={[styles.loadingText, { color: colors.textSecondary }]}
+              >
+                Chargement...
+              </Text>
+            </View>
+          ) : vehicles.length === 0 ? (
+            <View style={styles.emptyVehicles}>
+              <View
                 style={[
-                  styles.caseGradient,
-                  selectedCase !== caseItem.id && {
-                    borderWidth: 1,
-                    borderColor: colors.border,
-                  },
+                  styles.emptyIconContainer,
+                  { backgroundColor: colors.primary + "10" },
                 ]}
               >
-                <Ionicons
-                  name={caseItem.icon}
-                  size={32}
-                  color={selectedCase === caseItem.id ? "#fff" : colors.primary}
-                />
-                <Text
+                <Ionicons name="car-outline" size={40} color={colors.primary} />
+              </View>
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                Aucun véhicule enregistré
+              </Text>
+              <TouchableOpacity
+                style={[
+                  styles.addVehicleButton,
+                  { backgroundColor: colors.primary },
+                ]}
+                onPress={() => {
+                  setShowVehicleModal(false);
+                  router.push("/vehicles/add");
+                }}
+              >
+                <Text style={styles.addVehicleButtonText}>
+                  Ajouter un véhicule
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <FlatList
+              data={vehicles}
+              keyExtractor={(item, index) => item._id || index.toString()}
+              renderItem={({ item }) => (
+                <TouchableOpacity
                   style={[
-                    styles.caseLabel,
-                    {
-                      color:
-                        selectedCase === caseItem.id ? "#fff" : colors.text,
+                    styles.vehicleItem,
+                    { borderColor: colors.border },
+                    selectedVehicle?._id === item._id && {
+                      borderColor: colors.primary,
+                      backgroundColor: colors.primary + "10",
                     },
                   ]}
+                  onPress={() => {
+                    setSelectedVehicle(item);
+                    setShowVehicleModal(false);
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }}
                 >
-                  {caseItem.label}
-                </Text>
-              </LinearGradient>
-            </TouchableOpacity>
-          </Animated.View>
-        ))}
-      </View>
-
-      {selectedCase === "other" && (
-        <Animated.View
-          style={[
-            styles.otherContainer,
-            {
-              opacity: fadeAnim,
-              transform: [{ scale: scaleAnim }],
-            },
-          ]}
-        >
-          <Text style={[styles.label, { color: colors.text }]}>
-            Décrivez le problème
-          </Text>
-          <TextInput
-            style={[
-              styles.input,
-              {
-                backgroundColor: colors.surface,
-                borderColor: colors.border,
-                color: colors.text,
-              },
-            ]}
-            placeholder="Ex: Bruit bizarre, fumée, etc."
-            placeholderTextColor={colors.placeholder}
-            multiline
-            numberOfLines={4}
-            value={customProblem}
-            onChangeText={setCustomProblem}
-            textAlignVertical="top"
-          />
-        </Animated.View>
-      )}
-
-      <View style={styles.buttonRow}>
-        <TouchableOpacity
-          style={[styles.cancelButton, { borderColor: colors.border }]}
-          onPress={() => router.back()}
-        >
-          <Text
-            style={[styles.cancelButtonText, { color: colors.textSecondary }]}
-          >
-            Annuler
-          </Text>
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={[
-            styles.sendButton,
-            !selectedCase && styles.sendButtonDisabled,
-          ]}
-          onPress={handleSendSOS}
-          disabled={loading || !selectedCase}
-          activeOpacity={0.8}
-        >
-          <LinearGradient
-            colors={
-              selectedCase
-                ? SOS_CASES.find((c) => c.id === selectedCase)?.gradient || [
-                    colors.primary,
-                    colors.secondary,
-                  ]
-                : [colors.disabled, colors.disabled]
-            }
-            style={styles.sendButtonGradient}
-          >
-            {loading ? (
-              <ActivityIndicator color="#fff" />
-            ) : (
-              <>
-                <Ionicons name="send" size={20} color="#fff" />
-                <Text style={styles.sendButtonText}>Envoyer SOS</Text>
-              </>
-            )}
-          </LinearGradient>
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-
-  const renderStep3 = () => {
-    // Animation de la barre de progression
-    const progress = progressAnim.interpolate({
-      inputRange: [0, 1],
-      outputRange: ["0%", "100%"],
-    });
-
-    return (
-      <View style={styles.searchContainer}>
-        <View style={[styles.searchCard, { backgroundColor: colors.surface }]}>
-          <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
-            <LinearGradient
-              colors={[colors.primary, colors.secondary]}
-              style={styles.searchIconContainer}
-            >
-              <Ionicons name="search" size={40} color="#fff" />
-            </LinearGradient>
-          </Animated.View>
-
-          <Text style={[styles.searchTitle, { color: colors.text }]}>
-            Recherche d'un helper
-          </Text>
-
-          <Text
-            style={[styles.searchSubtitle, { color: colors.textSecondary }]}
-          >
-            {nearbyHelpersCount} helper{nearbyHelpersCount > 1 ? "s" : ""} à
-            proximité
-          </Text>
-
-          <View style={styles.timerContainer}>
-            <Ionicons name="time-outline" size={24} color={colors.primary} />
-            <Text style={[styles.timerText, { color: colors.text }]}>
-              {formatTime(timeElapsed)}
-            </Text>
-          </View>
-
-          <View
-            style={[
-              styles.progressBarContainer,
-              { backgroundColor: colors.border },
-            ]}
-          >
-            <Animated.View
-              style={[
-                styles.progressBar,
-                {
-                  backgroundColor: colors.primary,
-                  width: progress,
-                },
-              ]}
+                  <View style={styles.vehicleInfo}>
+                    <View
+                      style={[
+                        styles.vehicleIcon,
+                        { backgroundColor: colors.primary + "10" },
+                      ]}
+                    >
+                      <Ionicons name="car" size={24} color={colors.primary} />
+                    </View>
+                    <View>
+                      <Text
+                        style={[styles.vehicleName, { color: colors.text }]}
+                      >
+                        {item.make} {item.model} {item.year}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.vehicleDetailsText,
+                          { color: colors.textSecondary },
+                        ]}
+                      >
+                        {item.licensePlate}
+                      </Text>
+                    </View>
+                  </View>
+                  {item.isDefault && (
+                    <View
+                      style={[
+                        styles.defaultBadge,
+                        { backgroundColor: colors.success },
+                      ]}
+                    >
+                      <Text style={styles.defaultBadgeText}>Principal</Text>
+                    </View>
+                  )}
+                  {selectedVehicle?._id === item._id && (
+                    <View
+                      style={[
+                        styles.selectedBadge,
+                        { backgroundColor: colors.primary },
+                      ]}
+                    >
+                      <Ionicons name="checkmark" size={16} color="#fff" />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              )}
             />
-          </View>
-
-          <Text style={[styles.searchHint, { color: colors.textSecondary }]}>
-            Nous recherchons le helper le plus proche...
-          </Text>
-
-          <TouchableOpacity
-            style={[styles.cancelSearchButton, { borderColor: colors.border }]}
-            onPress={cancelSOS}
-          >
-            <Text style={[styles.cancelSearchText, { color: colors.error }]}>
-              Annuler la recherche
-            </Text>
-          </TouchableOpacity>
+          )}
         </View>
-      </View>
-    );
-  };
-
-  const renderStep4 = () => {
-    if (!currentAlert?.intervention) return null;
-
-    const helper = currentAlert.intervention.helper;
-    const eta = currentAlert.intervention.eta || 15;
-
-    return (
-      <View style={styles.trackingContainer}>
-        <View
-          style={[styles.trackingCard, { backgroundColor: colors.surface }]}
-        >
-          <View style={styles.helperHeader}>
-            <LinearGradient
-              colors={[colors.primary, colors.secondary]}
-              style={styles.helperAvatar}
-            >
-              <Text style={styles.helperAvatarText}>
-                {helper.user.firstName[0]}
-                {helper.user.lastName[0]}
-              </Text>
-            </LinearGradient>
-            <View style={styles.helperInfo}>
-              <Text style={[styles.helperName, { color: colors.text }]}>
-                {helper.user.firstName} {helper.user.lastName}
-              </Text>
-              <Text style={[styles.helperStatus, { color: colors.success }]}>
-                En route vers vous
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.etaContainer}>
-            <Ionicons name="car" size={24} color={colors.primary} />
-            <View style={styles.etaInfo}>
-              <Text style={[styles.etaLabel, { color: colors.textSecondary }]}>
-                Arrivée estimée
-              </Text>
-              <Text style={[styles.etaValue, { color: colors.text }]}>
-                {eta} minutes
-              </Text>
-            </View>
-          </View>
-
-          <View style={styles.trackingActions}>
-            <TouchableOpacity
-              style={[
-                styles.trackingButton,
-                { backgroundColor: colors.primary },
-              ]}
-              onPress={contactHelper}
-            >
-              <Ionicons name="call" size={20} color="#fff" />
-              <Text style={styles.trackingButtonText}>Appeler</Text>
-            </TouchableOpacity>
-
-            <TouchableOpacity
-              style={[styles.trackingButton, { backgroundColor: colors.error }]}
-              onPress={cancelSOS}
-            >
-              <Ionicons name="close" size={20} color="#fff" />
-              <Text style={styles.trackingButtonText}>Annuler</Text>
-            </TouchableOpacity>
-          </View>
-
-          <Text style={[styles.trackingHint, { color: colors.textSecondary }]}>
-            Vous pouvez suivre l'arrivée du helper sur la carte
-          </Text>
-        </View>
-      </View>
-    );
-  };
-
-  // ============================================
-  // RENDER PRINCIPAL
-  // ============================================
+      </BlurView>
+    </Modal>
+  );
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      <LinearGradient
-        colors={
-          colorScheme === "dark"
-            ? ["rgba(230,57,70,0.05)", "rgba(128,0,32,0.05)"]
-            : ["rgba(230,57,70,0.02)", "rgba(128,0,32,0.02)"]
-        }
-        style={StyleSheet.absoluteFill}
-      />
+      <StatusBar barStyle="light-content" />
 
       <Animated.View
         style={[
           styles.decorativeCircle,
           styles.circle1,
           {
-            backgroundColor: colors.primary + "10",
+            backgroundColor: colors.primary + "08",
             transform: [{ scale: pulseAnim }],
           },
         ]}
@@ -790,42 +476,11 @@ export default function SOSScreen() {
           styles.decorativeCircle,
           styles.circle2,
           {
-            backgroundColor: colors.secondary + "10",
+            backgroundColor: colors.secondary + "08",
             transform: [{ scale: pulseAnim }],
           },
         ]}
       />
-
-      {/* Header avec retour */}
-      <Animated.View style={[styles.header, { opacity: fadeAnim }]}>
-        <TouchableOpacity
-          style={[styles.backButton, { borderColor: colors.border }]}
-          onPress={step > 2 ? cancelSOS : () => router.back()}
-        >
-          <Ionicons
-            name={step > 2 ? "close" : "arrow-back"}
-            size={24}
-            color={colors.primary}
-          />
-        </TouchableOpacity>
-        <View>
-          <Text style={[styles.headerTitle, { color: colors.text }]}>
-            {step === 1 && "Localisation"}
-            {step === 2 && "SOS Urgence"}
-            {step === 3 && "Recherche en cours"}
-            {step === 4 && "Helper trouvé !"}
-          </Text>
-          <Text
-            style={[styles.headerSubtitle, { color: colors.textSecondary }]}
-          >
-            {step === 1 && "Recherche GPS"}
-            {step === 2 && "Choisissez le problème"}
-            {step === 3 && "Patiente un instant"}
-            {step === 4 && "Il arrive !"}
-          </Text>
-        </View>
-        <View style={{ width: 40 }} />
-      </Animated.View>
 
       <ScrollView
         showsVerticalScrollIndicator={false}
@@ -840,69 +495,334 @@ export default function SOSScreen() {
             },
           ]}
         >
-          {/* Bouton appel d'urgence (toujours visible sauf étape 3-4) */}
-          {step < 3 && (
-            <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+          {/* Header avec gradient et flèche de retour */}
+          <LinearGradient
+            colors={[colors.primary, colors.secondary]}
+            style={styles.headerGradient}
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+          >
+            <View style={styles.headerContent}>
               <TouchableOpacity
-                style={styles.emergencyCallContainer}
-                onPress={handleEmergencyCall}
-                activeOpacity={0.8}
+                style={styles.backButton}
+                onPress={() => router.back()}
               >
-                <LinearGradient
-                  colors={["#2C2C2C", "#1A1A1A"]}
-                  style={styles.emergencyCallGradient}
-                >
-                  <View style={styles.emergencyCallContent}>
-                    <Ionicons name="call" size={32} color="#fff" />
-                    <View style={styles.emergencyCallTexts}>
-                      <Text style={styles.emergencyCallTitle}>
-                        Appeler le 911
-                      </Text>
-                      <Text style={styles.emergencyCallSubtitle}>
-                        Secours d'urgence
-                      </Text>
-                    </View>
-                    <View style={styles.emergencyBadge}>
-                      <Text style={styles.emergencyBadgeText}>24/7</Text>
-                    </View>
-                  </View>
-                </LinearGradient>
+                <Ionicons name="arrow-back" size={24} color="#fff" />
               </TouchableOpacity>
+              <Text style={styles.headerTitle}>SOS Urgence</Text>
+              <View style={{ width: 40 }} />
+            </View>
+          </LinearGradient>
+
+          {/* Bouton 911 */}
+          <View style={styles.emergencyContainer}>
+            <TouchableOpacity
+              style={styles.emergencyCall}
+              onPress={handleEmergencyCall}
+              activeOpacity={0.8}
+            >
+              <LinearGradient
+                colors={["#2C2C2C", "#1A1A1A"]}
+                style={styles.emergencyGradient}
+              >
+                <View style={styles.emergencyContent}>
+                  <Ionicons name="call" size={32} color="#fff" />
+                  <View>
+                    <Text style={styles.emergencyTitle}>Appeler le 911</Text>
+                    <Text style={styles.emergencySubtitle}>Secours</Text>
+                  </View>
+                  <View style={styles.emergencyBadge}>
+                    <Text style={styles.emergencyBadgeText}>24/7</Text>
+                  </View>
+                </View>
+              </LinearGradient>
+            </TouchableOpacity>
+          </View>
+
+          {/* Localisation */}
+          <TouchableOpacity
+            style={[styles.locationCard, { backgroundColor: colors.surface }]}
+            onPress={refreshLocation}
+            activeOpacity={0.7}
+          >
+            <LinearGradient
+              colors={[colors.primary + "10", colors.secondary + "05"]}
+              style={styles.locationGradient}
+            >
+              <View style={styles.locationIcon}>
+                <Ionicons name="location" size={20} color={colors.primary} />
+              </View>
+              <View style={styles.locationInfo}>
+                <Text style={[styles.locationLabel, { color: colors.primary }]}>
+                  Votre position
+                </Text>
+                <Text
+                  style={[styles.locationAddress, { color: colors.text }]}
+                  numberOfLines={2}
+                >
+                  {address || "Recherche de votre position..."}
+                </Text>
+              </View>
+              <Ionicons name="refresh" size={18} color={colors.textSecondary} />
+            </LinearGradient>
+          </TouchableOpacity>
+
+          {/* Sélecteur de véhicule */}
+          <TouchableOpacity
+            style={[
+              styles.vehicleSelector,
+              { backgroundColor: colors.surface },
+              !selectedVehicle && styles.vehicleSelectorError,
+            ]}
+            onPress={() => setShowVehicleModal(true)}
+            disabled={loadingVehicles}
+          >
+            <View style={styles.vehicleSelectorContent}>
+              <View
+                style={[
+                  styles.vehicleSelectorIcon,
+                  { backgroundColor: colors.primary + "10" },
+                ]}
+              >
+                <Ionicons
+                  name="car"
+                  size={20}
+                  color={selectedVehicle ? colors.primary : colors.error}
+                />
+              </View>
+              <View style={styles.vehicleSelectorInfo}>
+                <Text
+                  style={[
+                    styles.vehicleSelectorLabel,
+                    { color: colors.textSecondary },
+                  ]}
+                >
+                  Véhicule {!selectedVehicle && "*"}
+                </Text>
+                <Text
+                  style={[
+                    styles.vehicleSelectorValue,
+                    { color: selectedVehicle ? colors.text : colors.error },
+                  ]}
+                >
+                  {loadingVehicles
+                    ? "Chargement..."
+                    : selectedVehicle
+                    ? `${selectedVehicle.make} ${selectedVehicle.model} - ${selectedVehicle.licensePlate}`
+                    : "Aucun véhicule sélectionné"}
+                </Text>
+              </View>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={20}
+              color={colors.textSecondary}
+            />
+          </TouchableOpacity>
+
+          {/* Titre */}
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            Que s'est-il passé ?
+          </Text>
+
+          {/* Grille des types de problèmes */}
+          <View style={styles.casesGrid}>
+            {SOS_CASES.map((caseItem, index) => (
+              <Animated.View
+                key={caseItem.id}
+                style={[
+                  styles.caseWrapper,
+                  {
+                    opacity: fadeAnim,
+                    transform: [
+                      {
+                        translateY: slideAnim.interpolate({
+                          inputRange: [0, 50],
+                          outputRange: [0, 15 * (index + 1)],
+                        }),
+                      },
+                    ],
+                  },
+                ]}
+              >
+                <TouchableOpacity
+                  style={[
+                    styles.caseButton,
+                    selectedCase === caseItem.id && styles.caseButtonSelected,
+                  ]}
+                  onPress={() => {
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                    setSelectedCase(caseItem.id);
+                  }}
+                  activeOpacity={0.7}
+                >
+                  <LinearGradient
+                    colors={
+                      selectedCase === caseItem.id
+                        ? caseItem.gradient
+                        : ["transparent", "transparent"]
+                    }
+                    style={[
+                      styles.caseGradient,
+                      selectedCase !== caseItem.id && {
+                        borderWidth: 1,
+                        borderColor: colors.border,
+                      },
+                    ]}
+                  >
+                    <Ionicons
+                      name={caseItem.icon}
+                      size={32}
+                      color={
+                        selectedCase === caseItem.id ? "#fff" : colors.primary
+                      }
+                    />
+                    <Text
+                      style={[
+                        styles.caseLabel,
+                        {
+                          color:
+                            selectedCase === caseItem.id ? "#fff" : colors.text,
+                          fontWeight:
+                            selectedCase === caseItem.id ? "bold" : "normal",
+                        },
+                      ]}
+                    >
+                      {caseItem.label}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.caseDescription,
+                        {
+                          color:
+                            selectedCase === caseItem.id
+                              ? "#fff"
+                              : colors.textSecondary,
+                        },
+                      ]}
+                    >
+                      {caseItem.description}
+                    </Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </Animated.View>
+            ))}
+          </View>
+
+          {/* Champ de description pour "Autre" */}
+          {selectedCase === "other" && (
+            <Animated.View
+              style={[
+                styles.otherContainer,
+                {
+                  opacity: fadeAnim,
+                  transform: [{ translateY: slideAnim }],
+                },
+              ]}
+            >
+              <LinearGradient
+                colors={[colors.primary + "10", colors.secondary + "05"]}
+                style={styles.otherCard}
+              >
+                <View style={styles.otherHeader}>
+                  <Ionicons
+                    name="create-outline"
+                    size={20}
+                    color={colors.primary}
+                  />
+                  <Text style={[styles.otherTitle, { color: colors.text }]}>
+                    Décrivez le problème
+                  </Text>
+                  <Text style={[styles.otherRequired, { color: colors.error }]}>
+                    *
+                  </Text>
+                </View>
+
+                <TextInput
+                  style={[
+                    styles.otherInput,
+                    {
+                      backgroundColor: colors.background,
+                      borderColor: colors.border,
+                      color: colors.text,
+                    },
+                  ]}
+                  placeholder="Ex: Bruit bizarre, fumée, voyant allumé, odeur suspecte..."
+                  placeholderTextColor={colors.placeholder}
+                  multiline
+                  numberOfLines={4}
+                  value={customProblem}
+                  onChangeText={setCustomProblem}
+                  textAlignVertical="top"
+                />
+
+                <Text
+                  style={[styles.otherHint, { color: colors.textSecondary }]}
+                >
+                  <Ionicons name="information-circle" size={12} /> Une
+                  description précise permet aux helpers de mieux vous aider
+                </Text>
+              </LinearGradient>
             </Animated.View>
           )}
 
-          {/* Étapes */}
-          {step === 1 && renderStep1()}
-          {step === 2 && renderStep2()}
-          {step === 3 && renderStep3()}
-          {step === 4 && renderStep4()}
+          {/* Bouton d'envoi SOS */}
+          <View style={styles.buttonContainer}>
+            <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
+              <TouchableOpacity
+                style={[
+                  styles.sosButton,
+                  (!isFormValid() || loadingVehicles) && styles.disabledButton,
+                ]}
+                onPress={handleSendSOS}
+                disabled={loading || !isFormValid() || loadingVehicles}
+                activeOpacity={0.8}
+              >
+                <LinearGradient
+                  colors={
+                    isFormValid() && !loadingVehicles
+                      ? selectedCase
+                        ? SOS_CASES.find((c) => c.id === selectedCase)
+                            ?.gradient || [colors.primary, colors.secondary]
+                        : [colors.primary, colors.secondary]
+                      : [colors.disabled, colors.disabled]
+                  }
+                  style={styles.sosButtonGradient}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                >
+                  {loading ? (
+                    <ActivityIndicator color="#fff" />
+                  ) : (
+                    <>
+                      <Ionicons name="alert-circle" size={24} color="#fff" />
+                      <Text style={styles.sosButtonText}>Envoyer SOS</Text>
+                    </>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
+            </Animated.View>
+          </View>
+
+          {/* Note d'information */}
+          <View style={styles.infoContainer}>
+            <Ionicons
+              name="information-circle"
+              size={16}
+              color={colors.textSecondary}
+            />
+            <Text style={[styles.infoText, { color: colors.textSecondary }]}>
+              En envoyant ce SOS, votre position sera partagée avec les helpers
+              à proximité
+            </Text>
+          </View>
         </Animated.View>
       </ScrollView>
 
-      {/* Overlay de chargement */}
-      {loading && step === 2 && (
-        <BlurView
-          intensity={80}
-          tint={colorScheme}
-          style={styles.loadingOverlay}
-        >
-          <View
-            style={[styles.loadingCard, { backgroundColor: colors.surface }]}
-          >
-            <ActivityIndicator size="large" color={colors.primary} />
-            <Text style={[styles.loadingText, { color: colors.text }]}>
-              Envoi de l'alerte...
-            </Text>
-          </View>
-        </BlurView>
-      )}
+      {renderVehicleModal()}
     </View>
   );
 }
-
-// ============================================
-// STYLES
-// ============================================
 
 const styles = StyleSheet.create({
   container: {
@@ -919,33 +839,8 @@ const styles = StyleSheet.create({
     right: -width * 0.2,
   },
   circle2: {
-    bottom: -width * 0.2,
-    left: -width * 0.2,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-    paddingTop: Platform.OS === "ios" ? 60 : 40,
-    paddingBottom: 20,
-  },
-  backButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  headerTitle: {
-    fontSize: 20,
-    fontWeight: "bold",
-    textAlign: "center",
-  },
-  headerSubtitle: {
-    fontSize: 12,
-    textAlign: "center",
+    bottom: -height * 0.3,
+    left: -width * 0.3,
   },
   scrollContent: {
     flexGrow: 1,
@@ -953,10 +848,38 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
+  },
+  headerGradient: {
+    paddingTop: Platform.OS === "ios" ? 60 : 40,
+    paddingBottom: 20,
+    borderBottomLeftRadius: 30,
+    borderBottomRightRadius: 30,
+  },
+  headerContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
     paddingHorizontal: 20,
   },
-  emergencyCallContainer: {
-    marginBottom: 30,
+  backButton: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(255,255,255,0.2)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  headerTitle: {
+    fontSize: 20,
+    fontWeight: "600",
+    color: "#fff",
+  },
+  emergencyContainer: {
+    paddingHorizontal: 20,
+    marginTop: 20,
+    marginBottom: 20,
+  },
+  emergencyCall: {
     borderRadius: 20,
     overflow: "hidden",
     shadowColor: "#000",
@@ -965,27 +888,23 @@ const styles = StyleSheet.create({
     shadowRadius: 8,
     elevation: 5,
   },
-  emergencyCallGradient: {
+  emergencyGradient: {
     padding: 16,
   },
-  emergencyCallContent: {
+  emergencyContent: {
     flexDirection: "row",
     alignItems: "center",
     gap: 15,
   },
-  emergencyCallTexts: {
-    flex: 1,
-  },
-  emergencyCallTitle: {
+  emergencyTitle: {
     color: "#fff",
     fontSize: 18,
     fontWeight: "bold",
   },
-  emergencyCallSubtitle: {
+  emergencySubtitle: {
     color: "#fff",
     fontSize: 12,
     opacity: 0.8,
-    marginTop: 2,
   },
   emergencyBadge: {
     backgroundColor: "rgba(255,255,255,0.2)",
@@ -998,49 +917,94 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: "600",
   },
-  stepContainer: {
-    padding: 40,
-    alignItems: "center",
+  locationCard: {
+    marginHorizontal: 20,
+    borderRadius: 20,
+    marginBottom: 20,
+    overflow: "hidden",
   },
-  stepText: {
-    fontSize: 16,
-    marginTop: 20,
-  },
-  stepSubtext: {
-    fontSize: 14,
-    marginTop: 8,
-  },
-  casesContainer: {
-    flex: 1,
-  },
-  locationInfo: {
+  locationGradient: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 24,
-    gap: 8,
+    padding: 16,
+    gap: 12,
   },
-  locationText: {
+  locationIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    backgroundColor: "rgba(0,0,0,0.03)",
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  locationInfo: {
     flex: 1,
+  },
+  locationLabel: {
+    fontSize: 12,
+    marginBottom: 2,
+  },
+  locationAddress: {
     fontSize: 14,
+    fontWeight: "500",
+  },
+  vehicleSelector: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 16,
+    borderRadius: 20,
+    marginHorizontal: 20,
+    marginBottom: 24,
+  },
+  vehicleSelectorError: {
+    borderWidth: 1,
+    borderColor: "#F44336",
+  },
+  vehicleSelectorContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    flex: 1,
+  },
+  vehicleSelectorIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  vehicleSelectorInfo: {
+    flex: 1,
+  },
+  vehicleSelectorLabel: {
+    fontSize: 12,
+    marginBottom: 2,
+  },
+  vehicleSelectorValue: {
+    fontSize: 14,
+    fontWeight: "500",
   },
   sectionTitle: {
     fontSize: 20,
     fontWeight: "bold",
-    marginBottom: 20,
+    marginBottom: 16,
+    paddingHorizontal: 20,
   },
   casesGrid: {
     flexDirection: "row",
     flexWrap: "wrap",
     justifyContent: "space-between",
+    paddingHorizontal: 20,
+    gap: 12,
+    marginBottom: 20,
   },
   caseWrapper: {
     width: "48%",
     marginBottom: 12,
   },
   caseButton: {
-    borderRadius: 16,
+    borderRadius: 20,
     overflow: "hidden",
   },
   caseButtonSelected: {
@@ -1051,245 +1015,203 @@ const styles = StyleSheet.create({
     elevation: 5,
   },
   caseGradient: {
-    padding: 16,
+    padding: 20,
     alignItems: "center",
-    borderRadius: 16,
+    borderRadius: 20,
+    minHeight: 140,
   },
   caseLabel: {
-    marginTop: 8,
-    fontSize: 14,
-    fontWeight: "500",
+    marginTop: 12,
+    fontSize: 15,
+    fontWeight: "600",
     textAlign: "center",
   },
-  otherContainer: {
-    marginTop: 20,
+  caseDescription: {
+    fontSize: 11,
+    textAlign: "center",
+    marginTop: 4,
   },
-  label: {
+  otherContainer: {
+    paddingHorizontal: 20,
+    marginBottom: 24,
+  },
+  otherCard: {
+    borderRadius: 24,
+    padding: 20,
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.05)",
+  },
+  otherHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 8,
+    marginBottom: 16,
+  },
+  otherTitle: {
     fontSize: 16,
     fontWeight: "600",
-    marginBottom: 10,
   },
-  input: {
-    padding: 16,
-    borderRadius: 16,
-    borderWidth: 1,
-    minHeight: 120,
+  otherRequired: {
     fontSize: 16,
+    fontWeight: "600",
   },
-  buttonRow: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    marginTop: 30,
-    gap: 12,
-  },
-  cancelButton: {
-    flex: 1,
+  otherInput: {
     padding: 16,
-    borderRadius: 16,
+    borderRadius: 20,
     borderWidth: 1,
-    alignItems: "center",
-    justifyContent: "center",
+    fontSize: 15,
+    minHeight: 110,
+    textAlignVertical: "top",
   },
-  cancelButtonText: {
-    fontSize: 16,
-    fontWeight: "500",
+  otherHint: {
+    fontSize: 12,
+    marginTop: 12,
+    textAlign: "center",
   },
-  sendButton: {
-    flex: 2,
-    borderRadius: 16,
+  buttonContainer: {
+    paddingHorizontal: 20,
+    marginTop: 8,
+    marginBottom: 20,
+  },
+  sosButton: {
+    borderRadius: 30,
     overflow: "hidden",
+    shadowColor: "#E63946",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 12,
+    elevation: 8,
   },
-  sendButtonDisabled: {
-    opacity: 0.5,
-  },
-  sendButtonGradient: {
+  sosButtonGradient: {
     flexDirection: "row",
-    padding: 16,
+    padding: 18,
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
+    gap: 10,
   },
-  sendButtonText: {
+  sosButtonText: {
     color: "#fff",
     fontSize: 18,
     fontWeight: "bold",
+    letterSpacing: 1,
   },
-  // Styles pour l'étape 3 (recherche)
-  searchContainer: {
+  disabledButton: {
+    opacity: 0.6,
+  },
+  infoContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginBottom: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+  },
+  infoText: {
+    fontSize: 12,
+    textAlign: "center",
     flex: 1,
+  },
+  modalOverlay: {
+    flex: 1,
+    justifyContent: "flex-end",
+  },
+  modalContent: {
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    padding: 20,
+    maxHeight: height * 0.8,
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  modalTitle: {
+    fontSize: 18,
+    fontWeight: "bold",
+  },
+  loadingVehicles: {
+    padding: 40,
+    alignItems: "center",
+  },
+  loadingText: {
+    marginTop: 12,
+    fontSize: 14,
+  },
+  vehicleItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 16,
+    borderRadius: 16,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  vehicleInfo: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    flex: 1,
+  },
+  vehicleIcon: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
     justifyContent: "center",
     alignItems: "center",
-    paddingVertical: 40,
   },
-  searchCard: {
-    width: "100%",
-    padding: 30,
-    borderRadius: 30,
+  vehicleName: {
+    fontSize: 15,
+    fontWeight: "600",
+  },
+  vehicleDetailsText: {
+    fontSize: 12,
+    marginTop: 2,
+  },
+  defaultBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  defaultBadgeText: {
+    color: "#fff",
+    fontSize: 10,
+    fontWeight: "600",
+  },
+  selectedBadge: {
+    width: 26,
+    height: 26,
+    borderRadius: 13,
+    justifyContent: "center",
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
   },
-  searchIconContainer: {
+  emptyVehicles: {
+    alignItems: "center",
+    padding: 40,
+  },
+  emptyIconContainer: {
     width: 80,
     height: 80,
     borderRadius: 40,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: 20,
-  },
-  searchTitle: {
-    fontSize: 22,
-    fontWeight: "bold",
-    marginBottom: 8,
-  },
-  searchSubtitle: {
-    fontSize: 16,
-    marginBottom: 24,
-  },
-  timerContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    marginBottom: 20,
-  },
-  timerText: {
-    fontSize: 32,
-    fontWeight: "bold",
-  },
-  progressBarContainer: {
-    width: "100%",
-    height: 8,
-    borderRadius: 4,
-    marginBottom: 16,
-    overflow: "hidden",
-  },
-  progressBar: {
-    height: "100%",
-    borderRadius: 4,
-  },
-  searchHint: {
-    fontSize: 14,
-    marginBottom: 24,
-    textAlign: "center",
-  },
-  cancelSearchButton: {
-    paddingVertical: 12,
-    paddingHorizontal: 24,
-    borderRadius: 25,
-    borderWidth: 1,
-  },
-  cancelSearchText: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  // Styles pour l'étape 4 (suivi)
-  trackingContainer: {
-    flex: 1,
-    paddingVertical: 20,
-  },
-  trackingCard: {
-    padding: 24,
-    borderRadius: 30,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 5,
-  },
-  helperHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-    marginBottom: 24,
-  },
-  helperAvatar: {
-    width: 60,
-    height: 60,
-    borderRadius: 30,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  helperAvatarText: {
-    color: "#fff",
-    fontSize: 24,
-    fontWeight: "bold",
-  },
-  helperInfo: {
-    flex: 1,
-  },
-  helperName: {
-    fontSize: 20,
-    fontWeight: "bold",
-    marginBottom: 4,
-  },
-  helperStatus: {
-    fontSize: 14,
-    fontWeight: "600",
-  },
-  etaContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-    marginBottom: 24,
-    padding: 16,
-    borderRadius: 16,
-    backgroundColor: "rgba(0,0,0,0.03)",
-  },
-  etaInfo: {
-    flex: 1,
-  },
-  etaLabel: {
-    fontSize: 12,
-    marginBottom: 2,
-  },
-  etaValue: {
-    fontSize: 24,
-    fontWeight: "bold",
-  },
-  trackingActions: {
-    flexDirection: "row",
-    gap: 12,
     marginBottom: 16,
   },
-  trackingButton: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 16,
-    borderRadius: 25,
-    gap: 8,
-  },
-  trackingButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  trackingHint: {
+  emptyText: {
     fontSize: 14,
     textAlign: "center",
+    marginBottom: 16,
   },
-  loadingOverlay: {
-    ...StyleSheet.absoluteFillObject,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  loadingCard: {
-    padding: 30,
+  addVehicleButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
     borderRadius: 20,
-    alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 5,
   },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 16,
-    fontWeight: "500",
+  addVehicleButtonText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
   },
 });

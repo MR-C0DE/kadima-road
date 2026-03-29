@@ -1,3 +1,5 @@
+// app/(tabs)/diagnostic.tsx - Version améliorée (garde ton style)
+
 import React, { useState, useEffect } from "react";
 import {
   View,
@@ -12,6 +14,8 @@ import {
   Animated,
   Easing,
   Platform,
+  Modal,
+  FlatList,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { api } from "../../config/api";
@@ -20,8 +24,19 @@ import { useColorScheme } from "@/hooks/use-color-scheme";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
+import { BlurView } from "expo-blur";
 
 const { width } = Dimensions.get("window");
+
+// Types
+interface Vehicle {
+  _id?: string;
+  make: string;
+  model: string;
+  year: number;
+  licensePlate: string;
+  isDefault: boolean;
+}
 
 // Questions fréquentes pour aider l'utilisateur
 const COMMON_ISSUES = [
@@ -120,17 +135,34 @@ export default function DiagnosticScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? "light"];
 
+  // États
   const [description, setDescription] = useState("");
   const [loading, setLoading] = useState(false);
   const [selectedQuick, setSelectedQuick] = useState(null);
   const [selectedQuickDiagnostic, setSelectedQuickDiagnostic] = useState(null);
 
-  // Animations - utilisation de useState
+  // États pour la sélection du véhicule
+  const [vehicles, setVehicles] = useState<Vehicle[]>([]);
+  const [selectedVehicle, setSelectedVehicle] = useState<Vehicle | null>(null);
+  const [loadingVehicles, setLoadingVehicles] = useState(true);
+  const [showVehicleModal, setShowVehicleModal] = useState(false);
+
+  // États pour les questions (NOUVEAU)
+  const [showQuestions, setShowQuestions] = useState(false);
+  const [currentQuestions, setCurrentQuestions] = useState<string[]>([]);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [sessionId, setSessionId] = useState<string | null>(null);
+  const [answers, setAnswers] = useState<
+    { question: string; answer: string }[]
+  >([]);
+
+  // Animations
   const [fadeAnim] = useState(new Animated.Value(0));
   const [slideAnim] = useState(new Animated.Value(50));
   const [scaleAnim] = useState(new Animated.Value(0.95));
   const [pulseAnim] = useState(new Animated.Value(1));
   const [inputFocusAnim] = useState(new Animated.Value(0));
+  const [questionProgressAnim] = useState(new Animated.Value(0)); // NOUVEAU
 
   useEffect(() => {
     // Animations d'entrée
@@ -171,7 +203,90 @@ export default function DiagnosticScreen() {
         }),
       ])
     ).start();
+
+    loadVehicles();
   }, []);
+
+  const loadVehicles = async () => {
+    try {
+      setLoadingVehicles(true);
+      const response = await api.get("/auth/user/me");
+      const userData = response.data.data;
+      const vehiclesList = userData?.vehicles || [];
+      setVehicles(vehiclesList);
+      const defaultVehicle = vehiclesList.find(
+        (v: Vehicle) => v.isDefault === true
+      );
+      const firstVehicle = vehiclesList[0];
+      if (defaultVehicle) setSelectedVehicle(defaultVehicle);
+      else if (firstVehicle) setSelectedVehicle(firstVehicle);
+    } catch (error) {
+      console.error("Erreur chargement véhicules:", error);
+    } finally {
+      setLoadingVehicles(false);
+    }
+  };
+
+  // NOUVEAU : Gestion des réponses Oui/Non
+  const handleAnswer = (answer: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+
+    const newAnswers = [
+      ...answers,
+      { question: currentQuestions[currentQuestionIndex], answer },
+    ];
+    setAnswers(newAnswers);
+
+    if (currentQuestionIndex + 1 < currentQuestions.length) {
+      // Animation de progression
+      const progress = (currentQuestionIndex + 1) / currentQuestions.length;
+      Animated.timing(questionProgressAnim, {
+        toValue: progress,
+        duration: 300,
+        useNativeDriver: false,
+      }).start();
+
+      setCurrentQuestionIndex(currentQuestionIndex + 1);
+    } else {
+      // Toutes les questions répondues, obtenir le diagnostic final
+      getDiagnosticResult(newAnswers);
+    }
+  };
+
+  const getDiagnosticResult = async (
+    userAnswers: { question: string; answer: string }[]
+  ) => {
+    setLoading(true);
+    try {
+      const response = await api.post("/diagnostic/result", {
+        description,
+        answers: userAnswers,
+        vehicleId: selectedVehicle?._id,
+        sessionId,
+      });
+
+      router.push({
+        pathname: "/diagnostic/result",
+        params: {
+          sessionId: response.data.data.sessionId,
+          description,
+          result: JSON.stringify(response.data.data),
+          vehicleId: selectedVehicle?._id,
+          vehicleMake: selectedVehicle?.make,
+          vehicleModel: selectedVehicle?.model,
+          vehicleYear: selectedVehicle?.year.toString(),
+        },
+      });
+    } catch (error: any) {
+      Alert.alert(
+        "Erreur",
+        error.response?.data?.message || "Impossible d'obtenir le diagnostic"
+      );
+    } finally {
+      setLoading(false);
+      setShowQuestions(false);
+    }
+  };
 
   const handleStartDiagnostic = async () => {
     if (!description.trim()) {
@@ -179,6 +294,11 @@ export default function DiagnosticScreen() {
         Haptics.notificationAsync(Haptics.NotificationFeedbackType.Error);
       }
       Alert.alert("Erreur", "Veuillez décrire le problème");
+      return;
+    }
+
+    if (!selectedVehicle) {
+      Alert.alert("Erreur", "Veuillez sélectionner un véhicule");
       return;
     }
 
@@ -190,18 +310,43 @@ export default function DiagnosticScreen() {
     try {
       const response = await api.post("/diagnostic/start", {
         description: description.trim(),
+        vehicleId: selectedVehicle._id,
       });
 
-      router.push({
-        pathname: "/diagnostic/result",
-        params: {
-          sessionId: response.data.data.sessionId,
-          description: description,
-          questions: JSON.stringify(response.data.data.questions),
-        },
-      });
-    } catch (error) {
-      Alert.alert("Erreur", "Impossible de démarrer le diagnostic");
+      const questions = response.data.data.questions;
+
+      if (questions && questions.length > 0) {
+        setCurrentQuestions(questions);
+        setCurrentQuestionIndex(0);
+        setAnswers([]);
+        setSessionId(response.data.data.sessionId);
+        setShowQuestions(true);
+        // Animation initiale de progression
+        Animated.timing(questionProgressAnim, {
+          toValue: 0,
+          duration: 0,
+          useNativeDriver: false,
+        }).start();
+      } else {
+        // Pas de questions, résultat direct
+        router.push({
+          pathname: "/diagnostic/result",
+          params: {
+            sessionId: response.data.data.sessionId,
+            description: description,
+            questions: JSON.stringify([]),
+            vehicleId: selectedVehicle._id,
+            vehicleMake: selectedVehicle.make,
+            vehicleModel: selectedVehicle.model,
+            vehicleYear: selectedVehicle.year.toString(),
+          },
+        });
+      }
+    } catch (error: any) {
+      Alert.alert(
+        "Erreur",
+        error.response?.data?.message || "Impossible de démarrer le diagnostic"
+      );
     } finally {
       setLoading(false);
     }
@@ -269,6 +414,251 @@ export default function DiagnosticScreen() {
       useNativeDriver: false,
     }).start();
   };
+
+  const renderVehicleModal = () => (
+    <Modal
+      visible={showVehicleModal}
+      animationType="slide"
+      transparent
+      onRequestClose={() => setShowVehicleModal(false)}
+    >
+      <BlurView intensity={80} tint={colorScheme} style={styles.modalOverlay}>
+        <View
+          style={[styles.modalContent, { backgroundColor: colors.surface }]}
+        >
+          <View style={styles.modalHeader}>
+            <Text style={[styles.modalTitle, { color: colors.text }]}>
+              Sélectionner un véhicule
+            </Text>
+            <TouchableOpacity onPress={() => setShowVehicleModal(false)}>
+              <Ionicons name="close" size={24} color={colors.text} />
+            </TouchableOpacity>
+          </View>
+
+          {loadingVehicles ? (
+            <View style={styles.loadingVehicles}>
+              <ActivityIndicator size="large" color={colors.primary} />
+              <Text
+                style={[styles.loadingText, { color: colors.textSecondary }]}
+              >
+                Chargement...
+              </Text>
+            </View>
+          ) : vehicles.length === 0 ? (
+            <View style={styles.emptyVehicles}>
+              <View
+                style={[
+                  styles.emptyIconContainer,
+                  { backgroundColor: colors.primary + "10" },
+                ]}
+              >
+                <Ionicons name="car-outline" size={40} color={colors.primary} />
+              </View>
+              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
+                Aucun véhicule enregistré
+              </Text>
+              <TouchableOpacity
+                style={[
+                  styles.addVehicleButton,
+                  { backgroundColor: colors.primary },
+                ]}
+                onPress={() => {
+                  setShowVehicleModal(false);
+                  router.push("/vehicles/add");
+                }}
+              >
+                <Text style={styles.addVehicleButtonText}>
+                  Ajouter un véhicule
+                </Text>
+              </TouchableOpacity>
+            </View>
+          ) : (
+            <FlatList
+              data={vehicles}
+              keyExtractor={(item, index) => item._id || index.toString()}
+              renderItem={({ item }) => (
+                <TouchableOpacity
+                  style={[
+                    styles.vehicleItem,
+                    { borderColor: colors.border },
+                    selectedVehicle?._id === item._id && {
+                      borderColor: colors.primary,
+                      backgroundColor: colors.primary + "10",
+                    },
+                  ]}
+                  onPress={() => {
+                    setSelectedVehicle(item);
+                    setShowVehicleModal(false);
+                    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+                  }}
+                >
+                  <View style={styles.vehicleInfo}>
+                    <View
+                      style={[
+                        styles.vehicleIcon,
+                        { backgroundColor: colors.primary + "10" },
+                      ]}
+                    >
+                      <Ionicons name="car" size={24} color={colors.primary} />
+                    </View>
+                    <View>
+                      <Text
+                        style={[styles.vehicleName, { color: colors.text }]}
+                      >
+                        {item.make} {item.model} {item.year}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.vehicleDetailsText,
+                          { color: colors.textSecondary },
+                        ]}
+                      >
+                        {item.licensePlate}
+                      </Text>
+                    </View>
+                  </View>
+                  {item.isDefault && (
+                    <View
+                      style={[
+                        styles.defaultBadge,
+                        { backgroundColor: colors.success },
+                      ]}
+                    >
+                      <Text style={styles.defaultBadgeText}>Principal</Text>
+                    </View>
+                  )}
+                  {selectedVehicle?._id === item._id && (
+                    <View
+                      style={[
+                        styles.selectedBadge,
+                        { backgroundColor: colors.primary },
+                      ]}
+                    >
+                      <Ionicons name="checkmark" size={16} color="#fff" />
+                    </View>
+                  )}
+                </TouchableOpacity>
+              )}
+            />
+          )}
+        </View>
+      </BlurView>
+    </Modal>
+  );
+
+  // NOUVEAU : Rendu des questions avec boutons Oui/Non
+  const renderQuestions = () => {
+    const progress = currentQuestionIndex / currentQuestions.length;
+    const currentQuestion = currentQuestions[currentQuestionIndex];
+
+    return (
+      <Modal visible={showQuestions} transparent animationType="fade">
+        <BlurView
+          intensity={90}
+          tint={colorScheme}
+          style={styles.questionsOverlay}
+        >
+          <View
+            style={[
+              styles.questionsContainer,
+              { backgroundColor: colors.card },
+            ]}
+          >
+            <LinearGradient
+              colors={[colors.primary, colors.secondary]}
+              style={styles.questionsHeader}
+            >
+              <Text style={styles.questionsTitle}>Questions IA</Text>
+              <Text style={styles.questionsSubtitle}>
+                Pour mieux vous aider
+              </Text>
+            </LinearGradient>
+
+            <View style={styles.progressContainer}>
+              <View
+                style={[styles.progressBar, { backgroundColor: colors.border }]}
+              >
+                <Animated.View
+                  style={[
+                    styles.progressFill,
+                    {
+                      backgroundColor: colors.primary,
+                      width: questionProgressAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: ["0%", "100%"],
+                      }),
+                    },
+                  ]}
+                />
+              </View>
+              <Text
+                style={[styles.progressText, { color: colors.textSecondary }]}
+              >
+                Question {currentQuestionIndex + 1}/{currentQuestions.length}
+              </Text>
+            </View>
+
+            <Text style={[styles.questionText, { color: colors.text }]}>
+              {currentQuestion}
+            </Text>
+
+            <View style={styles.answerButtons}>
+              <TouchableOpacity
+                style={[styles.answerButton, { borderColor: colors.border }]}
+                onPress={() => handleAnswer("Oui")}
+              >
+                <LinearGradient
+                  colors={["#4CAF5020", "transparent"]}
+                  style={styles.answerGradient}
+                >
+                  <Ionicons name="checkmark-circle" size={40} color="#4CAF50" />
+                  <Text style={[styles.answerText, { color: colors.text }]}>
+                    Oui
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
+
+              <TouchableOpacity
+                style={[styles.answerButton, { borderColor: colors.border }]}
+                onPress={() => handleAnswer("Non")}
+              >
+                <LinearGradient
+                  colors={["#E6394620", "transparent"]}
+                  style={styles.answerGradient}
+                >
+                  <Ionicons name="close-circle" size={40} color="#E63946" />
+                  <Text style={[styles.answerText, { color: colors.text }]}>
+                    Non
+                  </Text>
+                </LinearGradient>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={[
+                styles.cancelQuestionsButton,
+                { borderColor: colors.border },
+              ]}
+              onPress={() => setShowQuestions(false)}
+            >
+              <Text
+                style={[
+                  styles.cancelQuestionsText,
+                  { color: colors.textSecondary },
+                ]}
+              >
+                Annuler le diagnostic
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </BlurView>
+      </Modal>
+    );
+  };
+
+  if (showQuestions) {
+    return renderQuestions();
+  }
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
@@ -342,7 +732,60 @@ export default function DiagnosticScreen() {
             </View>
           </LinearGradient>
 
-          {/* Diagnostic rapide avec indicateur de scroll */}
+          {/* Sélecteur de véhicule */}
+          <TouchableOpacity
+            style={[
+              styles.vehicleSelector,
+              { backgroundColor: colors.surface },
+              !selectedVehicle && styles.vehicleSelectorError,
+            ]}
+            onPress={() => setShowVehicleModal(true)}
+            disabled={loadingVehicles}
+          >
+            <View style={styles.vehicleSelectorContent}>
+              <View
+                style={[
+                  styles.vehicleSelectorIcon,
+                  { backgroundColor: colors.primary + "10" },
+                ]}
+              >
+                <Ionicons
+                  name="car"
+                  size={20}
+                  color={selectedVehicle ? colors.primary : colors.error}
+                />
+              </View>
+              <View style={styles.vehicleSelectorInfo}>
+                <Text
+                  style={[
+                    styles.vehicleSelectorLabel,
+                    { color: colors.textSecondary },
+                  ]}
+                >
+                  Véhicule {!selectedVehicle && "*"}
+                </Text>
+                <Text
+                  style={[
+                    styles.vehicleSelectorValue,
+                    { color: selectedVehicle ? colors.text : colors.error },
+                  ]}
+                >
+                  {loadingVehicles
+                    ? "Chargement..."
+                    : selectedVehicle
+                    ? `${selectedVehicle.make} ${selectedVehicle.model} - ${selectedVehicle.licensePlate}`
+                    : "Aucun véhicule sélectionné"}
+                </Text>
+              </View>
+            </View>
+            <Ionicons
+              name="chevron-forward"
+              size={20}
+              color={colors.textSecondary}
+            />
+          </TouchableOpacity>
+
+          {/* Diagnostic rapide */}
           <View style={styles.quickDiagnosticSection}>
             <View style={styles.sectionHeader}>
               <Text style={[styles.sectionTitle, { color: colors.text }]}>
@@ -443,7 +886,6 @@ export default function DiagnosticScreen() {
                   </TouchableOpacity>
                 </Animated.View>
               ))}
-              {/* Indicateur de fin de scroll */}
               <View style={styles.scrollEndIndicator}>
                 <Ionicons
                   name="arrow-forward-circle"
@@ -653,13 +1095,13 @@ export default function DiagnosticScreen() {
               <TouchableOpacity
                 style={styles.startButtonWrapper}
                 onPress={handleStartDiagnostic}
-                disabled={loading || !description.trim()}
+                disabled={loading || !description.trim() || !selectedVehicle}
                 activeOpacity={0.8}
               >
                 <Animated.View style={{ transform: [{ scale: pulseAnim }] }}>
                   <LinearGradient
                     colors={
-                      description.trim()
+                      description.trim() && selectedVehicle
                         ? [colors.primary, colors.secondary]
                         : [colors.disabled, colors.disabled]
                     }
@@ -740,6 +1182,8 @@ export default function DiagnosticScreen() {
           </View>
         </Animated.View>
       </ScrollView>
+
+      {renderVehicleModal()}
     </View>
   );
 }
@@ -813,6 +1257,33 @@ const styles = StyleSheet.create({
     textAlign: "center",
     paddingHorizontal: 20,
   },
+  vehicleSelector: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 16,
+    borderRadius: 16,
+    marginHorizontal: 20,
+    marginTop: 20,
+    marginBottom: 20,
+  },
+  vehicleSelectorError: { borderWidth: 1, borderColor: "#F44336" },
+  vehicleSelectorContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+    flex: 1,
+  },
+  vehicleSelectorIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  vehicleSelectorInfo: { flex: 1 },
+  vehicleSelectorLabel: { fontSize: 12, marginBottom: 2 },
+  vehicleSelectorValue: { fontSize: 14, fontWeight: "500" },
   quickDiagnosticSection: {
     marginTop: 20,
     marginBottom: 20,
@@ -1014,5 +1485,158 @@ const styles = StyleSheet.create({
     width: 1,
     height: "70%",
     alignSelf: "center",
+  },
+  // Styles pour les modales
+  modalOverlay: { flex: 1, justifyContent: "flex-end" },
+  modalContent: {
+    borderTopLeftRadius: 30,
+    borderTopRightRadius: 30,
+    padding: 20,
+    maxHeight: "80%",
+  },
+  modalHeader: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  modalTitle: { fontSize: 18, fontWeight: "bold" },
+  loadingVehicles: { padding: 40, alignItems: "center" },
+  loadingText: { marginTop: 12, fontSize: 14 },
+  vehicleItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    marginBottom: 8,
+  },
+  vehicleInfo: { flexDirection: "row", alignItems: "center", gap: 12, flex: 1 },
+  vehicleIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  vehicleName: { fontSize: 15, fontWeight: "600" },
+  vehicleDetailsText: { fontSize: 12, marginTop: 2 },
+  defaultBadge: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 12 },
+  defaultBadgeText: { color: "#fff", fontSize: 10, fontWeight: "600" },
+  selectedBadge: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  emptyVehicles: { alignItems: "center", padding: 40 },
+  emptyIconContainer: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 16,
+  },
+  emptyText: {
+    fontSize: 14,
+    textAlign: "center",
+    marginBottom: 16,
+  },
+  addVehicleButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 20,
+  },
+  addVehicleButtonText: { color: "#fff", fontSize: 14, fontWeight: "600" },
+  // Styles pour les questions
+  questionsOverlay: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  questionsContainer: {
+    width: "85%",
+    borderRadius: 28,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 20 },
+    shadowOpacity: 0.25,
+    shadowRadius: 30,
+    elevation: 20,
+  },
+  questionsHeader: {
+    padding: 20,
+    alignItems: "center",
+  },
+  questionsTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    color: "#fff",
+  },
+  questionsSubtitle: {
+    fontSize: 12,
+    color: "#fff",
+    opacity: 0.8,
+    marginTop: 4,
+  },
+  progressContainer: {
+    paddingHorizontal: 20,
+    paddingTop: 16,
+  },
+  progressBar: {
+    height: 4,
+    borderRadius: 2,
+    overflow: "hidden",
+  },
+  progressFill: {
+    height: "100%",
+    borderRadius: 2,
+  },
+  progressText: {
+    fontSize: 12,
+    textAlign: "center",
+    marginTop: 8,
+  },
+  questionText: {
+    fontSize: 18,
+    fontWeight: "500",
+    textAlign: "center",
+    paddingHorizontal: 20,
+    paddingVertical: 24,
+    lineHeight: 26,
+  },
+  answerButtons: {
+    flexDirection: "row",
+    justifyContent: "space-around",
+    paddingHorizontal: 20,
+    paddingBottom: 20,
+    gap: 15,
+  },
+  answerButton: {
+    flex: 1,
+    borderWidth: 1,
+    borderRadius: 20,
+    overflow: "hidden",
+  },
+  answerGradient: {
+    padding: 20,
+    alignItems: "center",
+  },
+  answerText: {
+    marginTop: 8,
+    fontSize: 16,
+    fontWeight: "600",
+  },
+  cancelQuestionsButton: {
+    borderTopWidth: 1,
+    paddingVertical: 16,
+    alignItems: "center",
+  },
+  cancelQuestionsText: {
+    fontSize: 14,
+    fontWeight: "500",
   },
 });

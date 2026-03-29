@@ -1,3 +1,4 @@
+// backend/src/routes/helperRoutes.js
 import express from 'express';
 import { protect } from '../middlewares/authMiddleware.js';
 import {
@@ -21,6 +22,9 @@ import {
   getCurrentMissions,
   getMissionHistory,
   updateMissionStatus,
+  getMissionById,
+  // ⚡ NOUVEAU : Mise à jour de la position
+  updateHelperLocation,
   
   // Routes pour les gains
   getEarningsStats,
@@ -37,85 +41,78 @@ const router = express.Router();
 router.use(protect);
 
 // ============================================
-// ROUTES PUBLIQUES (pour tous les utilisateurs)
+// ROUTES SPÉCIFIQUES (SANS PARAMÈTRES DYNAMIQUES)
+// DOIVENT ÊTRE AVANT LES ROUTES AVEC /:id
 // ============================================
 
-// Recherche de helpers à proximité
-router.get('/nearby', getNearbyHelpers);
-
-// Statistiques d'un helper
-router.get('/stats/:id', getHelperStats);
-
-// Avis d'un helper
-router.get('/reviews/:id', getHelperReviews);
-
-// Détail d'un helper par ID
-router.get('/:id', getHelperById);
-
-// ============================================
-// ROUTES POUR LES HELPERS (profil et gestion)
-// ============================================
-
-// Inscription comme helper
-router.post('/register', registerAsHelper);
-
-// Profil du helper connecté
+// ✅ Profil du helper connecté
 router.get('/profile/me', getHelperProfile);
 router.put('/profile/me', updateHelperProfile);
 
-// Gestion de la disponibilité
+// ✅ Recherche de helpers à proximité
+router.get('/nearby', getNearbyHelpers);
+
+// ✅ SOS disponibles (NOUVEAU - À METTRE AVANT /:id)
+router.get('/available-sos', getAvailableSOS);
+
+// ✅ Accepter un SOS
+router.post('/accept-sos/:sosId', acceptSOSMission);
+
+// ✅ Missions
+router.get('/missions/current', getCurrentMissions);
+router.get('/missions/history', getMissionHistory);
+router.put('/missions/:id/status', updateMissionStatus);
+router.get('/missions/:id', getMissionById);
+
+// ⚡ NOUVEAU : Mise à jour de la position du helper pour une mission
+router.put('/missions/:id/location', updateHelperLocation);
+
+// ✅ Gains
+router.get('/earnings/stats', getEarningsStats);
+router.get('/earnings/transactions', getEarningsTransactions);
+
+// ✅ Disponibilité
 router.put('/availability', updateAvailability);
 
-// Gestion des services
+// ✅ Services
 router.post('/services', addService);
 router.delete('/services/:serviceId', removeService);
 
-// Gestion des documents
+// ✅ Documents
 router.post('/documents', uploadDocument);
 
-// ============================================
-// ROUTES POUR LES MISSIONS
-// ============================================
-
-// Missions en cours
-router.get('/missions/current', getCurrentMissions);
-
-// Historique des missions
-router.get('/missions/history', getMissionHistory);
-
-// Mise à jour du statut d'une mission
-router.put('/missions/:id/status', updateMissionStatus);
-
-// ============================================
-// ROUTES POUR LES GAINS
-// ============================================
-
-// Statistiques de gains
-router.get('/earnings/stats', getEarningsStats);
-
-// Transactions avec filtre période
-router.get('/earnings/transactions', getEarningsTransactions);
-
-// ============================================
-// ROUTES ADMIN SEULEMENT
-// ============================================
-
-// Liste de tous les helpers (admin only)
-router.get('/', getAllHelpers);
-
-// Vérification d'un helper (admin only)
-router.put('/verify/:id', verifyHelper);
-
-// Upload photo de profil
+// ✅ Photo de profil
 router.post('/profile/photo', uploadSingle, uploadProfilePhoto);
-
-// Supprimer photo de profil
 router.delete('/profile/photo', deleteProfilePhoto);
 
-router.post('/documents', uploadDocumentMiddleware, uploadDocument);
+// ✅ Inscription comme helper
+router.post('/register', registerAsHelper);
 
-// AJOUTER CES ROUTES
-router.get('/available-sos', protect, getAvailableSOS);
-router.post('/accept-sos/:sosId', protect, acceptSOSMission);
+// ============================================
+// ROUTES AVEC PARAMÈTRES (IDs)
+// DOIVENT ÊTRE APRÈS LES ROUTES SPÉCIFIQUES
+// ============================================
+
+// ✅ Statistiques d'un helper
+router.get('/stats/:id', getHelperStats);
+
+// ✅ Avis d'un helper
+router.get('/reviews/:id', getHelperReviews);
+
+// ⚠️ Détail d'un helper par ID - DOIT ÊTRE EN DERNIER
+router.get('/:id', getHelperById);
+
+// ============================================
+// ROUTES ADMIN SEULEMENT (À GARDER À LA FIN)
+// ============================================
+
+// ✅ Liste de tous les helpers (admin only)
+router.get('/', getAllHelpers);
+
+// ✅ Vérification d'un helper (admin only)
+router.put('/verify/:id', verifyHelper);
+
+// ✅ Upload document avec middleware spécifique
+router.post('/documents', uploadDocumentMiddleware, uploadDocument);
 
 export default router;

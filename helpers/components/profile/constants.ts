@@ -141,11 +141,75 @@ export const getStatusText = (status: string) => {
   }
 };
 
-export const formatDate = (dateString: string) => {
+export const formatDate = (dateString?: string) => {
+  if (!dateString) return "";
   const date = new Date(dateString);
   return date.toLocaleDateString("fr-FR", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
   });
+};
+
+export const formatFileSize = (bytes?: number) => {
+  if (!bytes) return "";
+  if (bytes < 1024) return bytes + " B";
+  if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + " KB";
+  return (bytes / (1024 * 1024)).toFixed(1) + " MB";
+};
+
+export const truncateFileName = (fileName: string, maxLength = 20) => {
+  if (!fileName) return "";
+  if (fileName.length <= maxLength) return fileName;
+  const lastDot = fileName.lastIndexOf(".");
+  if (lastDot === -1) return fileName.slice(0, maxLength) + "...";
+  const extension = fileName.slice(lastDot);
+  const nameWithoutExt = fileName.slice(0, lastDot);
+  const truncatedName = nameWithoutExt.slice(
+    0,
+    maxLength - 3 - extension.length
+  );
+  return `${truncatedName}...${extension}`;
+};
+
+export const getDocumentIcon = (type: string) => {
+  switch (type) {
+    case "license":
+      return "card-outline";
+    case "insurance":
+      return "shield-outline";
+    case "certification":
+      return "ribbon-outline";
+    default:
+      return "document-outline";
+  }
+};
+
+export const getDocumentLabel = (type: string) => {
+  switch (type) {
+    case "license":
+      return "Permis de conduire";
+    case "insurance":
+      return "Attestation d'assurance";
+    case "certification":
+      return "Certification";
+    default:
+      return type;
+  }
+};
+
+export const getDocumentStatus = (doc?: any, colors?: any) => {
+  if (!doc || doc.status === "missing" || !doc.url) {
+    return { label: "Manquant", color: "#6B7280", icon: "close-circle" };
+  }
+  if (doc.status === "verified") {
+    return { label: "Vérifié", color: "#22C55E", icon: "checkmark-circle" };
+  }
+  if (doc.status === "pending") {
+    return { label: "En attente", color: "#F59E0B", icon: "time" };
+  }
+  if (doc.status === "rejected") {
+    return { label: "Rejeté", color: "#EF4444", icon: "alert-circle" };
+  }
+  return { label: "Manquant", color: "#6B7280", icon: "close-circle" };
 };

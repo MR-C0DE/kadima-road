@@ -2,9 +2,13 @@ import SOSAlert from '../models/SOSAlert.js';
 import Helper from '../models/Helper.js';
 import User from '../models/User.js';
 import Intervention from '../models/Intervention.js';
+import Vehicle from '../models/Vehicle.js'; // ⚡ NOUVEAU
+import VehicleLog from '../models/VehicleLog.js'; // ⚡ NOUVEAU
 import logger from '../config/logger.js';
 
-// @desc    Créer une alerte SOS (version MODIFIÉE)
+// backend/src/controllers/sosController.js
+
+// @desc    Créer une alerte SOS
 // @route   POST /api/sos
 // @access  Private
 export const createSOSAlert = async (req, res) => {
@@ -13,7 +17,8 @@ export const createSOSAlert = async (req, res) => {
       location,
       vehicle,
       problem,
-      emergencyContacts
+      emergencyContacts,
+      vehicleId
     } = req.body;
 
     if (!location || !location.coordinates) {
@@ -23,16 +28,44 @@ export const createSOSAlert = async (req, res) => {
       });
     }
 
+    // Récupérer le véhicule si vehicleId est fourni
+    let vehicleInfo = vehicle;
+    let vehicleRef = null;
+    
+    if (vehicleId) {
+      const vehicleDoc = await Vehicle.findOne({
+        _id: vehicleId,
+        'owners.user': req.user._id,
+        status: 'active'
+      });
+      
+      if (vehicleDoc) {
+        vehicleRef = vehicleDoc._id;
+        vehicleInfo = {
+          make: vehicleDoc.make,
+          model: vehicleDoc.model,
+          year: vehicleDoc.year,
+          licensePlate: vehicleDoc.licensePlate,
+          color: vehicleDoc.color,
+          currentMileage: vehicleDoc.currentMileage
+        };
+      }
+    }
+
+    console.log("📍 Location reçue du client:", location);
+console.log("📍 Address reçue:", location?.address);
+console.log("📍 Coordinates reçues:", location?.coordinates);
     // 1. Créer l'alerte SOS
     const sosAlert = await SOSAlert.create({
       user: req.user._id,
+      vehicleRef,
+      vehicle: vehicleInfo,
       location: {
         type: 'Point',
         coordinates: location.coordinates,
         address: location.address,
         accuracy: location.accuracy
       },
-      vehicle,
       problem: {
         description: problem?.description || '',
         category: problem?.category || 'other',
@@ -47,9 +80,10 @@ export const createSOSAlert = async (req, res) => {
     });
 
     console.log("📍 SOS créé à:", location.coordinates);
+    console.log("🚗 vehicleRef:", vehicleRef);
+    console.log("🚗 vehicle snapshot:", vehicleInfo);
 
-    // 2. ⚡ NOUVELLE LOGIQUE : Trouver TOUS les helpers actifs
-    //    SANS limite de distance
+    // 2. Trouver les helpers actifs à proximité
     const allHelpers = await Helper.find({
       'availability.isAvailable': true,
       status: 'active'
@@ -57,11 +91,10 @@ export const createSOSAlert = async (req, res) => {
 
     console.log(`🔍 ${allHelpers.length} helpers actifs trouvés au total`);
 
-    // 3. Calculer la distance pour chaque helper (optionnel)
+    // 3. Calculer la distance pour chaque helper
     const helperNotifications = allHelpers.map(helper => {
       let distance = null;
       
-      // Calculer la distance seulement si le helper a des coordonnées
       if (helper.serviceArea?.coordinates) {
         distance = calculateDistance(
           location.coordinates,
@@ -71,12 +104,12 @@ export const createSOSAlert = async (req, res) => {
 
       return {
         helper: helper._id,
-        distance: distance || 999999, // Distance très grande si pas de coordonnées
+        distance: distance || 999999,
         notifiedAt: new Date()
       };
     });
 
-    // 4. Trier par distance (les plus proches d'abord)
+    // 4. Trier par distance
     helperNotifications.sort((a, b) => a.distance - b.distance);
 
     // 5. Sauvegarder dans le SOS
@@ -92,8 +125,44 @@ export const createSOSAlert = async (req, res) => {
 
     await sosAlert.save();
 
-    // 6. (Optionnel) Envoyer des notifications à tous les helpers
-    // Ici tu pourrais ajouter un système de notifications push
+    // 6. ✅ ÉMETTRE L'ÉVÉNEMENT new-mission POUR TOUS LES HELPERS
+    try {
+      const { getIO } = await import('../socket/index.js');
+      const io = getIO();
+      
+      // Émettre à tous les helpers connectés
+      io.emit('new-mission', {
+        sosId: sosAlert._id,
+        location: sosAlert.location,
+        problem: sosAlert.problem,
+        vehicle: vehicleInfo,
+        createdAt: sosAlert.createdAt,
+        user: {
+          firstName: req.user.firstName,
+          lastName: req.user.lastName
+        }
+      });
+      
+      console.log("📢 Événement new-mission émis pour le SOS:", sosAlert._id);
+    } catch (socketError) {
+      console.error("⚠️ Erreur émission socket (non bloquante):", socketError.message);
+    }
+
+    // ⚡ AJOUT : Log dans le journal du véhicule
+    if (vehicleRef) {
+      await VehicleLog.create({
+        vehicle: vehicleRef,
+        user: req.user._id,
+        type: 'sos',
+        title: `Alerte SOS envoyée`,
+        description: problem?.description || 'SOS envoyé',
+        metadata: {
+          sosId: sosAlert._id,
+          problem: problem?.category,
+          location: location.coordinates
+        }
+      });
+    }
 
     res.status(201).json({
       success: true,
@@ -139,7 +208,8 @@ export const getNearbySOS = async (req, res) => {
         }
       },
       status: 'active'
-    }).populate('user', 'firstName lastName phone');
+    }).populate('user', 'firstName lastName phone')
+      .populate('vehicleRef'); // ⚡ AJOUT : populate du véhicule
 
     res.json({
       success: true,
@@ -161,7 +231,7 @@ export const getNearbySOS = async (req, res) => {
 // @access  Private (helpers)
 export const acceptSOS = async (req, res) => {
   try {
-    const sosAlert = await SOSAlert.findById(req.params.id);
+    const sosAlert = await SOSAlert.findById(req.params.id).populate('vehicleRef'); // ⚡ AJOUT
 
     if (!sosAlert) {
       return res.status(404).json({
@@ -177,7 +247,6 @@ export const acceptSOS = async (req, res) => {
       });
     }
 
-    // Vérifier que le helper existe et est actif
     const helper = await Helper.findOne({ user: req.user._id });
     if (!helper || helper.status !== 'active') {
       return res.status(403).json({
@@ -191,6 +260,7 @@ export const acceptSOS = async (req, res) => {
       user: sosAlert.user,
       helper: helper._id,
       sosAlert: sosAlert._id,
+      vehicle: sosAlert.vehicleRef, // ⚡ AJOUT : lier le véhicule
       type: 'sos',
       status: 'accepted',
       problem: sosAlert.problem,
@@ -202,7 +272,6 @@ export const acceptSOS = async (req, res) => {
       }]
     });
 
-    // Mettre à jour le SOS
     sosAlert.status = 'dispatched';
     sosAlert.intervention = intervention._id;
     sosAlert.timeline.push({
@@ -211,8 +280,6 @@ export const acceptSOS = async (req, res) => {
     });
 
     await sosAlert.save();
-
-    // Ici, notifier l'utilisateur qu'un helper arrive
 
     res.json({
       success: true,
@@ -248,7 +315,6 @@ export const updateStatus = async (req, res) => {
       });
     }
 
-    // Vérifier les permissions
     const isHelper = intervention.helper?.toString() === req.user._id?.toString();
     const isUser = intervention.user.toString() === req.user._id.toString();
 
@@ -259,7 +325,6 @@ export const updateStatus = async (req, res) => {
       });
     }
 
-    // Ajouter au timeline
     intervention.timeline.push({
       status,
       timestamp: new Date(),
@@ -269,11 +334,9 @@ export const updateStatus = async (req, res) => {
 
     intervention.status = status;
 
-    // Si c'est terminé, mettre à jour les stats
     if (status === 'completed') {
       intervention.completedAt = new Date();
       
-      // Mettre à jour les stats du helper
       if (intervention.helper) {
         await Helper.findByIdAndUpdate(intervention.helper, {
           $inc: {
@@ -315,7 +378,6 @@ export const callEmergency = async (req, res) => {
       });
     }
 
-    // Marquer que les secours ont été notifiés
     sosAlert.notifications.emergencyServices = {
       notified: true,
       notifiedAt: new Date(),
@@ -333,9 +395,6 @@ export const callEmergency = async (req, res) => {
     });
 
     await sosAlert.save();
-
-    // Ici, tu pourrais intégrer un appel automatique à une API de secours
-    // ou simplement retourner les infos pour que l'app mobile appelle le 911
 
     res.json({
       success: true,
@@ -361,7 +420,7 @@ function calculateDistance(coord1, coord2) {
   const [lng1, lat1] = coord1;
   const [lng2, lat2] = coord2;
   
-  const R = 6371; // Rayon de la Terre en km
+  const R = 6371;
   const dLat = (lat2 - lat1) * Math.PI / 180;
   const dLon = (lng2 - lng1) * Math.PI / 180;
   const a = 
@@ -371,8 +430,6 @@ function calculateDistance(coord1, coord2) {
   const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
   return R * c;
 }
-
-// src/controllers/sosController.js - AJOUTER
 
 // @desc    Obtenir une alerte SOS par ID
 // @route   GET /api/sos/:id
@@ -390,7 +447,8 @@ export const getSOSById = async (req, res) => {
           path: 'helper',
           populate: { path: 'user', select: 'firstName lastName phone photo' }
         }
-      });
+      })
+      .populate('vehicleRef'); // ⚡ AJOUT
 
     if (!sosAlert) {
       return res.status(404).json({
@@ -399,7 +457,6 @@ export const getSOSById = async (req, res) => {
       });
     }
 
-    // Vérifier que l'utilisateur est bien le propriétaire
     if (sosAlert.user.toString() !== req.user._id.toString()) {
       return res.status(403).json({
         success: false,
@@ -424,6 +481,9 @@ export const getSOSById = async (req, res) => {
 // @desc    Annuler une alerte SOS
 // @route   PUT /api/sos/:id/cancel
 // @access  Private
+// backend/src/controllers/sosController.js
+// Modifier la fonction cancelSOS (vers la fin du fichier)
+
 export const cancelSOS = async (req, res) => {
   try {
     const sosAlert = await SOSAlert.findById(req.params.id);
@@ -435,7 +495,6 @@ export const cancelSOS = async (req, res) => {
       });
     }
 
-    // Vérifier que l'utilisateur est bien le propriétaire
     if (sosAlert.user.toString() !== req.user._id.toString()) {
       return res.status(403).json({
         success: false,
@@ -443,7 +502,6 @@ export const cancelSOS = async (req, res) => {
       });
     }
 
-    // Ne peut annuler que si l'alerte est active
     if (sosAlert.status !== 'active') {
       return res.status(400).json({
         success: false,
@@ -458,6 +516,39 @@ export const cancelSOS = async (req, res) => {
     });
 
     await sosAlert.save();
+
+    // ============================================
+    // ⚡ AJOUT : Émettre l'événement WebSocket pour annuler la mission
+    // ============================================
+    try {
+      const { getIO } = await import('../socket/index.js');
+      const io = getIO();
+      
+      // Récupérer les helpers notifiés pour ce SOS
+      const notifiedHelpers = sosAlert.notifications?.nearbyHelpers || [];
+      
+      // Émettre à TOUS les helpers (pour les alertes actives)
+      io.emit('mission-cancelled', {
+        missionId: sosAlert._id,
+        reason: 'Annulé par le client',
+        location: sosAlert.location,
+        reward: 0
+      });
+      
+      // Émettre le détail d'annulation pour les modales
+      const missionTitle = `SOS${sosAlert.problem?.category ? ` - ${sosAlert.problem.category}` : ''}`;
+      
+      io.emit('mission-cancelled-detail', {
+        missionId: sosAlert._id,
+        cancelledBy: 'user',
+        reason: 'Le client a annulé la demande',
+        missionTitle: missionTitle
+      });
+      
+      console.log(`📢 SOS annulé - Événements émis pour ${sosAlert._id}`);
+    } catch (socketError) {
+      console.error('⚠️ Erreur émission socket (non bloquante):', socketError.message);
+    }
 
     res.json({
       success: true,

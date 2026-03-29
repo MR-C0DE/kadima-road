@@ -1,3 +1,4 @@
+// backend/src/models/Intervention.js
 import mongoose from 'mongoose';
 
 const interventionSchema = new mongoose.Schema({
@@ -13,6 +14,13 @@ const interventionSchema = new mongoose.Schema({
   sosAlert: {
     type: mongoose.Schema.Types.ObjectId,
     ref: 'SOSAlert'
+  },
+  // ============================================
+  // AJOUT : Lien vers le véhicule
+  // ============================================
+  vehicle: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Vehicle'
   },
   status: {
     type: String,
@@ -37,7 +45,7 @@ const interventionSchema = new mongoose.Schema({
     description: String,
     category: {
       type: String,
-      enum: ['battery', 'tire', 'fuel', 'engine', 'electrical', 'accident', 'other']
+      enum: ['battery', 'tire', 'fuel', 'engine', 'electrical', 'accident','lockout', 'other']
     },
     severity: {
       type: String,
@@ -71,6 +79,28 @@ const interventionSchema = new mongoose.Schema({
     },
     coordinates: [Number],
     address: String
+  },
+  // ============================================
+  // ⚡ NOUVEAU : Position du helper en temps réel
+  // ============================================
+  helperLocation: {
+    type: {
+      type: String,
+      enum: ['Point'],
+      default: 'Point'
+    },
+    coordinates: {
+      type: [Number], // [longitude, latitude]
+      default: null
+    },
+    accuracy: {
+      type: Number,
+      default: null
+    },
+    updatedAt: {
+      type: Date,
+      default: Date.now
+    }
   },
   timeline: [{
     status: String,
@@ -131,6 +161,10 @@ const interventionSchema = new mongoose.Schema({
     emergencyContactNotified: { type: Boolean, default: false },
     ambulanceDispatched: { type: Boolean, default: false },
     policeDispatched: { type: Boolean, default: false }
+  },
+  eta: {
+    type: Number,
+    default: null
   }
 }, {
   timestamps: true
@@ -139,6 +173,10 @@ const interventionSchema = new mongoose.Schema({
 interventionSchema.index({ 'location.coordinates': '2dsphere' });
 interventionSchema.index({ status: 1, createdAt: -1 });
 interventionSchema.index({ user: 1, createdAt: -1 });
+interventionSchema.index({ helper: 1, createdAt: -1 });
+interventionSchema.index({ vehicle: 1, createdAt: -1 });
+// ⚡ Index pour les recherches par position du helper
+interventionSchema.index({ 'helperLocation.coordinates': '2dsphere' });
 
 const Intervention = mongoose.model('Intervention', interventionSchema);
 export default Intervention;

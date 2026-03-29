@@ -5,14 +5,18 @@
     "version": "1.0.0",
     "orientation": "portrait",
     "icon": "./assets/images/icon.png",
-    "scheme": "mobile",
+    "scheme": "kadima",
     "userInterfaceStyle": "automatic",
     "newArchEnabled": true,
     "ios": {
       "supportsTablet": true,
+      "bundleIdentifier": "com.kadima.road",
       "infoPlist": {
         "NSLocationWhenInUseUsageDescription": "Kadima Road a besoin de votre position pour trouver des helpers près de chez vous.",
-        "NSLocationAlwaysAndWhenInUseUsageDescription": "Kadima Road a besoin de votre position pour les alertes SOS."
+        "NSLocationAlwaysAndWhenInUseUsageDescription": "Kadima Road a besoin de votre position pour les alertes SOS.",
+        "CFBundleURLTypes": [{
+          "CFBundleURLSchemes": ["kadima"]
+        }]
       }
     },
     "android": {
@@ -22,13 +26,21 @@
         "backgroundImage": "./assets/images/android-icon-background.png",
         "monochromeImage": "./assets/images/android-icon-monochrome.png"
       },
+      "package": "com.kadima.road",
       "edgeToEdgeEnabled": true,
       "predictiveBackGestureEnabled": false,
       "permissions": [
         "ACCESS_COARSE_LOCATION",
         "ACCESS_FINE_LOCATION",
         "ACCESS_BACKGROUND_LOCATION"
-      ]
+      ],
+      "intentFilters": [{
+        "action": "VIEW",
+        "data": [{
+          "scheme": "kadima"
+        }],
+        "category": ["BROWSABLE", "DEFAULT"]
+      }]
     },
     "web": {
       "output": "static",
@@ -54,7 +66,8 @@
           "locationAlwaysAndWhenInUsePermission": "Kadima Road a besoin de votre position pour trouver des helpers près de chez vous.",
           "locationWhenInUsePermission": "Kadima Road a besoin de votre position pour les alertes SOS."
         }
-      ]
+      ],
+      "expo-mail-composer"
     ],
     "experiments": {
       "typedRoutes": true,

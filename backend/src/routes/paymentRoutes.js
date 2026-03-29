@@ -1,3 +1,4 @@
+// backend/src/routes/paymentRoutes.js
 import express from 'express';
 import { protect } from '../middlewares/authMiddleware.js';
 import {
@@ -8,7 +9,13 @@ import {
   getHelperPayments,
   getPaymentStats,
   stripeWebhook,
-  payHelper
+  payHelper,
+  createCheckoutSession,
+  cancelAuthorization,
+  getSavedCards,
+  authorizePayment,
+  capturePayment,
+  createSetupSession      // ⚡ AJOUTER CET IMPORT
 } from '../controllers/paymentController.js';
 
 const router = express.Router();
@@ -19,6 +26,15 @@ router.post('/webhook', express.raw({ type: 'application/json' }), stripeWebhook
 // Routes protégées
 router.use(protect);
 
+// ⚡ NOUVELLES ROUTES POUR LE SYSTÈME DE PAIEMENT
+router.get('/saved-cards', getSavedCards);
+router.post('/authorize', authorizePayment);
+router.post('/capture', capturePayment);
+router.post('/cancel', cancelAuthorization);
+router.post('/create-checkout-session', createCheckoutSession);
+router.post('/setup-session', createSetupSession);  // ⚡ AJOUTER CETTE LIGNE
+
+// Routes existantes
 router.post('/create-intent', createPaymentIntentHandler);
 router.post('/confirm', confirmPaymentHandler);
 router.get('/history', getPaymentHistory);

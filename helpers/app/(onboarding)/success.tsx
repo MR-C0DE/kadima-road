@@ -121,12 +121,43 @@ export default function SuccessScreen() {
     outputRange: ["0deg", "360deg"],
   });
 
+  // ============================================
+  // FONCTION POUR OBTENIR LE RAYON (sécurisée)
+  // ============================================
+  const getRadius = () => {
+    // Si data.radius est un objet (nouveau format), extraire radius.radius
+    if (typeof data.radius === "object" && data.radius !== null) {
+      return data.radius.radius || "20";
+    }
+    // Si c'est une string (ancien format)
+    return data.radius || "20";
+  };
+
+  // ============================================
+  // FONCTION POUR OBTENIR LA VILLE
+  // ============================================
+  const getCity = () => {
+    if (data.city) {
+      const cityName = data.city === "ottawa" ? "Ottawa" : "Gatineau";
+      return cityName;
+    }
+    return "Ottawa";
+  };
+
   const handleComplete = async () => {
     setLoading(true);
 
     try {
+      // ⚡ EXTRAIRE LES DONNÉES CORRECTEMENT
+      const radius =
+        typeof data.radius === "object"
+          ? parseInt(data.radius.radius) || 20
+          : parseInt(data.radius) || 20;
+
+      const coordinates = data.coordinates || [-75.6919, 45.4215]; // Ottawa par défaut
+
       const helperData = {
-        address: data.address,
+        address: data.address || getCity(),
         services: data.services,
         equipment: data.equipment.map((name: string) => ({
           name,
@@ -134,7 +165,10 @@ export default function SuccessScreen() {
           lastChecked: new Date().toISOString(),
         })),
         serviceArea: {
-          radius: parseInt(data.radius) || 20,
+          type: "Point",
+          coordinates: coordinates,
+          radius: radius,
+          address: data.address || getCity(),
         },
         pricing: {
           basePrice: parseInt(data.basePrice) || 25,
@@ -156,6 +190,7 @@ export default function SuccessScreen() {
       resetData();
       router.replace("/(tabs)");
     } catch (error: any) {
+      console.error("Erreur sauvegarde profil:", error);
       Alert.alert(
         "Erreur",
         error.response?.data?.message || "Impossible de configurer le profil",
@@ -309,8 +344,9 @@ export default function SuccessScreen() {
 
               <View style={styles.statItem}>
                 <Ionicons name="location" size={20} color={colors.primary} />
+                {/* ⚡ CORRECTION ICI : utiliser getRadius() */}
                 <Text style={[styles.statValue, { color: colors.primary }]}>
-                  {data.radius} km
+                  {getRadius()} km
                 </Text>
                 <Text
                   style={[styles.statLabel, { color: colors.textSecondary }]}
@@ -332,6 +368,14 @@ export default function SuccessScreen() {
                   Tarif
                 </Text>
               </View>
+            </View>
+
+            {/* ⚡ AJOUT : Afficher la ville choisie */}
+            <View style={styles.cityContainer}>
+              <Ionicons name="business" size={16} color={colors.primary} />
+              <Text style={[styles.cityText, { color: colors.textSecondary }]}>
+                {getCity()}
+              </Text>
             </View>
 
             {/* Jours travaillés */}
@@ -399,6 +443,9 @@ export default function SuccessScreen() {
   );
 }
 
+// ============================================
+// STYLES (AJOUT)
+// ============================================
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -475,6 +522,21 @@ const styles = StyleSheet.create({
   statDivider: {
     width: 1,
     backgroundColor: "rgba(0,0,0,0.1)",
+  },
+  // ⚡ NOUVEAU STYLE
+  cityContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    gap: 8,
+    marginBottom: 16,
+    paddingVertical: 8,
+    backgroundColor: "rgba(0,0,0,0.02)",
+    borderRadius: 20,
+  },
+  cityText: {
+    fontSize: 14,
+    fontWeight: "500",
   },
   daysContainer: {
     flexDirection: "row",

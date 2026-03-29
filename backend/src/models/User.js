@@ -47,12 +47,12 @@ const userSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Helper'
   },
+  // ============================================
+  // MODIFICATION ICI : Référence vers Vehicle
+  // ============================================
   vehicles: [{
-    make: String,
-    model: String,
-    year: Number,
-    licensePlate: String,
-    isDefault: { type: Boolean, default: false }
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Vehicle'
   }],
   address: {
     street: String,

@@ -5,22 +5,25 @@ import {
   getUserById,
   updateUser,
   deleteUser,
-  addVehicle,
-  updateVehicle,
-  deleteVehicle,
   addEmergencyContact,
   deleteEmergencyContact,
   getUserStats,
   sendPhoneVerification,
   confirmPhoneVerification,
-  // NOUVEAUX IMPORTS
   getSettings,
   updateSettings,
   getEmergencyContacts,
   updateEmergencyContact,
   uploadProfilePhoto,
   deleteProfilePhoto,
-  changePassword
+  changePassword,
+  searchUserByEmail,
+  // ⚡ NOUVELLES FONCTIONS
+  exportUserData,
+  clearHistory,
+  setDefaultVehicle,
+  getDefaultVehicle,
+  getWeather
 } from '../controllers/userController.js';
 import { uploadSingle } from '../middlewares/uploadMiddleware.js';
 
@@ -29,41 +32,66 @@ const router = express.Router();
 // Toutes les routes nécessitent une authentification
 router.use(protect);
 
-// Routes stats et vérification
+// ============================================
+// ROUTES STATS ET VÉRIFICATION
+// ============================================
 router.get('/stats/me', getUserStats);
 router.post('/verify-phone', sendPhoneVerification);
 router.post('/confirm-phone', confirmPhoneVerification);
 
 // ============================================
-// NOUVELLES ROUTES
+// PHOTO DE PROFIL
 // ============================================
-
-// Photo de profil
 router.post('/profile/photo', uploadSingle, uploadProfilePhoto);
 router.delete('/profile/photo', deleteProfilePhoto);
 
-// Mot de passe
+// ============================================
+// MOT DE PASSE
+// ============================================
 router.post('/change-password', changePassword);
 
-// Paramètres
+// ============================================
+// PARAMÈTRES
+// ============================================
 router.get('/settings', getSettings);
 router.put('/settings', updateSettings);
 
-// Contacts d'urgence
+// ============================================
+// CONTACTS D'URGENCE
+// ============================================
 router.get('/emergency-contacts', getEmergencyContacts);
 router.post('/emergency-contacts', addEmergencyContact);
 router.put('/emergency-contacts/:contactId', updateEmergencyContact);
 router.delete('/emergency-contacts/:contactId', deleteEmergencyContact);
 
-// Routes pour les véhicules
-router.post('/vehicles', addVehicle);
-router.put('/vehicles/:vehicleId', updateVehicle);
-router.delete('/vehicles/:vehicleId', deleteVehicle);
+// ============================================
+// VÉHICULE PAR DÉFAUT
+// ============================================
+router.get('/default-vehicle', protect, getDefaultVehicle);
+router.put('/default-vehicle', protect, setDefaultVehicle);
 
-// Routes admin seulement
-router.get('/', getAllUsers);
-router.get('/:id', getUserById);
-router.put('/:id', updateUser);
-router.delete('/:id', deleteUser);
+// ============================================
+// GESTION DES DONNÉES
+// ============================================
+router.get('/export-data', protect, exportUserData);
+router.delete('/history', protect, clearHistory);
+
+// ============================================
+// ⚡ ROUTE DE RECHERCHE PAR EMAIL - DOIT ÊTRE AVANT /:id
+// ============================================
+router.get('/search', protect, searchUserByEmail);
+
+// ============================================
+// ⚡ MÉTÉO
+// ============================================
+router.get('/weather', protect, getWeather);
+
+// ============================================
+// ROUTES ADMIN SEULEMENT (AVEC PARAMÈTRES)
+// ============================================
+router.get('/', protect, getAllUsers);
+router.get('/:id', protect, getUserById);
+router.put('/:id', protect, updateUser);
+router.delete('/:id', protect, deleteUser);
 
 export default router;

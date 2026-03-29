@@ -1,4 +1,6 @@
-import React from "react";
+// helpers/components/profile/ProfileDocumentsModal.tsx
+
+import React, { useRef, useEffect, useState } from "react";
 import {
   View,
   Text,
@@ -6,32 +8,106 @@ import {
   TouchableOpacity,
   Modal,
   ScrollView,
+  ActivityIndicator,
+  Animated,
+  Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
-import { HelperProfile } from "./types";
-import { formatDate } from "./constants";
+import { api } from "../../config/api";
+
+import { HelperProfile, DocumentInfo } from "./types";
+import {
+  getDocumentIcon,
+  getDocumentLabel,
+  formatDate,
+  formatFileSize,
+  truncateFileName,
+} from "./constants";
 
 interface ProfileDocumentsModalProps {
   visible: boolean;
   profile: HelperProfile | null;
   colors: any;
-  colorScheme: string | null | undefined;
-  scaleAnim: any;
+  colorScheme: string | null;
   onClose: () => void;
   onPickDocument: (type: string) => void;
+  onRefresh?: () => void;
 }
+
+const getDocumentStatus = (doc?: DocumentInfo) => {
+  if (!doc || !doc.url) {
+    return { label: "Manquant", color: "#6B7280", icon: "close-circle" };
+  }
+  if (doc.status === "verified") {
+    return { label: "Vérifié", color: "#22C55E", icon: "checkmark-circle" };
+  }
+  if (doc.status === "pending") {
+    return { label: "En attente", color: "#F59E0B", icon: "time" };
+  }
+  if (doc.status === "rejected") {
+    return { label: "Rejeté", color: "#EF4444", icon: "alert-circle" };
+  }
+  return { label: "Uploadé", color: "#3B82F6", icon: "document" };
+};
 
 export default function ProfileDocumentsModal({
   visible,
   profile,
   colors,
   colorScheme,
-  scaleAnim,
   onClose,
   onPickDocument,
+  onRefresh,
 }: ProfileDocumentsModalProps) {
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
+  const [uploadingDoc, setUploadingDoc] = useState<string | null>(null);
+  const [docProgress, setDocProgress] = useState<{ [key: string]: number }>({});
+
+  useEffect(() => {
+    if (visible) {
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      scaleAnim.setValue(0.9);
+    }
+  }, [visible]);
+
+  const handleDeleteDocument = async (docType: string) => {
+    Alert.alert(
+      "Supprimer le document",
+      "Voulez-vous vraiment supprimer ce document ?",
+      [
+        { text: "Annuler", style: "cancel" },
+        {
+          text: "Supprimer",
+          style: "destructive",
+          onPress: async () => {
+            try {
+              await api.delete(`/documents/${docType}`);
+              if (onRefresh) onRefresh();
+              Alert.alert("Succès", "Document supprimé");
+            } catch (error: any) {
+              Alert.alert(
+                "Erreur",
+                error.response?.data?.message || "Impossible de supprimer"
+              );
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  // Récupérer les documents du profil
+  const documents = profile?.documents || {};
+  const docTypes = ["license", "insurance", "certification"];
+
   return (
     <Modal
       visible={visible}
@@ -40,7 +116,12 @@ export default function ProfileDocumentsModal({
       onRequestClose={onClose}
     >
       <BlurView intensity={90} tint={colorScheme} style={styles.modalOverlay}>
-        <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} />
+        <TouchableOpacity
+          style={StyleSheet.absoluteFill}
+          onPress={onClose}
+          activeOpacity={1}
+        />
+
         <Animated.View
           style={[
             styles.modalContent,
@@ -50,136 +131,218 @@ export default function ProfileDocumentsModal({
             },
           ]}
         >
+          {/* Header */}
           <View style={styles.modalHeader}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>
-              Documents
-            </Text>
-            <TouchableOpacity onPress={onClose} style={styles.modalClose}>
+            <View style={styles.modalHeaderLeft}>
+              <LinearGradient
+                colors={[colors.primary + "20", colors.secondary + "10"]}
+                style={styles.modalHeaderIcon}
+              >
+                <Ionicons name="document" size={22} color={colors.primary} />
+              </LinearGradient>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
+                Documents
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={onClose}
+              style={styles.modalClose}
+              activeOpacity={0.7}
+            >
               <Ionicons name="close" size={24} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false}>
-            {profile?.documents && profile.documents.length > 0 ? (
-              profile.documents.map((doc, index) => (
+          {/* Description */}
+          <Text
+            style={[styles.modalDescription, { color: colors.textSecondary }]}
+          >
+            Gérez vos documents officiels
+          </Text>
+
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContent}
+          >
+            {docTypes.map((docType) => {
+              const doc = documents[docType as keyof typeof documents];
+              const status = getDocumentStatus(doc);
+              const hasDocument = doc && doc.url;
+
+              return (
                 <View
-                  key={index}
-                  style={[styles.documentItem, { borderColor: colors.border }]}
+                  key={docType}
+                  style={[
+                    styles.documentContainer,
+                    { borderColor: colors.border },
+                  ]}
                 >
-                  <View style={styles.documentInfo}>
+                  <View style={styles.documentHeader}>
+                    <View style={styles.documentTitleContainer}>
+                      <View
+                        style={[
+                          styles.documentTypeIcon,
+                          { backgroundColor: colors.primary + "15" },
+                        ]}
+                      >
+                        <Ionicons
+                          name={getDocumentIcon(docType)}
+                          size={20}
+                          color={colors.primary}
+                        />
+                      </View>
+                      <View>
+                        <Text
+                          style={[styles.documentType, { color: colors.text }]}
+                        >
+                          {getDocumentLabel(docType)}
+                        </Text>
+                        {hasDocument && doc?.fileName && (
+                          <Text
+                            style={[
+                              styles.documentFileName,
+                              { color: colors.textSecondary },
+                            ]}
+                          >
+                            {truncateFileName(doc.fileName)} •{" "}
+                            {formatFileSize(doc.fileSize)}
+                          </Text>
+                        )}
+                      </View>
+                    </View>
                     <View
                       style={[
-                        styles.documentIcon,
-                        {
-                          backgroundColor: doc.verified
-                            ? "#4CAF50" + "20"
-                            : "#FF9800" + "20",
-                        },
+                        styles.documentStatusBadge,
+                        { backgroundColor: status.color + "20" },
                       ]}
                     >
                       <Ionicons
-                        name={doc.verified ? "checkmark-circle" : "time"}
-                        size={20}
-                        color={doc.verified ? "#4CAF50" : "#FF9800"}
+                        name={status.icon}
+                        size={12}
+                        color={status.color}
                       />
-                    </View>
-                    <View>
-                      <Text
-                        style={[styles.documentName, { color: colors.text }]}
-                      >
-                        {doc.type === "license"
-                          ? "Permis de conduire"
-                          : doc.type === "insurance"
-                          ? "Assurance"
-                          : doc.type === "certification"
-                          ? "Certification"
-                          : doc.type}
-                      </Text>
                       <Text
                         style={[
-                          styles.documentDate,
-                          { color: colors.textSecondary },
+                          styles.documentStatusText,
+                          { color: status.color },
                         ]}
                       >
-                        {formatDate(doc.uploadedAt)}
+                        {status.label}
                       </Text>
                     </View>
                   </View>
-                  <Text
-                    style={[
-                      styles.documentStatus,
-                      { color: doc.verified ? "#4CAF50" : "#FF9800" },
-                    ]}
-                  >
-                    {doc.verified ? "Validé" : "En attente"}
-                  </Text>
+
+                  {doc?.rejectionReason && (
+                    <View style={styles.rejectionContainer}>
+                      <Text
+                        style={[styles.rejectionText, { color: colors.error }]}
+                      >
+                        {doc.rejectionReason}
+                      </Text>
+                    </View>
+                  )}
+
+                  {hasDocument && doc?.uploadedAt && (
+                    <Text
+                      style={[
+                        styles.documentDate,
+                        { color: colors.textSecondary },
+                      ]}
+                    >
+                      Uploadé le {formatDate(doc.uploadedAt)}
+                    </Text>
+                  )}
+
+                  <View style={styles.documentActions}>
+                    {!hasDocument && (
+                      <TouchableOpacity
+                        style={[
+                          styles.documentActionButton,
+                          { borderColor: colors.primary },
+                        ]}
+                        onPress={() => onPickDocument(docType)}
+                        disabled={uploadingDoc === docType}
+                      >
+                        {uploadingDoc === docType ? (
+                          <View style={styles.uploadProgress}>
+                            <ActivityIndicator
+                              size="small"
+                              color={colors.primary}
+                            />
+                            {docProgress[docType] !== undefined && (
+                              <Text
+                                style={[
+                                  styles.uploadProgressText,
+                                  { color: colors.primary },
+                                ]}
+                              >
+                                {docProgress[docType]}%
+                              </Text>
+                            )}
+                          </View>
+                        ) : (
+                          <>
+                            <Ionicons
+                              name="cloud-upload-outline"
+                              size={18}
+                              color={colors.primary}
+                            />
+                            <Text
+                              style={[
+                                styles.documentActionText,
+                                { color: colors.primary },
+                              ]}
+                            >
+                              Uploader
+                            </Text>
+                          </>
+                        )}
+                      </TouchableOpacity>
+                    )}
+
+                    {hasDocument && doc.status !== "verified" && (
+                      <TouchableOpacity
+                        style={[
+                          styles.documentActionButton,
+                          { borderColor: colors.error },
+                        ]}
+                        onPress={() => handleDeleteDocument(docType)}
+                      >
+                        <Ionicons
+                          name="trash-outline"
+                          size={18}
+                          color={colors.error}
+                        />
+                        <Text
+                          style={[
+                            styles.documentActionText,
+                            { color: colors.error },
+                          ]}
+                        >
+                          Supprimer
+                        </Text>
+                      </TouchableOpacity>
+                    )}
+                  </View>
                 </View>
-              ))
-            ) : (
-              <Text style={[styles.emptyText, { color: colors.textSecondary }]}>
-                Aucun document uploadé
-              </Text>
-            )}
-
-            <View style={styles.uploadButtons}>
-              <TouchableOpacity
-                style={[styles.uploadButton, { borderColor: colors.primary }]}
-                onPress={() => onPickDocument("license")}
-              >
-                <Ionicons
-                  name="cloud-upload-outline"
-                  size={18}
-                  color={colors.primary}
-                />
-                <Text
-                  style={[styles.uploadButtonText, { color: colors.primary }]}
-                >
-                  Permis de conduire
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.uploadButton, { borderColor: colors.primary }]}
-                onPress={() => onPickDocument("insurance")}
-              >
-                <Ionicons
-                  name="cloud-upload-outline"
-                  size={18}
-                  color={colors.primary}
-                />
-                <Text
-                  style={[styles.uploadButtonText, { color: colors.primary }]}
-                >
-                  Assurance
-                </Text>
-              </TouchableOpacity>
-
-              <TouchableOpacity
-                style={[styles.uploadButton, { borderColor: colors.primary }]}
-                onPress={() => onPickDocument("certification")}
-              >
-                <Ionicons
-                  name="cloud-upload-outline"
-                  size={18}
-                  color={colors.primary}
-                />
-                <Text
-                  style={[styles.uploadButtonText, { color: colors.primary }]}
-                >
-                  Certification
-                </Text>
-              </TouchableOpacity>
-            </View>
+              );
+            })}
           </ScrollView>
 
-          <TouchableOpacity style={styles.modalButton} onPress={onClose}>
+          {/* Bouton de fermeture */}
+          <TouchableOpacity
+            style={styles.closeButton}
+            onPress={onClose}
+            activeOpacity={0.8}
+          >
             <LinearGradient
               colors={[colors.primary, colors.secondary]}
-              style={styles.modalButtonGradient}
+              style={styles.closeButtonGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
             >
-              <Text style={styles.modalButtonText}>Fermer</Text>
+              <Ionicons name="close-outline" size={20} color="#fff" />
+              <Text style={styles.closeButtonText}>Fermer</Text>
             </LinearGradient>
           </TouchableOpacity>
         </Animated.View>
@@ -187,9 +350,6 @@ export default function ProfileDocumentsModal({
     </Modal>
   );
 }
-
-// Note: Importer Animated
-import Animated from "react-native-reanimated";
 
 const styles = StyleSheet.create({
   modalOverlay: {
@@ -199,7 +359,7 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     width: "90%",
-    maxHeight: "80%",
+    maxHeight: "85%",
     borderRadius: 28,
     padding: 20,
     shadowColor: "#000",
@@ -212,81 +372,142 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 12,
+  },
+  modalHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  modalHeaderIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: "center",
+    alignItems: "center",
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: "600",
   },
   modalClose: {
-    padding: 4,
-  },
-  documentItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    padding: 12,
-    borderWidth: 1,
-    borderRadius: 16,
-    marginBottom: 8,
-  },
-  documentInfo: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  documentIcon: {
     width: 40,
     height: 40,
     borderRadius: 20,
     justifyContent: "center",
     alignItems: "center",
   },
-  documentName: {
+  modalDescription: {
     fontSize: 14,
-    fontWeight: "500",
+    marginBottom: 20,
+    paddingHorizontal: 4,
+  },
+  scrollContent: {
+    paddingBottom: 16,
+  },
+  documentContainer: {
+    borderWidth: 1,
+    borderRadius: 16,
+    padding: 12,
+    marginBottom: 10,
+  },
+  documentHeader: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  documentTitleContainer: {
+    flexDirection: "row",
+    alignItems: "flex-start",
+    gap: 10,
+    flex: 1,
+  },
+  documentTypeIcon: {
+    width: 36,
+    height: 36,
+    borderRadius: 18,
+    justifyContent: "center",
+    alignItems: "center",
+    flexShrink: 0,
+  },
+  documentType: {
+    fontSize: 14,
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  documentFileName: {
+    fontSize: 10,
+    marginTop: 2,
+    flexShrink: 1,
+  },
+  documentStatusBadge: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 6,
+    paddingVertical: 3,
+    borderRadius: 10,
+    gap: 3,
+    flexShrink: 0,
+    marginLeft: 8,
+  },
+  documentStatusText: {
+    fontSize: 9,
+    fontWeight: "600",
+  },
+  rejectionContainer: {
+    padding: 8,
+    borderRadius: 6,
+    marginBottom: 8,
+  },
+  rejectionText: {
+    fontSize: 11,
   },
   documentDate: {
-    fontSize: 11,
-    marginTop: 2,
+    fontSize: 10,
+    marginBottom: 8,
   },
-  documentStatus: {
-    fontSize: 12,
+  documentActions: {
+    flexDirection: "row",
+    gap: 8,
+    flexWrap: "wrap",
+  },
+  documentActionButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 10,
+    paddingVertical: 6,
+    borderRadius: 16,
+    borderWidth: 1,
+    gap: 4,
+  },
+  documentActionText: {
+    fontSize: 11,
     fontWeight: "500",
   },
-  uploadButtons: {
-    gap: 8,
-    marginTop: 16,
+  uploadProgress: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
   },
-  uploadButton: {
+  uploadProgressText: {
+    fontSize: 11,
+    fontWeight: "500",
+    minWidth: 30,
+  },
+  closeButton: {
+    marginTop: 16,
+    borderRadius: 30,
+    overflow: "hidden",
+  },
+  closeButtonGradient: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "center",
     padding: 14,
-    borderWidth: 1,
-    borderRadius: 25,
-    gap: 6,
+    gap: 8,
   },
-  uploadButtonText: {
-    fontSize: 13,
-    fontWeight: "500",
-  },
-  emptyText: {
-    fontSize: 13,
-    fontStyle: "italic",
-    textAlign: "center",
-    padding: 20,
-  },
-  modalButton: {
-    marginTop: 20,
-    borderRadius: 30,
-    overflow: "hidden",
-  },
-  modalButtonGradient: {
-    padding: 16,
-    alignItems: "center",
-  },
-  modalButtonText: {
+  closeButtonText: {
     color: "#fff",
     fontSize: 15,
     fontWeight: "600",

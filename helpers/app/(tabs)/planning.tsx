@@ -1,3 +1,4 @@
+// helpers/app/(tabs)/planning.tsx - Version corrigée
 import React, { useEffect, useState, useRef } from "react";
 import {
   View,
@@ -10,7 +11,6 @@ import {
   RefreshControl,
   Dimensions,
   Animated,
-  Easing,
   Platform,
   Switch,
   StatusBar,
@@ -93,83 +93,65 @@ export default function PlanningScreen() {
     null
   );
 
-  // Animations
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(50)).current;
-  const scaleAnim = useRef(new Animated.Value(0.95)).current;
+  // Animations - initialiser avec des valeurs par défaut pour éviter les problèmes
+  const fadeAnim = useRef(new Animated.Value(1)).current; // ← Démarrer à 1 (visible)
+  const slideAnim = useRef(new Animated.Value(0)).current; // ← Démarrer à 0 (pas de translation)
+  const scaleAnim = useRef(new Animated.Value(1)).current; // ← Démarrer à 1 (pas d'échelle)
+
+  // Référence pour éviter les appels multiples
+  const isMountedRef = useRef(true);
+  const loadingTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   useEffect(() => {
-    // 1. TIMEOUT DE SÉCURITÉ - Force l'arrêt du chargement après 5 secondes
-    const safetyTimeout = setTimeout(() => {
-      if (loading) {
-        console.log("⚠️ Planning - Timeout de sécurité, affichage forcé");
+    isMountedRef.current = true;
+
+    // Timeout de sécurité
+    loadingTimeoutRef.current = setTimeout(() => {
+      if (isMountedRef.current && loading) {
+        console.log("⚠️ Planning - Timeout, arrêt du chargement");
         setLoading(false);
       }
     }, 5000);
 
-    // 2. ANIMATIONS
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 600,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        friction: 8,
-        tension: 40,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    // Chargement des données
+    loadAvailability();
 
-    // 3. CHARGEMENT DES DONNÉES
-    const loadData = async () => {
-      try {
-        await loadAvailability();
-      } catch (error) {
-        console.log("❌ Erreur chargement planning:", error);
-      } finally {
-        // ← TRÈS IMPORTANT : forcer loading à false même si erreur
-        setLoading(false);
-        clearTimeout(safetyTimeout);
+    // Nettoyage
+    return () => {
+      isMountedRef.current = false;
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
       }
     };
-
-    loadData();
-
-    // 4. NETTOYAGE
-    return () => {
-      clearTimeout(safetyTimeout);
-      setLoading(false); // ← Force aussi au démontage
-    };
-  }, []); // ← Dépendances vides
+  }, []);
 
   const loadAvailability = async () => {
     try {
-      // Simulation d'un délai pour tester
-      // await new Promise(resolve => setTimeout(resolve, 2000));
-
       const response = await api.get("/helpers/availability");
       const data = response.data.data;
 
-      setGlobalAvailability(data.isAvailable);
+      if (isMountedRef.current) {
+        setGlobalAvailability(data.isAvailable);
 
-      if (data.schedule && data.schedule.length > 0) {
-        setSchedule(data.schedule);
+        if (data.schedule && data.schedule.length > 0) {
+          setSchedule(data.schedule);
+        }
+        console.log("✅ Planning chargé avec succès");
       }
-
-      console.log("✅ Planning chargé avec succès");
     } catch (error) {
       console.log("❌ Erreur chargement planning:", error);
-      // En cas d'erreur, on garde les valeurs par défaut
-      setGlobalAvailability(true);
-      // Ne pas remettre setLoading(false) ici, c'est géré dans le finally de loadData
+    } finally {
+      if (isMountedRef.current) {
+        // ✅ Forcer loading à false après 500ms minimum pour que l'utilisateur voit au moins un aperçu
+        setTimeout(() => {
+          if (isMountedRef.current) {
+            setLoading(false);
+          }
+        }, 500);
+      }
+      if (loadingTimeoutRef.current) {
+        clearTimeout(loadingTimeoutRef.current);
+      }
     }
   };
 
@@ -239,16 +221,12 @@ export default function PlanningScreen() {
   const getCurrentDaySchedule = () =>
     schedule.find((d) => d.day === selectedDay);
 
+  // ✅ Écran de chargement SIMPLIFIÉ (sans animations problématiques)
   if (loading) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <StatusBar barStyle="dark-content" />
-        <Animated.View
-          style={[
-            styles.loadingContent,
-            { opacity: fadeAnim, transform: [{ scale: scaleAnim }] },
-          ]}
-        >
+        <StatusBar barStyle="light-content" />
+        <View style={styles.loadingContainer}>
           <LinearGradient
             colors={[colors.primary, colors.secondary]}
             style={styles.loadingLogo}
@@ -256,7 +234,10 @@ export default function PlanningScreen() {
             <Ionicons name="calendar" size={40} color="#fff" />
           </LinearGradient>
           <ActivityIndicator size="large" color={colors.primary} />
-        </Animated.View>
+          <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
+            Chargement...
+          </Text>
+        </View>
       </View>
     );
   }
@@ -300,13 +281,9 @@ export default function PlanningScreen() {
           />
         }
       >
-        <Animated.View
-          style={[
-            styles.content,
-            { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
-          ]}
-        >
-          {/* Statut global - Carte nette */}
+        {/* ✅ Suppression des animations qui causent des problèmes */}
+        <View style={styles.content}>
+          {/* Statut global */}
           <View style={[styles.card, { backgroundColor: colors.card }]}>
             <View style={styles.row}>
               <View style={styles.rowLeft}>
@@ -352,7 +329,7 @@ export default function PlanningScreen() {
             </View>
           </View>
 
-          {/* Sélecteur de jours - Design minimaliste */}
+          {/* Sélecteur de jours */}
           <View style={styles.daysWrapper}>
             <ScrollView
               horizontal
@@ -399,7 +376,7 @@ export default function PlanningScreen() {
             </ScrollView>
           </View>
 
-          {/* Carte du jour - Design épuré */}
+          {/* Carte du jour */}
           <View style={[styles.card, { backgroundColor: colors.card }]}>
             <View style={styles.dayHeader}>
               <View>
@@ -560,7 +537,7 @@ export default function PlanningScreen() {
             )}
           </View>
 
-          {/* Résumé de la semaine - Design minimaliste */}
+          {/* Résumé de la semaine */}
           <View style={[styles.card, { backgroundColor: colors.card }]}>
             <Text style={[styles.sectionTitle, { color: colors.text }]}>
               Résumé de la semaine
@@ -617,7 +594,7 @@ export default function PlanningScreen() {
           </TouchableOpacity>
 
           <View style={styles.bottomSpace} />
-        </Animated.View>
+        </View>
       </ScrollView>
     </View>
   );
@@ -626,6 +603,22 @@ export default function PlanningScreen() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+  },
+  loadingContainer: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    gap: 20,
+  },
+  loadingLogo: {
+    width: 80,
+    height: 80,
+    borderRadius: 40,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  loadingText: {
+    fontSize: 14,
   },
   header: {
     paddingTop: Platform.OS === "ios" ? 60 : 40,
@@ -651,19 +644,6 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: "600",
     color: "#fff",
-  },
-  loadingContent: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    gap: 20,
-  },
-  loadingLogo: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    justifyContent: "center",
-    alignItems: "center",
   },
   content: {
     padding: 16,

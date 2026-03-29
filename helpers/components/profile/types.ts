@@ -1,3 +1,15 @@
+export interface DocumentInfo {
+  type: string;
+  url?: string;
+  verified: boolean;
+  status: "missing" | "pending" | "verified" | "rejected";
+  uploadedAt?: string;
+  fileName?: string;
+  fileSize?: number;
+  mimeType?: string;
+  rejectionReason?: string;
+}
+
 export interface HelperProfile {
   _id: string;
   user: {
@@ -7,6 +19,7 @@ export interface HelperProfile {
     phone: string;
     photo?: string;
   };
+  photo?: string;
   status: "pending" | "active" | "suspended" | "inactive";
   certification: {
     isCertified: boolean;
@@ -49,12 +62,11 @@ export interface HelperProfile {
     responseRate: number;
     averageResponseTime: number;
   };
-  documents: Array<{
-    type: string;
-    url: string;
-    verified: boolean;
-    uploadedAt: string;
-  }>;
+  documents: {
+    license?: DocumentInfo;
+    insurance?: DocumentInfo;
+    certification?: DocumentInfo;
+  };
   preferences: {
     language: string;
     notifications: {

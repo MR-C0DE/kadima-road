@@ -12,6 +12,9 @@ import {
 } from '../services/stripeService.js';
 import { sendInvoice } from '../services/emailService.js';
 import logger from '../config/logger.js';
+import Stripe from 'stripe';
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY);
 
 // @desc    Créer une intention de paiement
 // @route   POST /api/payments/create-intent
@@ -410,6 +413,358 @@ export const payHelper = async (req, res) => {
     res.status(500).json({
       success: false,
       message: 'Erreur lors du paiement du helper'
+    });
+  }
+};
+
+// backend/src/controllers/paymentController.js
+// Ajoute ces fonctions après les existantes
+
+// @desc    Créer une session de checkout Stripe (pour WebView)
+// @route   POST /api/payments/create-checkout-session
+// @access  Private
+export const createCheckoutSession = async (req, res) => {
+  try {
+    const { amount, currency = 'cad', customer_email } = req.body;
+    
+    console.log(`💳 Création session Stripe - Montant: ${amount} ${currency} - Email: ${customer_email}`);
+    
+    if (!amount || amount <= 0) {
+      return res.status(400).json({
+        success: false,
+        message: 'Montant invalide'
+      });
+    }
+    
+    // Créer la session de checkout
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      line_items: [
+        {
+          price_data: {
+            currency: currency,
+            product_data: {
+              name: 'Assistance routière Kadima Road',
+              description: 'Autorisation de paiement pour intervention SOS',
+              images: ['https://kadimaroad.com/logo.png']
+            },
+            unit_amount: Math.round(amount * 100), // Stripe utilise les cents
+          },
+          quantity: 1,
+        },
+      ],
+      mode: 'payment',
+      payment_intent_data: {
+        capture_method: 'manual', // Autorisation seulement, pas de débit immédiat
+      },
+      success_url: 'kadima://payment/success?session_id={CHECKOUT_SESSION_ID}',
+      cancel_url: 'kadima://payment/cancel',
+      customer_email: customer_email,
+      metadata: {
+        type: 'sos_authorization',
+        userId: req.user._id.toString()
+      }
+    });
+    
+    console.log(`✅ Session créée: ${session.id}`);
+    
+    res.json({
+      success: true,
+      data: {
+        sessionUrl: session.url,
+        sessionId: session.id,
+        paymentIntentId: session.payment_intent
+      }
+    });
+    
+  } catch (error) {
+    console.error('❌ Erreur création session Stripe:', error.message);
+    res.status(500).json({
+      success: false,
+      message: error.message || 'Erreur lors de la création de la session de paiement'
+    });
+  }
+};
+
+// @desc    Créer une intention de paiement avec carte enregistrée
+// @route   POST /api/payments/setup-intent
+// @access  Private
+export const createSetupIntent = async (req, res) => {
+  try {
+    const { paymentMethodId } = req.body;
+    
+    // 1. Créer ou récupérer le client Stripe
+    let stripeCustomerId = req.user.stripeCustomerId;
+    
+    if (!stripeCustomerId) {
+      // Créer un nouveau client Stripe
+      const customer = await stripe.customers.create({
+        email: req.user.email,
+        name: `${req.user.firstName} ${req.user.lastName}`,
+        metadata: {
+          userId: req.user._id.toString()
+        }
+      });
+      stripeCustomerId = customer.id;
+      
+      // Sauvegarder l'ID client dans la base
+      await User.findByIdAndUpdate(req.user._id, { stripeCustomerId });
+    }
+    
+    // 2. Si un paymentMethodId est fourni, l'attacher au client
+    if (paymentMethodId) {
+      await stripe.paymentMethods.attach(paymentMethodId, {
+        customer: stripeCustomerId,
+      });
+    }
+    
+    // 3. Créer un SetupIntent pour enregistrer la carte
+    const setupIntent = await stripe.setupIntents.create({
+      customer: stripeCustomerId,
+      payment_method_types: ['card'],
+      usage: 'off_session', // Pour les paiements futurs
+    });
+    
+    res.json({
+      success: true,
+      data: {
+        clientSecret: setupIntent.client_secret,
+        customerId: stripeCustomerId
+      }
+    });
+    
+  } catch (error) {
+    console.error('Erreur création SetupIntent:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Récupérer les cartes enregistrées de l'utilisateur
+// @route   GET /api/payments/saved-cards
+// @access  Private
+export const getSavedCards = async (req, res) => {
+  try {
+    const user = await User.findById(req.user._id);
+    
+    if (!user.stripeCustomerId) {
+      return res.json({ success: true, data: [] });
+    }
+    
+    const paymentMethods = await stripe.paymentMethods.list({
+      customer: user.stripeCustomerId,
+      type: 'card',
+    });
+    
+    const cards = paymentMethods.data.map(method => ({
+      id: method.id,
+      brand: method.card.brand,
+      last4: method.card.last4,
+      expMonth: method.card.exp_month,
+      expYear: method.card.exp_year,
+      isDefault: method.id === user.defaultPaymentMethodId
+    }));
+    
+    res.json({ success: true, data: cards });
+    
+  } catch (error) {
+    console.error('Erreur récupération cartes:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Créer une autorisation de paiement (capture manuelle)
+// @route   POST /api/payments/authorize
+// @access  Private
+export const authorizePayment = async (req, res) => {
+  try {
+    const { amount, paymentMethodId, saveCard = false } = req.body;
+    
+    const user = await User.findById(req.user._id);
+    
+    if (!user.stripeCustomerId) {
+      return res.status(400).json({
+        success: false,
+        message: 'Aucune carte enregistrée'
+      });
+    }
+    
+    // Créer l'intention de paiement avec capture manuelle
+    const paymentIntent = await stripe.paymentIntents.create({
+      amount: Math.round(amount * 100),
+      currency: 'cad',
+      customer: user.stripeCustomerId,
+      payment_method: paymentMethodId,
+      off_session: true,
+      confirm: true,
+      capture_method: 'manual', // ← PAS DE DÉBIT IMMÉDIAT
+      metadata: {
+        userId: req.user._id.toString(),
+        type: 'sos_authorization'
+      }
+    });
+    
+    // Sauvegarder dans la base
+    const payment = await Payment.create({
+      user: req.user._id,
+      amount,
+      currency: 'cad',
+      status: 'authorized',
+      stripeDetails: {
+        paymentIntentId: paymentIntent.id,
+        clientSecret: paymentIntent.client_secret
+      }
+    });
+    
+    // Si l'utilisateur veut sauvegarder cette carte comme par défaut
+    if (saveCard) {
+      await User.findByIdAndUpdate(req.user._id, {
+        defaultPaymentMethodId: paymentMethodId
+      });
+    }
+    
+    res.json({
+      success: true,
+      data: {
+        paymentIntentId: paymentIntent.id,
+        paymentId: payment._id,
+        status: paymentIntent.status
+      }
+    });
+    
+  } catch (error) {
+    console.error('Erreur autorisation:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Capturer le paiement après intervention
+// @route   POST /api/payments/capture
+// @access  Private
+export const capturePayment = async (req, res) => {
+  try {
+    const { paymentIntentId, finalAmount } = req.body;
+    
+    // Capturer le montant réel
+    const paymentIntent = await stripe.paymentIntents.capture(paymentIntentId, {
+      amount_to_capture: Math.round(finalAmount * 100)
+    });
+    
+    // Mettre à jour dans la base
+    const payment = await Payment.findOne({
+      'stripeDetails.paymentIntentId': paymentIntentId
+    });
+    
+    if (payment) {
+      payment.status = 'captured';
+      payment.finalAmount = finalAmount;
+      payment.platformFee = finalAmount * 0.10;
+      payment.helperEarnings = finalAmount * 0.90;
+      payment.capturedAt = new Date();
+      await payment.save();
+    }
+    
+    res.json({
+      success: true,
+      data: { status: paymentIntent.status }
+    });
+    
+  } catch (error) {
+    console.error('Erreur capture:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+
+// @desc    Annuler l'autorisation
+// @route   POST /api/payments/cancel
+// @access  Private
+export const cancelAuthorization = async (req, res) => {
+  try {
+    const { paymentIntentId } = req.body;
+    
+    const canceledIntent = await stripe.paymentIntents.cancel(paymentIntentId);
+    
+    await Payment.findOneAndUpdate(
+      { 'stripeDetails.paymentIntentId': paymentIntentId },
+      { status: 'cancelled' }
+    );
+    
+    res.json({
+      success: true,
+      data: { status: canceledIntent.status }
+    });
+    
+  } catch (error) {
+    console.error('Erreur annulation:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message
+    });
+  }
+};
+// backend/src/controllers/paymentController.js
+
+// @desc    Créer une session pour ajouter une carte
+// @route   POST /api/payments/setup-session
+// @access  Private
+export const createSetupSession = async (req, res) => {
+  try {
+    const { customer_email } = req.body;
+    
+    // Créer ou récupérer le client Stripe
+    let stripeCustomerId = req.user.stripeCustomerId;
+    
+    if (!stripeCustomerId) {
+      const customer = await stripe.customers.create({
+        email: customer_email || req.user.email,
+        name: `${req.user.firstName} ${req.user.lastName}`,
+        metadata: {
+          userId: req.user._id.toString()
+        }
+      });
+      stripeCustomerId = customer.id;
+      
+      await User.findByIdAndUpdate(req.user._id, { stripeCustomerId });
+    }
+    
+    // Créer une session de checkout pour ajouter une carte
+    const session = await stripe.checkout.sessions.create({
+      payment_method_types: ['card'],
+      mode: 'setup',
+      customer: stripeCustomerId,
+      success_url: 'kadima://card/success',
+      cancel_url: 'kadima://card/cancel',
+      setup_intent_data: {
+        metadata: {
+          userId: req.user._id.toString()
+        }
+      }
+    });
+    
+    res.json({
+      success: true,
+      data: {
+        sessionUrl: session.url,
+        sessionId: session.id
+      }
+    });
+    
+  } catch (error) {
+    console.error('Erreur création setup session:', error);
+    res.status(500).json({
+      success: false,
+      message: error.message
     });
   }
 };

@@ -1,5 +1,7 @@
 import Intervention from '../models/Intervention.js';
 import SOSAlert from '../models/SOSAlert.js';
+import Vehicle from '../models/Vehicle.js';
+import VehicleLog from '../models/VehicleLog.js';
 import User from '../models/User.js';
 import Helper from '../models/Helper.js';
 import { sendSMS, notifyUserHelperOnWay } from '../services/smsService.js';
@@ -18,7 +20,8 @@ export const createIntervention = async (req, res) => {
       location,
       destination,
       sosAlertId,
-      helperId
+      helperId,
+      vehicleId  // ⚡ NOUVEAU : ID du véhicule
     } = req.body;
 
     // Vérifier si c'est lié à un SOS
@@ -33,11 +36,29 @@ export const createIntervention = async (req, res) => {
       }
     }
 
+    // ⚡ Si un véhicule est fourni, vérifier qu'il appartient à l'utilisateur
+    let vehicle = null;
+    if (vehicleId) {
+      vehicle = await Vehicle.findOne({
+        _id: vehicleId,
+        'owners.user': req.user._id,
+        status: 'active'
+      });
+      
+      if (!vehicle) {
+        return res.status(400).json({
+          success: false,
+          message: 'Véhicule non trouvé ou non autorisé'
+        });
+      }
+    }
+
     // Créer l'intervention
     const intervention = await Intervention.create({
       user: req.user._id,
       helper: helperId,
       sosAlert: sosAlertId,
+      vehicle: vehicleId, // ⚡ AJOUT
       type: type || 'assistance',
       status: 'pending',
       problem: {
@@ -75,6 +96,23 @@ export const createIntervention = async (req, res) => {
       await sosAlert.save();
     }
 
+    // ⚡ AJOUTER UN LOG DANS LE JOURNAL DU VÉHICULE
+    if (vehicle) {
+      await VehicleLog.create({
+        vehicle: vehicle._id,
+        user: req.user._id,
+        intervention: intervention._id,
+        type: 'intervention',
+        title: `Intervention ${type}`,
+        description: problem.description || 'Intervention en cours',
+        metadata: {
+          interventionId: intervention._id,
+          helperId: helperId,
+          status: 'pending'
+        }
+      });
+    }
+
     res.status(201).json({
       success: true,
       message: 'Intervention créée',
@@ -90,14 +128,23 @@ export const createIntervention = async (req, res) => {
   }
 };
 
+// backend/src/controllers/interventionController.js
+
 // @desc    Obtenir toutes les interventions de l'utilisateur
 // @route   GET /api/interventions
 // @access  Private
 export const getUserInterventions = async (req, res) => {
   try {
     const interventions = await Intervention.find({ user: req.user._id })
-      .populate('helper')
+      .populate({
+        path: 'helper',
+        populate: {
+          path: 'user',
+          select: 'firstName lastName phone email photo'
+        }
+      })
       .populate('sosAlert')
+      .populate('vehicle')
       .sort('-createdAt');
 
     res.json({
@@ -118,12 +165,22 @@ export const getUserInterventions = async (req, res) => {
 // @desc    Obtenir une intervention par ID
 // @route   GET /api/interventions/:id
 // @access  Private
+// backend/src/controllers/interventionController.js
+// Modifier la fonction getInterventionById
+
 export const getInterventionById = async (req, res) => {
   try {
     const intervention = await Intervention.findById(req.params.id)
       .populate('user', 'firstName lastName phone email')
-      .populate('helper')
-      .populate('sosAlert');
+      .populate({
+        path: 'helper',
+        populate: {
+          path: 'user',
+          select: 'firstName lastName phone email photo'
+        }
+      })
+      .populate('sosAlert')
+      .populate('vehicle'); // ⚡ AJOUT
 
     if (!intervention) {
       return res.status(404).json({
@@ -132,9 +189,8 @@ export const getInterventionById = async (req, res) => {
       });
     }
 
-    // Vérifier que l'utilisateur a le droit
     const isUser = intervention.user._id.toString() === req.user._id.toString();
-    const isHelper = intervention.helper?.user?.toString() === req.user._id.toString();
+    const isHelper = intervention.helper?.user?._id?.toString() === req.user._id.toString();
     const isAdmin = req.user.role === 'admin';
 
     if (!isUser && !isHelper && !isAdmin) {
@@ -167,7 +223,8 @@ export const updateInterventionStatus = async (req, res) => {
     
     const intervention = await Intervention.findById(req.params.id)
       .populate('user')
-      .populate('helper');
+      .populate('helper')
+      .populate('vehicle'); // ⚡ AJOUT
 
     if (!intervention) {
       return res.status(404).json({
@@ -176,7 +233,6 @@ export const updateInterventionStatus = async (req, res) => {
       });
     }
 
-    // Vérifier les permissions
     const isHelper = intervention.helper?.user?.toString() === req.user._id.toString();
     const isUser = intervention.user._id.toString() === req.user._id.toString();
     const isAdmin = req.user.role === 'admin';
@@ -188,7 +244,7 @@ export const updateInterventionStatus = async (req, res) => {
       });
     }
 
-    // Ajouter au timeline
+    const oldStatus = intervention.status;
     intervention.timeline.push({
       status,
       timestamp: new Date(),
@@ -196,21 +252,15 @@ export const updateInterventionStatus = async (req, res) => {
       location
     });
 
-    // Mettre à jour le statut
     intervention.status = status;
 
     // Actions spécifiques selon le statut
     switch (status) {
       case 'accepted':
         if (isHelper && intervention.helper) {
-          // Calculer le temps d'arrivée estimé
           if (intervention.location?.coordinates) {
-            const [lng, lat] = intervention.location.coordinates;
-            // Simuler un calcul de distance (à améliorer avec Google Maps)
-            const eta = 15; // minutes
+            const eta = 15;
             intervention.eta = eta;
-            
-            // Notifier l'utilisateur
             await notifyUserHelperOnWay(
               intervention.user,
               intervention.helper,
@@ -220,22 +270,9 @@ export const updateInterventionStatus = async (req, res) => {
         }
         break;
 
-      case 'en_route':
-        // Rien de spécial
-        break;
-
-      case 'arrived':
-        // Le helper est arrivé
-        break;
-
-      case 'in_progress':
-        // Travail en cours
-        break;
-
       case 'completed':
         intervention.completedAt = new Date();
         
-        // Mettre à jour les stats du helper
         if (intervention.helper) {
           await Helper.findByIdAndUpdate(intervention.helper._id, {
             $inc: {
@@ -245,7 +282,6 @@ export const updateInterventionStatus = async (req, res) => {
           });
         }
         
-        // Mettre à jour les stats de l'utilisateur
         await User.findByIdAndUpdate(intervention.user._id, {
           $inc: {
             'stats.interventionsAsUser': 1
@@ -265,7 +301,24 @@ export const updateInterventionStatus = async (req, res) => {
 
     await intervention.save();
 
-    // Envoyer une notification si nécessaire
+    // ⚡ AJOUTER UN LOG DANS LE JOURNAL DU VÉHICULE SI LE STATUT A CHANGÉ
+    if (intervention.vehicle && oldStatus !== status) {
+      await VehicleLog.create({
+        vehicle: intervention.vehicle._id,
+        user: req.user._id,
+        intervention: intervention._id,
+        type: 'intervention',
+        title: `Statut intervention: ${status}`,
+        description: `Changement de statut de ${oldStatus} à ${status}`,
+        metadata: {
+          interventionId: intervention._id,
+          oldStatus,
+          newStatus: status,
+          updatedBy: isHelper ? 'helper' : (isUser ? 'user' : 'system')
+        }
+      });
+    }
+
     if (status === 'accepted' && intervention.user?.phone) {
       await sendSMS(
         intervention.user.phone,
@@ -304,7 +357,6 @@ export const assignHelper = async (req, res) => {
       });
     }
 
-    // Vérifier que l'intervention est en attente
     if (intervention.status !== 'pending') {
       return res.status(400).json({
         success: false,
@@ -312,7 +364,6 @@ export const assignHelper = async (req, res) => {
       });
     }
 
-    // Vérifier le helper
     let helper;
     if (helperId) {
       helper = await Helper.findById(helperId).populate('user');
@@ -323,7 +374,6 @@ export const assignHelper = async (req, res) => {
         });
       }
     } else {
-      // Le helper connecté s'assigne lui-même
       helper = await Helper.findOne({ user: req.user._id }).populate('user');
       if (!helper) {
         return res.status(403).json({
@@ -333,7 +383,6 @@ export const assignHelper = async (req, res) => {
       }
     }
 
-    // Assigner le helper
     intervention.helper = helper._id;
     intervention.status = 'accepted';
     intervention.timeline.push({
@@ -344,7 +393,6 @@ export const assignHelper = async (req, res) => {
 
     await intervention.save();
 
-    // Notifier l'utilisateur
     const user = await User.findById(intervention.user);
     if (user?.phone) {
       await sendSMS(
@@ -353,7 +401,6 @@ export const assignHelper = async (req, res) => {
       );
     }
 
-    // Envoyer email de confirmation
     await sendInterventionConfirmation(user, intervention, helper);
 
     res.json({
@@ -387,7 +434,6 @@ export const addMessage = async (req, res) => {
       });
     }
 
-    // Vérifier les permissions
     const isUser = intervention.user.toString() === req.user._id.toString();
     const isHelper = intervention.helper?.toString() === req.user._id.toString();
     const isAdmin = req.user.role === 'admin';
@@ -399,7 +445,6 @@ export const addMessage = async (req, res) => {
       });
     }
 
-    // Ajouter le message
     intervention.communication.messages.push({
       sender: isHelper ? 'helper' : (isUser ? 'user' : 'system'),
       content,
@@ -408,8 +453,6 @@ export const addMessage = async (req, res) => {
     intervention.communication.lastMessageAt = new Date();
 
     await intervention.save();
-
-    // TODO: Envoyer notification push à l'autre partie
 
     res.json({
       success: true,
@@ -442,7 +485,6 @@ export const addReview = async (req, res) => {
       });
     }
 
-    // Vérifier que c'est l'utilisateur concerné
     if (intervention.user.toString() !== req.user._id.toString()) {
       return res.status(403).json({
         success: false,
@@ -450,7 +492,6 @@ export const addReview = async (req, res) => {
       });
     }
 
-    // Vérifier que l'intervention est terminée
     if (intervention.status !== 'completed') {
       return res.status(400).json({
         success: false,
@@ -458,7 +499,6 @@ export const addReview = async (req, res) => {
       });
     }
 
-    // Ajouter l'évaluation
     intervention.review = {
       rating,
       comment,
@@ -467,7 +507,6 @@ export const addReview = async (req, res) => {
 
     await intervention.save();
 
-    // Mettre à jour la note moyenne du helper
     if (intervention.helper) {
       const helper = await Helper.findById(intervention.helper);
       const reviews = await Intervention.find({
@@ -509,12 +548,10 @@ export const getActiveInterventions = async (req, res) => {
   try {
     const query = { status: { $in: ['accepted', 'en_route', 'arrived', 'in_progress'] } };
 
-    // Si c'est un helper, seulement ses interventions
     const helper = await Helper.findOne({ user: req.user._id });
     if (helper) {
       query.helper = helper._id;
     } else {
-      // Sinon, seulement les interventions de l'utilisateur
       query.user = req.user._id;
     }
 
@@ -522,6 +559,7 @@ export const getActiveInterventions = async (req, res) => {
       .populate('user', 'firstName lastName phone')
       .populate('helper')
       .populate('sosAlert')
+      .populate('vehicle') // ⚡ AJOUT
       .sort('-updatedAt');
 
     res.json({
@@ -539,14 +577,16 @@ export const getActiveInterventions = async (req, res) => {
   }
 };
 
-// @desc    Annuler une intervention
-// @route   PUT /api/interventions/:id/cancel
-// @access  Private
+// backend/src/controllers/interventionController.js
+// REMPLACEZ la fonction cancelIntervention par celle-ci
+
+// backend/src/controllers/interventionController.js
 export const cancelIntervention = async (req, res) => {
   try {
     const { reason } = req.body;
-    
-    const intervention = await Intervention.findById(req.params.id);
+    const intervention = await Intervention.findById(req.params.id)
+      .populate('user', 'firstName lastName phone')
+      .populate('helper');
 
     if (!intervention) {
       return res.status(404).json({
@@ -555,9 +595,8 @@ export const cancelIntervention = async (req, res) => {
       });
     }
 
-    // Vérifier les permissions
-    const isUser = intervention.user.toString() === req.user._id.toString();
-    const isHelper = intervention.helper?.toString() === req.user._id.toString();
+    const isUser = intervention.user._id.toString() === req.user._id.toString();
+    const isHelper = intervention.helper?._id?.toString() === req.user._id.toString();
     const isAdmin = req.user.role === 'admin';
 
     if (!isUser && !isHelper && !isAdmin) {
@@ -567,60 +606,157 @@ export const cancelIntervention = async (req, res) => {
       });
     }
 
-    // Vérifier que l'intervention peut être annulée
-    if (['completed', 'cancelled'].includes(intervention.status)) {
+    if (intervention.status === 'completed') {
       return res.status(400).json({
         success: false,
-        message: 'Impossible d\'annuler cette intervention'
+        message: 'Impossible d\'annuler une intervention déjà terminée'
       });
     }
 
+    const oldStatus = intervention.status;
+    
     intervention.status = 'cancelled';
+    intervention.cancelledAt = new Date();
     intervention.cancellation = {
       cancelledBy: isUser ? 'user' : (isHelper ? 'helper' : 'system'),
-      reason: reason || 'Annulation',
+      reason: reason || `Annulé par ${isUser ? 'l\'utilisateur' : (isHelper ? 'le helper' : 'le système')}`,
       cancelledAt: new Date()
     };
+    
     intervention.timeline.push({
       status: 'cancelled',
       timestamp: new Date(),
-      note: reason || 'Intervention annulée'
+      note: reason || `Annulé par ${isUser ? 'l\'utilisateur' : (isHelper ? 'le helper' : 'le système')}`,
+      location: req.body.location || null
     });
 
     await intervention.save();
+    
+    console.log(`✅ Intervention ${intervention._id} annulée: ${oldStatus} -> cancelled`);
 
-    // Notifier l'autre partie
-    if (isUser && intervention.helper) {
-      // Notifier le helper
-      const helper = await Helper.findById(intervention.helper).populate('user');
-      if (helper?.user?.phone) {
-        await sendSMS(
-          helper.user.phone,
-          `❌ L'intervention #${intervention._id} a été annulée par l'utilisateur.`
-        );
+    let io = null;
+    try {
+      const socketModule = await import('../socket/index.js');
+      io = socketModule.getIO();
+    } catch (importError) {
+      console.error('❌ Erreur import socket module:', importError.message);
+    }
+
+    if (io) {
+      const missionTitle = `${intervention.type === 'sos' ? 'SOS' : 'Assistance'}${intervention.problem?.category ? ` - ${intervention.problem.category}` : ''}`;
+      
+      // Événement pour tous les helpers (simple)
+      io.emit('mission-cancelled', {
+        missionId: intervention._id,
+        reason: reason || `Annulé par ${isUser ? 'le client' : (isHelper ? 'le helper' : 'le système')}`,
+        location: intervention.location,
+        reward: intervention.pricing?.final || 0
+      });
+      
+      // Événement détaillé avec qui a annulé
+      io.emit('mission-cancelled-detail', {
+        missionId: intervention._id,
+        cancelledBy: isUser ? 'user' : (isHelper ? 'helper' : 'system'),
+        reason: reason || (isUser ? 'Annulé par le client' : (isHelper ? 'Annulé par le helper' : 'Annulé par le système')),
+        missionTitle: missionTitle
+      });
+      
+      // Notifier spécifiquement le client si c'est le helper qui annule
+      if (isHelper && intervention.user) {
+        io.to(`user:${intervention.user._id}`).emit('mission-cancelled-detail', {
+          missionId: intervention._id,
+          cancelledBy: 'helper',
+          reason: reason || 'Annulé par le helper',
+          missionTitle: missionTitle
+        });
       }
-    } else if (isHelper) {
-      // Notifier l'utilisateur
-      const user = await User.findById(intervention.user);
-      if (user?.phone) {
-        await sendSMS(
-          user.phone,
-          `❌ L'intervention #${intervention._id} a été annulée par le helper.`
-        );
-      }
+      
+      console.log(`📢 Événements d'annulation émis pour mission ${intervention._id}`);
     }
 
     res.json({
       success: true,
-      message: 'Intervention annulée',
-      data: intervention
+      message: 'Intervention annulée avec succès',
+      data: {
+        _id: intervention._id,
+        status: intervention.status,
+        cancellation: intervention.cancellation,
+        timeline: intervention.timeline.slice(-3)
+      }
     });
 
   } catch (error) {
+    console.error('❌ Erreur annulation:', error);
     logger.error(`Erreur annulation: ${error.message}`);
     res.status(500).json({
       success: false,
-      message: 'Erreur lors de l\'annulation'
+      message: 'Erreur lors de l\'annulation',
+      error: error.message
+    });
+  }
+};
+
+// backend/src/controllers/interventionController.js
+// Ajouter à la fin du fichier
+
+// @desc    Récupérer la position du helper pour une intervention
+// @route   GET /api/interventions/:id/helper-location
+// @access  Private
+export const getHelperLocation = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    console.log(`📍 Récupération position helper - Intervention: ${id}`);
+
+    const intervention = await Intervention.findById(id)
+      .populate('helper', 'user');
+
+    if (!intervention) {
+      return res.status(404).json({
+        success: false,
+        message: 'Intervention non trouvée'
+      });
+    }
+
+    // Vérifier que l'utilisateur est le client ou le helper
+    const isUser = intervention.user.toString() === req.user._id.toString();
+    const isHelper = intervention.helper?.user?._id?.toString() === req.user._id.toString();
+    const isAdmin = req.user.role === 'admin';
+
+    if (!isUser && !isHelper && !isAdmin) {
+      return res.status(403).json({
+        success: false,
+        message: 'Non autorisé'
+      });
+    }
+
+    // Si pas de position, retourner null
+    if (!intervention.helperLocation || !intervention.helperLocation.coordinates) {
+      return res.json({
+        success: true,
+        data: null
+      });
+    }
+
+    // Formater la réponse
+    const [longitude, latitude] = intervention.helperLocation.coordinates;
+
+    res.json({
+      success: true,
+      data: {
+        latitude,
+        longitude,
+        accuracy: intervention.helperLocation.accuracy || 10,
+        updatedAt: intervention.helperLocation.updatedAt
+      }
+    });
+
+  } catch (error) {
+    console.error('❌ Erreur getHelperLocation:', error);
+    logger.error(`Erreur getHelperLocation: ${error.message}`);
+    res.status(500).json({
+      success: false,
+      message: 'Erreur lors de la récupération de la position'
     });
   }
 };

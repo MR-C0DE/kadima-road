@@ -19,7 +19,25 @@ import { LinearGradient } from "expo-linear-gradient";
 
 const { width } = Dimensions.get("window");
 
+// ============================================
+// CONSTANTES
+// ============================================
 const RADIUS_OPTIONS = [5, 10, 15, 20, 25, 30, 40, 50];
+
+const CITIES = [
+  {
+    id: "ottawa",
+    name: "Ottawa",
+    coordinates: [-75.6919, 45.4215],
+    address: "Ottawa, ON",
+  },
+  {
+    id: "gatineau",
+    name: "Gatineau",
+    coordinates: [-75.7122, 45.4764],
+    address: "Gatineau, QC",
+  },
+];
 
 export default function ZoneScreen() {
   const router = useRouter();
@@ -27,7 +45,40 @@ export default function ZoneScreen() {
   const colors = Colors[colorScheme ?? "light"];
   const { data, updateZone } = useOnboarding();
 
-  // Animations
+  // ============================================
+  // FONCTION POUR EXTRAIRE LE RAYON (sécurisée)
+  // ============================================
+  const getRadiusValue = () => {
+    if (!data.radius) return "20";
+
+    // Si data.radius est un objet (nouveau format)
+    if (typeof data.radius === "object" && data.radius !== null) {
+      return data.radius.radius || "20";
+    }
+
+    // Si data.radius est une string (ancien format)
+    return data.radius;
+  };
+
+  // ============================================
+  // FONCTION POUR EXTRAIRE LA VILLE
+  // ============================================
+  const getCityId = () => {
+    if (!data.city) return null;
+    return data.city;
+  };
+
+  // ============================================
+  // ÉTATS LOCAUX
+  // ============================================
+  const [selectedCity, setSelectedCity] = useState<string | null>(getCityId());
+  const [citySelectorVisible, setCitySelectorVisible] = useState(false);
+  const [customAddress, setCustomAddress] = useState(data.address || "");
+  const [radius, setRadius] = useState(getRadiusValue());
+
+  // ============================================
+  // ANIMATIONS
+  // ============================================
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
   const progressAnim = useRef(new Animated.Value(0)).current;
@@ -52,16 +103,150 @@ export default function ZoneScreen() {
     ]).start();
   }, []);
 
+  // ============================================
+  // METTRE À JOUR LE CONTEXTE
+  // ============================================
+  const handleUpdateZone = () => {
+    if (!selectedCity) {
+      // Si pas de ville sélectionnée, utiliser les coordonnées par défaut (Ottawa)
+      const defaultCity = CITIES[0];
+      updateZone({
+        radius: radius,
+        address: customAddress || defaultCity.address,
+        city: defaultCity.id,
+        coordinates: defaultCity.coordinates,
+      });
+    } else {
+      const city = CITIES.find((c) => c.id === selectedCity);
+      updateZone({
+        radius: radius,
+        address: customAddress || city?.address || "",
+        city: selectedCity,
+        coordinates: city?.coordinates || CITIES[0].coordinates,
+      });
+    }
+  };
+
+  const handleNext = () => {
+    handleUpdateZone();
+    router.push("/(onboarding)/pricing");
+  };
+
   const progressWidth = progressAnim.interpolate({
     inputRange: [0, 1],
     outputRange: ["16.6%", "33.2%"],
   });
 
+  // ============================================
+  // RENDER DU SÉLECTEUR DE VILLE
+  // ============================================
+  const renderCitySelector = () => (
+    <View style={styles.citySection}>
+      <Text style={[styles.sectionLabel, { color: colors.textSecondary }]}>
+        Ville d'intervention *
+      </Text>
+
+      <TouchableOpacity
+        style={[
+          styles.citySelector,
+          {
+            backgroundColor: colors.card,
+            borderColor: selectedCity ? colors.primary : colors.border,
+          },
+        ]}
+        onPress={() => setCitySelectorVisible(!citySelectorVisible)}
+      >
+        <View style={styles.citySelectorContent}>
+          <Ionicons
+            name="business"
+            size={20}
+            color={selectedCity ? colors.primary : colors.textSecondary}
+          />
+          <Text
+            style={[
+              styles.citySelectorText,
+              { color: selectedCity ? colors.primary : colors.textSecondary },
+            ]}
+          >
+            {selectedCity
+              ? CITIES.find((c) => c.id === selectedCity)?.name
+              : "Choisissez votre ville"}
+          </Text>
+        </View>
+        <Ionicons
+          name={citySelectorVisible ? "chevron-up" : "chevron-down"}
+          size={20}
+          color={colors.textSecondary}
+        />
+      </TouchableOpacity>
+
+      {citySelectorVisible && (
+        <View style={[styles.cityList, { backgroundColor: colors.card }]}>
+          {CITIES.map((city) => (
+            <TouchableOpacity
+              key={city.id}
+              style={[
+                styles.cityItem,
+                selectedCity === city.id && {
+                  backgroundColor: colors.primary + "10",
+                },
+              ]}
+              onPress={() => {
+                setSelectedCity(city.id);
+                setCitySelectorVisible(false);
+                if (!customAddress) {
+                  setCustomAddress(city.address);
+                }
+              }}
+            >
+              <Ionicons
+                name="location"
+                size={20}
+                color={
+                  selectedCity === city.id
+                    ? colors.primary
+                    : colors.textSecondary
+                }
+              />
+              <View style={styles.cityItemInfo}>
+                <Text
+                  style={[
+                    styles.cityItemName,
+                    {
+                      color:
+                        selectedCity === city.id ? colors.primary : colors.text,
+                    },
+                  ]}
+                >
+                  {city.name}
+                </Text>
+                <Text
+                  style={[
+                    styles.cityItemAddress,
+                    { color: colors.textSecondary },
+                  ]}
+                >
+                  {city.address}
+                </Text>
+              </View>
+              {selectedCity === city.id && (
+                <Ionicons
+                  name="checkmark-circle"
+                  size={24}
+                  color={colors.primary}
+                />
+              )}
+            </TouchableOpacity>
+          ))}
+        </View>
+      )}
+    </View>
+  );
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle="light-content" />
 
-      {/* Header fixe */}
       <LinearGradient
         colors={[colors.primary, colors.secondary]}
         style={styles.header}
@@ -79,7 +264,6 @@ export default function ZoneScreen() {
           <View style={styles.headerRight} />
         </View>
 
-        {/* Barre de progression */}
         <View style={styles.progressContainer}>
           <View
             style={[
@@ -97,7 +281,6 @@ export default function ZoneScreen() {
         </View>
       </LinearGradient>
 
-      {/* Contenu scrollable */}
       <ScrollView
         showsVerticalScrollIndicator={false}
         contentContainerStyle={styles.scrollContent}
@@ -111,17 +294,19 @@ export default function ZoneScreen() {
             },
           ]}
         >
-          {/* Titre */}
           <View style={styles.titleContainer}>
             <Text style={[styles.title, { color: colors.text }]}>
               Zone d'intervention
             </Text>
             <Text style={[styles.subtitle, { color: colors.textSecondary }]}>
-              Choisissez votre rayon d'action
+              Choisissez votre ville et rayon d'action
             </Text>
           </View>
 
-          {/* Rayon actuel (affichage) */}
+          {/* Sélecteur de ville */}
+          {renderCitySelector()}
+
+          {/* Rayon actuel */}
           <View
             style={[styles.currentRadiusCard, { backgroundColor: colors.card }]}
           >
@@ -135,13 +320,14 @@ export default function ZoneScreen() {
               >
                 Rayon sélectionné
               </Text>
+              {/* ⚡ CORRECTION ICI : utiliser radius (state local) au lieu de data.radius */}
               <Text style={[styles.currentRadiusValue, { color: colors.text }]}>
-                {data.radius || "20"} km
+                {radius} km
               </Text>
             </View>
           </View>
 
-          {/* Sélecteur de rayon - 4 colonnes */}
+          {/* Sélecteur de rayon */}
           <View style={styles.radiusSection}>
             <Text
               style={[styles.sectionLabel, { color: colors.textSecondary }]}
@@ -150,7 +336,7 @@ export default function ZoneScreen() {
             </Text>
             <View style={styles.radiusGrid}>
               {RADIUS_OPTIONS.map((value) => {
-                const isSelected = data.radius === value.toString();
+                const isSelected = radius === value.toString();
 
                 return (
                   <TouchableOpacity
@@ -166,7 +352,7 @@ export default function ZoneScreen() {
                           : colors.border,
                       },
                     ]}
-                    onPress={() => updateZone(value.toString(), data.address)}
+                    onPress={() => setRadius(value.toString())}
                     activeOpacity={0.7}
                   >
                     <Text
@@ -196,7 +382,7 @@ export default function ZoneScreen() {
             <View style={styles.addressHeader}>
               <Ionicons name="home-outline" size={20} color={colors.primary} />
               <Text style={[styles.addressTitle, { color: colors.text }]}>
-                Adresse de base
+                Adresse précise
               </Text>
               <Text
                 style={[styles.optionalTag, { color: colors.textSecondary }]}
@@ -220,23 +406,24 @@ export default function ZoneScreen() {
                 style={[styles.input, { color: colors.text }]}
                 placeholder="123 rue Principale, Ottawa"
                 placeholderTextColor={colors.placeholder}
-                value={data.address}
-                onChangeText={(text) => updateZone(data.radius, text)}
+                value={customAddress}
+                onChangeText={setCustomAddress}
               />
             </View>
           </View>
 
-          {/* Espace pour éviter que le bouton cache le contenu */}
           <View style={styles.bottomSpace} />
         </Animated.View>
       </ScrollView>
 
-      {/* Footer fixe avec bouton */}
       <View style={[styles.footer, { borderTopColor: colors.border }]}>
         <TouchableOpacity
-          style={[styles.nextButton, !data.radius && styles.disabledButton]}
-          onPress={() => router.push("/(onboarding)/pricing")}
-          disabled={!data.radius}
+          style={[
+            styles.nextButton,
+            (!selectedCity || !radius) && styles.disabledButton,
+          ]}
+          onPress={handleNext}
+          disabled={!selectedCity || !radius}
           activeOpacity={0.9}
         >
           <LinearGradient
@@ -254,6 +441,9 @@ export default function ZoneScreen() {
   );
 }
 
+// ============================================
+// STYLES
+// ============================================
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -317,6 +507,52 @@ const styles = StyleSheet.create({
   },
   subtitle: {
     fontSize: 15,
+  },
+  citySection: {
+    marginBottom: 24,
+  },
+  citySelector: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    height: 56,
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+  },
+  citySelectorContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  citySelectorText: {
+    fontSize: 15,
+  },
+  cityList: {
+    marginTop: 8,
+    borderRadius: 16,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.1)",
+  },
+  cityItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    gap: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(0,0,0,0.05)",
+  },
+  cityItemInfo: {
+    flex: 1,
+  },
+  cityItemName: {
+    fontSize: 16,
+    fontWeight: "500",
+    marginBottom: 2,
+  },
+  cityItemAddress: {
+    fontSize: 12,
   },
   currentRadiusCard: {
     flexDirection: "row",

@@ -22,7 +22,6 @@ export default function ProfileStats({ profile, colors }: ProfileStatsProps) {
           Interventions
         </Text>
       </View>
-
       <View style={[styles.statBox, { backgroundColor: colors.card }]}>
         <Ionicons name="star" size={24} color="#FFD700" />
         <Text style={[styles.statNumber, { color: colors.text }]}>
@@ -32,7 +31,6 @@ export default function ProfileStats({ profile, colors }: ProfileStatsProps) {
           Note
         </Text>
       </View>
-
       <View style={[styles.statBox, { backgroundColor: colors.card }]}>
         <Ionicons name="trending-up" size={24} color="#4CAF50" />
         <Text style={[styles.statNumber, { color: colors.text }]}>
@@ -42,11 +40,10 @@ export default function ProfileStats({ profile, colors }: ProfileStatsProps) {
           Acceptation
         </Text>
       </View>
-
       <View style={[styles.statBox, { backgroundColor: colors.card }]}>
         <Ionicons name="wallet" size={24} color="#FF9800" />
         <Text style={[styles.statNumber, { color: colors.text }]}>
-          ${profile?.stats.totalEarnings?.toFixed(0) || 0}
+          {profile?.stats.totalEarnings?.toFixed(0) || 0}$
         </Text>
         <Text style={[styles.statLabel, { color: colors.textSecondary }]}>
           Gains
@@ -70,12 +67,6 @@ const styles = StyleSheet.create({
     alignItems: "center",
     gap: 4,
   },
-  statNumber: {
-    fontSize: 20,
-    fontWeight: "bold",
-    marginTop: 4,
-  },
-  statLabel: {
-    fontSize: 11,
-  },
+  statNumber: { fontSize: 20, fontWeight: "bold", marginTop: 4 },
+  statLabel: { fontSize: 11 },
 });

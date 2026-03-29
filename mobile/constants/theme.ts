@@ -1,51 +1,51 @@
-// constants/theme.ts
+// mobile/constants/theme.ts
 export const Colors = {
   light: {
-    background: "#1F1F1F", // gris très foncé
-    surface: "#2A2A2A",
-    card: "#2A2A2A",
+    background: "#F9FAFB", // blanc cassé pour le fond principal
+    surface: "#FFFFFF", // blanc pur pour les cartes
+    card: "#FFFFFF", // blanc pour les cartes
 
-    text: "#E5E5E5", // clair et lisible
-    textSecondary: "#B0B0B0", // gris doux
+    text: "#111827", // gris très foncé pour le texte principal
+    textSecondary: "#6B7280", // gris moyen pour le texte secondaire
 
-    primary: "#3B82F6", // bleu sérieux pour actions importantes
-    secondary: "#555555", // gris neutre pour éléments secondaires
-    accent: "#22D3EE", // turquoise très discret
+    primary: "#2563EB", // bleu vif pour les actions principales
+    secondary: "#7C3AED", // violet pour les éléments secondaires
+    accent: "#06B6D4", // cyan pour les accents
 
-    success: "#16A34A",
-    warning: "#FBBF24",
-    error: "#F87171",
-    info: "#60A5FA",
+    success: "#22C55E", // vert
+    warning: "#F59E0B", // orange
+    error: "#EF4444", // rouge
+    info: "#3B82F6", // bleu info
 
-    border: "#444444",
-    disabled: "#666666",
-    placeholder: "#777777",
+    border: "#E5E7EB", // gris clair pour les bordures
+    disabled: "#9CA3AF", // gris pour les éléments désactivés
+    placeholder: "#D1D5DB", // gris pour les placeholders
 
-    tabIconDefault: "#666666",
-    tabIconSelected: "#3B82F6",
+    tabIconDefault: "#9CA3AF", // gris pour les icônes inactives
+    tabIconSelected: "#2563EB", // bleu pour l'icône active
   },
   dark: {
-    background: "#0D0D0D", // noir profond
-    surface: "#1A1A1A",
-    card: "#1A1A1A",
+    background: "#0F172A", // bleu-gris très foncé
+    surface: "#1E293B", // bleu-gris pour les surfaces
+    card: "#1E293B", // idem pour les cartes
 
-    text: "#F5F5F5", // clair pour lisibilité
-    textSecondary: "#999999", // gris doux
+    text: "#F8FAFC", // blanc cassé
+    textSecondary: "#94A3B8", // gris bleuté
 
-    primary: "#3B82F6", // bleu sérieux
-    secondary: "#4B4B4B", // gris neutre
-    accent: "#1AC5D1", // turquoise discret
+    primary: "#3B82F6", // bleu
+    secondary: "#8B5CF6", // violet
+    accent: "#22D3EE", // cyan
 
-    success: "#4ADE80",
-    warning: "#FBBF24",
-    error: "#F87171",
-    info: "#60A5FA",
+    success: "#4ADE80", // vert clair
+    warning: "#FBBF24", // orange clair
+    error: "#F87171", // rouge clair
+    info: "#60A5FA", // bleu ciel
 
-    border: "#333333",
-    disabled: "#555555",
-    placeholder: "#777777",
+    border: "#334155", // gris foncé
+    disabled: "#64748B", // gris moyen
+    placeholder: "#475569", // gris foncé
 
-    tabIconDefault: "#555555",
-    tabIconSelected: "#3B82F6",
+    tabIconDefault: "#64748B", // gris pour icônes inactives
+    tabIconSelected: "#3B82F6", // bleu pour icône active
   },
 };

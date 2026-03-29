@@ -10,6 +10,13 @@ const sosAlertSchema = new mongoose.Schema({
     type: mongoose.Schema.Types.ObjectId,
     ref: 'Intervention'
   },
+  // ============================================
+  // AJOUT : Référence vers le véhicule (modèle)
+  // ============================================
+  vehicleRef: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'Vehicle'
+  },
   status: {
     type: String,
     enum: ['active', 'dispatched', 'resolved', 'cancelled'],
@@ -28,6 +35,10 @@ const sosAlertSchema = new mongoose.Schema({
     address: String,
     accuracy: Number
   },
+  // ============================================
+  // CONSERVÉ : Informations du véhicule pour historique
+  // (snapshot au moment du SOS)
+  // ============================================
   vehicle: {
     make: String,
     model: String,
@@ -84,6 +95,10 @@ const sosAlertSchema = new mongoose.Schema({
 
 sosAlertSchema.index({ 'location.coordinates': '2dsphere' });
 sosAlertSchema.index({ status: 1, createdAt: -1 });
+// ============================================
+// AJOUT : Index pour les recherches par véhicule
+// ============================================
+sosAlertSchema.index({ vehicleRef: 1 });
 
 const SOSAlert = mongoose.model('SOSAlert', sosAlertSchema);
 export default SOSAlert;

@@ -7,6 +7,12 @@ export const createInterventionValidation = [
     .isIn(['sos', 'assistance', 'towing', 'diagnostic'])
     .withMessage('Type d\'intervention invalide'),
   
+  // ⚡ NOUVEAU : Validation pour l'ID du véhicule
+  body('vehicleId')
+    .optional()
+    .isMongoId()
+    .withMessage('ID de véhicule invalide'),
+  
   body('problem.description')
     .notEmpty()
     .withMessage('La description du problème est requise')

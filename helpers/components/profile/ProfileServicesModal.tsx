@@ -1,4 +1,6 @@
-import React from "react";
+// helpers/components/profile/ProfileServicesModal.tsx
+
+import React, { useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -6,18 +8,19 @@ import {
   TouchableOpacity,
   Modal,
   ScrollView,
+  Animated, // ← Importer Animated depuis react-native
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
+
 import { SERVICES_LIST } from "./constants";
 
 interface ProfileServicesModalProps {
   visible: boolean;
   selectedServices: string[];
   colors: any;
-  colorScheme: string | null | undefined;
-  scaleAnim: any;
+  colorScheme: string | null;
   onClose: () => void;
   onToggleService: (serviceId: string) => void;
   onSave: () => void;
@@ -28,11 +31,25 @@ export default function ProfileServicesModal({
   selectedServices,
   colors,
   colorScheme,
-  scaleAnim,
   onClose,
   onToggleService,
   onSave,
 }: ProfileServicesModalProps) {
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
+
+  useEffect(() => {
+    if (visible) {
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      scaleAnim.setValue(0.9);
+    }
+  }, [visible]);
+
   return (
     <Modal
       visible={visible}
@@ -41,7 +58,12 @@ export default function ProfileServicesModal({
       onRequestClose={onClose}
     >
       <BlurView intensity={90} tint={colorScheme} style={styles.modalOverlay}>
-        <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} />
+        <TouchableOpacity
+          style={StyleSheet.absoluteFill}
+          onPress={onClose}
+          activeOpacity={1}
+        />
+
         <Animated.View
           style={[
             styles.modalContent,
@@ -126,9 +148,6 @@ export default function ProfileServicesModal({
     </Modal>
   );
 }
-
-// Note: Importer Animated
-import Animated from "react-native-reanimated";
 
 const styles = StyleSheet.create({
   modalOverlay: {

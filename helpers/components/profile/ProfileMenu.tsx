@@ -1,13 +1,16 @@
+// helpers/components/profile/ProfileMenu.tsx
+// Version avec titres, sans lignes séparatrices, design amélioré
+
 import React from "react";
 import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { HelperProfile, ModalType } from "./types";
+import { HelperProfile } from "./types";
 
 interface ProfileMenuProps {
   profile: HelperProfile | null;
   colors: any;
-  onMenuItemPress: (modalType: ModalType) => void;
+  onMenuItemPress: (itemId: string) => void;
 }
 
 export default function ProfileMenu({
@@ -15,26 +18,48 @@ export default function ProfileMenu({
   colors,
   onMenuItemPress,
 }: ProfileMenuProps) {
+  // Utilitaires pour les compteurs
+  const getServiceCount = () => profile?.services?.length || 0;
+  const getEquipmentCount = () => profile?.equipment?.length || 0;
+  const getDocumentCount = () =>
+    Object.values(profile?.documents || {}).filter((d: any) => d?.url).length;
+
   return (
     <View style={styles.menuSection}>
-      <Text style={[styles.sectionTitle, { color: colors.text }]}>Gestion</Text>
+      {/* ============================================
+          SECTION GESTION (titre stylisé)
+      ============================================ */}
+      <View style={styles.sectionHeader}>
+        <LinearGradient
+          colors={[colors.primary + "20", colors.secondary + "10"]}
+          style={styles.sectionIcon}
+        >
+          <Ionicons name="settings-outline" size={14} color={colors.primary} />
+        </LinearGradient>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>
+          Gestion
+        </Text>
+      </View>
 
+      {/* Services */}
       <TouchableOpacity
         style={[styles.menuItem, { backgroundColor: colors.card }]}
         onPress={() => onMenuItemPress("services")}
+        activeOpacity={0.7}
       >
         <LinearGradient
           colors={[colors.primary + "20", colors.secondary + "10"]}
           style={styles.menuIconContainer}
         >
-          <Ionicons name="construct" size={24} color={colors.primary} />
+          <Ionicons name="construct" size={22} color={colors.primary} />
         </LinearGradient>
         <View style={styles.menuContent}>
           <Text style={[styles.menuTitle, { color: colors.text }]}>
             Services
           </Text>
           <Text style={[styles.menuSubtitle, { color: colors.textSecondary }]}>
-            {profile?.services?.length || 0} services proposés
+            {getServiceCount()} service{getServiceCount() !== 1 ? "s" : ""}{" "}
+            proposé{getServiceCount() !== 1 ? "s" : ""}
           </Text>
         </View>
         <Ionicons
@@ -44,22 +69,25 @@ export default function ProfileMenu({
         />
       </TouchableOpacity>
 
+      {/* Équipement */}
       <TouchableOpacity
         style={[styles.menuItem, { backgroundColor: colors.card }]}
         onPress={() => onMenuItemPress("equipment")}
+        activeOpacity={0.7}
       >
         <LinearGradient
           colors={[colors.primary + "20", colors.secondary + "10"]}
           style={styles.menuIconContainer}
         >
-          <Ionicons name="build" size={24} color={colors.primary} />
+          <Ionicons name="build" size={22} color={colors.primary} />
         </LinearGradient>
         <View style={styles.menuContent}>
           <Text style={[styles.menuTitle, { color: colors.text }]}>
             Équipement
           </Text>
           <Text style={[styles.menuSubtitle, { color: colors.textSecondary }]}>
-            {profile?.equipment?.length || 0} équipements
+            {getEquipmentCount()} équipement
+            {getEquipmentCount() !== 1 ? "s" : ""}
           </Text>
         </View>
         <Ionicons
@@ -69,15 +97,17 @@ export default function ProfileMenu({
         />
       </TouchableOpacity>
 
+      {/* Zone d'intervention */}
       <TouchableOpacity
         style={[styles.menuItem, { backgroundColor: colors.card }]}
         onPress={() => onMenuItemPress("zone")}
+        activeOpacity={0.7}
       >
         <LinearGradient
           colors={[colors.primary + "20", colors.secondary + "10"]}
           style={styles.menuIconContainer}
         >
-          <Ionicons name="location" size={24} color={colors.primary} />
+          <Ionicons name="location" size={22} color={colors.primary} />
         </LinearGradient>
         <View style={styles.menuContent}>
           <Text style={[styles.menuTitle, { color: colors.text }]}>
@@ -85,7 +115,9 @@ export default function ProfileMenu({
           </Text>
           <Text style={[styles.menuSubtitle, { color: colors.textSecondary }]}>
             {profile?.serviceArea.radius || 20} km -{" "}
-            {profile?.serviceArea.address || "Adresse non définie"}
+            {profile?.address ||
+              profile?.serviceArea?.address ||
+              "Adresse non définie"}
           </Text>
         </View>
         <Ionicons
@@ -95,21 +127,23 @@ export default function ProfileMenu({
         />
       </TouchableOpacity>
 
+      {/* Tarifs */}
       <TouchableOpacity
         style={[styles.menuItem, { backgroundColor: colors.card }]}
         onPress={() => onMenuItemPress("pricing")}
+        activeOpacity={0.7}
       >
         <LinearGradient
           colors={[colors.primary + "20", colors.secondary + "10"]}
           style={styles.menuIconContainer}
         >
-          <Ionicons name="cash" size={24} color={colors.primary} />
+          <Ionicons name="cash" size={22} color={colors.primary} />
         </LinearGradient>
         <View style={styles.menuContent}>
           <Text style={[styles.menuTitle, { color: colors.text }]}>Tarifs</Text>
           <Text style={[styles.menuSubtitle, { color: colors.textSecondary }]}>
-            ${profile?.pricing.basePrice || 25} de base + $
-            {profile?.pricing.perKm || 1}/km
+            {profile?.pricing.basePrice || 25}$ de base +{" "}
+            {profile?.pricing.perKm || 1}$/km
           </Text>
         </View>
         <Ionicons
@@ -119,22 +153,24 @@ export default function ProfileMenu({
         />
       </TouchableOpacity>
 
+      {/* Documents */}
       <TouchableOpacity
         style={[styles.menuItem, { backgroundColor: colors.card }]}
         onPress={() => onMenuItemPress("documents")}
+        activeOpacity={0.7}
       >
         <LinearGradient
           colors={[colors.primary + "20", colors.secondary + "10"]}
           style={styles.menuIconContainer}
         >
-          <Ionicons name="document" size={24} color={colors.primary} />
+          <Ionicons name="document" size={22} color={colors.primary} />
         </LinearGradient>
         <View style={styles.menuContent}>
           <Text style={[styles.menuTitle, { color: colors.text }]}>
             Documents
           </Text>
           <Text style={[styles.menuSubtitle, { color: colors.textSecondary }]}>
-            {profile?.documents?.length || 0} documents
+            {getDocumentCount()} document{getDocumentCount() !== 1 ? "s" : ""}
           </Text>
         </View>
         <Ionicons
@@ -144,22 +180,166 @@ export default function ProfileMenu({
         />
       </TouchableOpacity>
 
+      {/* ============================================
+          SECTION PRÉFÉRENCES (titre stylisé)
+      ============================================ */}
+      <View style={styles.sectionHeader}>
+        <LinearGradient
+          colors={[colors.primary + "20", colors.secondary + "10"]}
+          style={styles.sectionIcon}
+        >
+          <Ionicons name="heart-outline" size={14} color={colors.primary} />
+        </LinearGradient>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>
+          Préférences
+        </Text>
+      </View>
+
+      {/* Apparence */}
       <TouchableOpacity
         style={[styles.menuItem, { backgroundColor: colors.card }]}
-        onPress={() => onMenuItemPress("preferences")}
+        onPress={() => onMenuItemPress("appearance")}
+        activeOpacity={0.7}
       >
         <LinearGradient
           colors={[colors.primary + "20", colors.secondary + "10"]}
           style={styles.menuIconContainer}
         >
-          <Ionicons name="settings" size={24} color={colors.primary} />
+          <Ionicons name="color-palette" size={22} color={colors.primary} />
         </LinearGradient>
         <View style={styles.menuContent}>
           <Text style={[styles.menuTitle, { color: colors.text }]}>
-            Préférences
+            Apparence
           </Text>
           <Text style={[styles.menuSubtitle, { color: colors.textSecondary }]}>
-            Langue, thème, notifications
+            Thème, langue
+          </Text>
+        </View>
+        <Ionicons
+          name="chevron-forward"
+          size={20}
+          color={colors.textSecondary}
+        />
+      </TouchableOpacity>
+
+      {/* Notifications */}
+      <TouchableOpacity
+        style={[styles.menuItem, { backgroundColor: colors.card }]}
+        onPress={() => onMenuItemPress("notifications")}
+        activeOpacity={0.7}
+      >
+        <LinearGradient
+          colors={[colors.primary + "20", colors.secondary + "10"]}
+          style={styles.menuIconContainer}
+        >
+          <Ionicons name="notifications" size={22} color={colors.primary} />
+        </LinearGradient>
+        <View style={styles.menuContent}>
+          <Text style={[styles.menuTitle, { color: colors.text }]}>
+            Notifications
+          </Text>
+          <Text style={[styles.menuSubtitle, { color: colors.textSecondary }]}>
+            Push, email, SMS
+          </Text>
+        </View>
+        <Ionicons
+          name="chevron-forward"
+          size={20}
+          color={colors.textSecondary}
+        />
+      </TouchableOpacity>
+
+      {/* ============================================
+          SECTION COMPTE (titre stylisé)
+      ============================================ */}
+      <View style={styles.sectionHeader}>
+        <LinearGradient
+          colors={[colors.primary + "20", colors.secondary + "10"]}
+          style={styles.sectionIcon}
+        >
+          <Ionicons name="person-outline" size={14} color={colors.primary} />
+        </LinearGradient>
+        <Text style={[styles.sectionTitle, { color: colors.text }]}>
+          Compte
+        </Text>
+      </View>
+
+      {/* Compte et sécurité */}
+      <TouchableOpacity
+        style={[styles.menuItem, { backgroundColor: colors.card }]}
+        onPress={() => onMenuItemPress("account")}
+        activeOpacity={0.7}
+      >
+        <LinearGradient
+          colors={[colors.primary + "20", colors.secondary + "10"]}
+          style={styles.menuIconContainer}
+        >
+          <Ionicons name="person" size={22} color={colors.primary} />
+        </LinearGradient>
+        <View style={styles.menuContent}>
+          <Text style={[styles.menuTitle, { color: colors.text }]}>
+            Compte et sécurité
+          </Text>
+          <Text style={[styles.menuSubtitle, { color: colors.textSecondary }]}>
+            Profil, mot de passe
+          </Text>
+        </View>
+        <Ionicons
+          name="chevron-forward"
+          size={20}
+          color={colors.textSecondary}
+        />
+      </TouchableOpacity>
+
+      {/* Aide et support */}
+      <TouchableOpacity
+        style={[styles.menuItem, { backgroundColor: colors.card }]}
+        onPress={() => onMenuItemPress("support")}
+        activeOpacity={0.7}
+      >
+        <LinearGradient
+          colors={[colors.primary + "20", colors.secondary + "10"]}
+          style={styles.menuIconContainer}
+        >
+          <Ionicons name="help-circle" size={22} color={colors.primary} />
+        </LinearGradient>
+        <View style={styles.menuContent}>
+          <Text style={[styles.menuTitle, { color: colors.text }]}>
+            Aide et support
+          </Text>
+          <Text style={[styles.menuSubtitle, { color: colors.textSecondary }]}>
+            Centre d'aide, contact
+          </Text>
+        </View>
+        <Ionicons
+          name="chevron-forward"
+          size={20}
+          color={colors.textSecondary}
+        />
+      </TouchableOpacity>
+
+      {/* À propos */}
+      <TouchableOpacity
+        style={[styles.menuItem, { backgroundColor: colors.card }]}
+        onPress={() => onMenuItemPress("about")}
+        activeOpacity={0.7}
+      >
+        <LinearGradient
+          colors={[colors.primary + "20", colors.secondary + "10"]}
+          style={styles.menuIconContainer}
+        >
+          <Ionicons
+            name="information-circle"
+            size={22}
+            color={colors.primary}
+          />
+        </LinearGradient>
+        <View style={styles.menuContent}>
+          <Text style={[styles.menuTitle, { color: colors.text }]}>
+            À propos
+          </Text>
+          <Text style={[styles.menuSubtitle, { color: colors.textSecondary }]}>
+            Version, conditions
           </Text>
         </View>
         <Ionicons
@@ -174,26 +354,45 @@ export default function ProfileMenu({
 
 const styles = StyleSheet.create({
   menuSection: {
-    gap: 12,
+    gap: 8,
     marginBottom: 20,
   },
+  sectionHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+    marginTop: 8,
+    marginBottom: 8,
+    paddingHorizontal: 4,
+  },
+  sectionIcon: {
+    width: 28,
+    height: 28,
+    borderRadius: 14,
+    justifyContent: "center",
+    alignItems: "center",
+  },
   sectionTitle: {
-    fontSize: 16,
+    fontSize: 15,
     fontWeight: "600",
-    marginBottom: 4,
-    marginLeft: 4,
+    letterSpacing: -0.3,
   },
   menuItem: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 16,
-    borderRadius: 20,
+    padding: 14,
+    borderRadius: 18,
     gap: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
   },
   menuIconContainer: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
+    width: 44,
+    height: 44,
+    borderRadius: 22,
     justifyContent: "center",
     alignItems: "center",
   },

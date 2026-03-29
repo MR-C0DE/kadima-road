@@ -1,93 +1,49 @@
-import React, { useEffect, useState, useRef } from "react";
+// helpers/app/(tabs)/missions.tsx - VERSION CORRIGÉE
+import React, { useEffect, useState, useRef, useCallback } from "react";
 import {
   View,
   Text,
   StyleSheet,
-  TouchableOpacity,
   Alert,
   ActivityIndicator,
   ScrollView,
   RefreshControl,
   Dimensions,
   Animated,
-  Easing,
   Platform,
   StatusBar,
   Linking,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { useAuth } from "../../contexts/AuthContext";
+import { useSocket } from "../../contexts/SocketContext";
 import { api } from "../../config/api";
 import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import * as Haptics from "expo-haptics";
-import MapView, { Marker, PROVIDER_GOOGLE } from "react-native-maps";
-import MapViewDirections from "react-native-maps-directions";
 import * as Location from "expo-location";
 
+import {
+  CancelMissionModal,
+  SOSCard,
+  CurrentMissionCard,
+  HistoryCard,
+  MissionTabs,
+  MissionsHeader,
+} from "../../components/missions";
+import { CancelNotificationModal } from "../../components/CancelNotificationModal";
+import type { Mission } from "../../components/missions/types";
+
 const { width } = Dimensions.get("window");
-const GOOGLE_MAPS_APIKEY = "AIzaSyDGpdR97HaU5KBE3yTSq_W7Lu5StXhJh1E";
-
-// Interface pour les missions acceptées
-interface Mission {
-  _id: string;
-  type: string;
-  status:
-    | "pending"
-    | "accepted"
-    | "en_route"
-    | "arrived"
-    | "in_progress"
-    | "completed"
-    | "cancelled";
-  distance: number;
-  reward: number;
-  client: {
-    firstName: string;
-    lastName: string;
-    phone: string;
-    photo?: string;
-  };
-  problem: {
-    description: string;
-    category: string;
-  };
-  location: {
-    address: string;
-    coordinates: [number, number];
-  };
-  createdAt: string;
-  acceptedAt?: string;
-  completedAt?: string;
-  estimatedTime?: string;
-}
-
-// NOUVELLE INTERFACE pour les SOS disponibles
-interface AvailableSOS {
-  _id: string;
-  type: string;
-  distance: number;
-  reward: number;
-  client: {
-    firstName: string;
-    lastName: string;
-  };
-  problem: {
-    description: string;
-    category: string;
-  };
-  location: {
-    address: string;
-    coordinates: [number, number];
-  };
-  createdAt: string;
-}
+const LOCATION_INTERVAL = 2000;
 
 export default function MissionsScreen() {
+  // ← EXPORT PAR DÉFAUT
   const router = useRouter();
   const { user } = useAuth();
+  const { joinInterventionRoom, updateStatus, isConnected } = useSocket();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? "light"];
 
@@ -96,34 +52,312 @@ export default function MissionsScreen() {
   const [refreshing, setRefreshing] = useState(false);
   const [activeTab, setActiveTab] = useState<
     "available" | "current" | "history"
-  >("available"); // ← NOUVEAU TAB
-  const [availableSOS, setAvailableSOS] = useState<AvailableSOS[]>([]); // ← NOUVEAU
+  >("available");
+  const [availableSOS, setAvailableSOS] = useState<any[]>([]);
   const [currentMissions, setCurrentMissions] = useState<Mission[]>([]);
   const [historyMissions, setHistoryMissions] = useState<Mission[]>([]);
-
-  // États pour la localisation
-  const [helperLocation, setHelperLocation] = useState<{
-    latitude: number;
-    longitude: number;
-  } | null>(null);
-  const [locationSubscription, setLocationSubscription] = useState<any>(null);
-  const [selectedMission, setSelectedMission] = useState<Mission | null>(null);
-  const [selectedSOS, setSelectedSOS] = useState<AvailableSOS | null>(null); // ← NOUVEAU
-  const [showMap, setShowMap] = useState(false);
-  const [mapRegion, setMapRegion] = useState({
-    latitude: 45.4215,
-    longitude: -75.6919,
-    latitudeDelta: 0.05,
-    longitudeDelta: 0.05,
+  const [helperLocation, setHelperLocation] = useState<any>(null);
+  const [cancelModalVisible, setCancelModalVisible] = useState(false);
+  const [cancelMissionId, setCancelMissionId] = useState<string | null>(null);
+  // État pour le modal d'annulation (pour missions en cours)
+  const [cancelModal, setCancelModal] = useState<{
+    visible: boolean;
+    missionId: string;
+    missionTitle: string;
+    reason?: string;
+    cancelledBy: "user" | "helper" | "system";
+    autoCloseDelay: number;
+  }>({
+    visible: false,
+    missionId: "",
+    missionTitle: "",
+    cancelledBy: "system",
+    autoCloseDelay: 0,
   });
+  // Refs
+  const locationIntervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isMountedRef = useRef(true);
+  const currentInterventionIdRef = useRef<string | null>(null);
+  const currentMissionsRef = useRef(currentMissions);
 
   // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
-  const scaleAnim = useRef(new Animated.Value(0.95)).current;
   const tabIndicatorAnim = useRef(new Animated.Value(0)).current;
 
+  // ============================================
+  // WEBSOCKET - ENVOI POSITION
+  // ============================================
+  const startLocationStream = useCallback(
+    async (interventionId: string) => {
+      if (!isConnected) return;
+      currentInterventionIdRef.current = interventionId;
+      if (locationIntervalRef.current)
+        clearInterval(locationIntervalRef.current);
+
+      locationIntervalRef.current = setInterval(async () => {
+        if (!isMountedRef.current || !currentInterventionIdRef.current) return;
+        try {
+          const loc = await Location.getCurrentPositionAsync({
+            accuracy: Location.Accuracy.High,
+          });
+          const newLoc = {
+            latitude: loc.coords.latitude,
+            longitude: loc.coords.longitude,
+          };
+          setHelperLocation(newLoc);
+          const socket = require("../../services/socket").getSocket();
+          if (socket?.connected) {
+            socket.emit("location-update", {
+              interventionId,
+              latitude: newLoc.latitude,
+              longitude: newLoc.longitude,
+            });
+          }
+        } catch (error) {
+          console.error("Location error:", error);
+        }
+      }, LOCATION_INTERVAL);
+    },
+    [isConnected]
+  );
+
+  const stopLocationStream = useCallback(() => {
+    if (locationIntervalRef.current) {
+      clearInterval(locationIntervalRef.current);
+      locationIntervalRef.current = null;
+    }
+    currentInterventionIdRef.current = null;
+  }, []);
+
+  // ============================================
+  // CHARGEMENT DES DONNÉES
+  // ============================================
+  const loadAvailableSOS = useCallback(async () => {
+    if (!isMountedRef.current) return;
+    try {
+      const loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.Balanced,
+      });
+      const res = await api.get("/helpers/available-sos", {
+        params: {
+          lat: loc.coords.latitude,
+          lng: loc.coords.longitude,
+          radius: 100,
+        },
+        timeout: 10000,
+      });
+      if (isMountedRef.current) setAvailableSOS(res.data.data || []);
+    } catch (error) {
+      if (isMountedRef.current) setAvailableSOS([]);
+    }
+  }, []);
+
+  const loadCurrentMissions = useCallback(async () => {
+    if (!isMountedRef.current) return;
+    try {
+      const res = await api.get("/helpers/missions/current", {
+        timeout: 10000,
+      });
+      if (isMountedRef.current) setCurrentMissions(res.data.data || []);
+    } catch (error) {}
+  }, []);
+
+  const loadHistoryMissions = useCallback(async () => {
+    if (!isMountedRef.current) return;
+    try {
+      const res = await api.get("/helpers/missions/history", {
+        timeout: 10000,
+      });
+      if (isMountedRef.current) setHistoryMissions(res.data.data || []);
+    } catch (error) {}
+  }, []);
+
+  const loadAllData = useCallback(async () => {
+    await Promise.all([
+      loadAvailableSOS(),
+      loadCurrentMissions(),
+      loadHistoryMissions(),
+    ]);
+  }, [loadAvailableSOS, loadCurrentMissions, loadHistoryMissions]);
+
+  // ============================================
+  // ACTIONS
+  // ============================================
+  const handleAcceptSOS = async (sosId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      const loc = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+      const res = await api.post(
+        `/helpers/accept-sos/${sosId}`,
+        {},
+        { params: { lat: loc.coords.latitude, lng: loc.coords.longitude } }
+      );
+      const { intervention, eta } = res.data.data;
+      joinInterventionRoom(intervention._id);
+      startLocationStream(intervention._id);
+
+      Alert.alert("✅ SOS accepté !", `Arrivée estimée : ${eta} min`, [
+        {
+          text: "Voir la mission",
+          onPress: () => router.push(`/missions/${intervention._id}`),
+        },
+      ]);
+      await loadCurrentMissions();
+      setActiveTab("current");
+    } catch (error: any) {
+      Alert.alert(
+        "Erreur",
+        error.response?.data?.message || "Impossible d'accepter"
+      );
+    }
+  };
+
+  const handleUpdateStatus = async (
+    missionId: string,
+    newStatus: string,
+    reason?: string
+  ) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    try {
+      setCurrentMissions((prev) =>
+        prev.map((m) => (m._id === missionId ? { ...m, status: newStatus } : m))
+      );
+      updateStatus(missionId, newStatus, reason);
+      await api.put(`/helpers/missions/${missionId}/status`, {
+        status: newStatus,
+        reason,
+      });
+
+      if (newStatus === "en_route") startLocationStream(missionId);
+      if (newStatus === "completed" || newStatus === "cancelled")
+        stopLocationStream();
+
+      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      if (newStatus === "completed" || newStatus === "cancelled") {
+        Alert.alert(
+          "Succès",
+          newStatus === "completed" ? "Mission terminée" : "Mission annulée"
+        );
+      }
+    } catch (error: any) {
+      console.error("❌ Erreur:", error.response?.data);
+      Alert.alert(
+        "Erreur",
+        error.response?.data?.message || "Impossible de mettre à jour"
+      );
+      await loadCurrentMissions();
+    }
+  };
+
+  const handleCancelPress = (missionId: string) => {
+    setCancelMissionId(missionId);
+    setCancelModalVisible(true);
+  };
+
+  const handleCancelConfirm = async (reason: string) => {
+    if (cancelMissionId) {
+      await handleUpdateStatus(cancelMissionId, "cancelled", reason);
+      setCancelModalVisible(false);
+      setCancelMissionId(null);
+    }
+  };
+
+  const handleCallPress = (phone: string) => {
+    if (phone) Linking.openURL(`tel:${phone}`);
+    else Alert.alert("Erreur", "Numéro de téléphone non disponible");
+  };
+
+  const handleViewDetails = (missionId: string) => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    router.push(`/missions/${missionId}`);
+  };
+
+  // À ajouter après les autres useEffect
   useEffect(() => {
+    currentMissionsRef.current = currentMissions;
+  }, [currentMissions]);
+  // ============================================
+  // ÉCOUTEURS WEBSOCKET
+  // ============================================
+  // helpers/app/(tabs)/missions.tsx
+  useEffect(() => {
+    const socket = require("../../services/socket").getSocket();
+    if (!socket) return;
+
+    // ✅ NOUVEAU : Détail d'annulation
+    const handleMissionCancelledDetail = (data: {
+      missionId: string;
+      cancelledBy: "user" | "helper" | "system";
+      reason?: string;
+      missionTitle: string;
+    }) => {
+      console.log("📢 [Missions] Détail annulation:", data);
+
+      // Récupérer la mission dans currentMissions
+      const mission = currentMissions.find((m) => m._id === data.missionId);
+
+      // Cas 1: La mission n'est pas encore acceptée (pending)
+      if (mission?.status === "pending") {
+        loadAllData();
+        Toast.show({
+          type: "info",
+          text1: "Mission annulée",
+          text2: data.reason || "Le client a annulé la mission",
+          position: "bottom",
+          visibilityTime: 2000,
+        });
+      }
+      // Cas 2: Mission en cours (accepted, en_route, arrived, in_progress)
+      else if (
+        mission &&
+        ["accepted", "en_route", "arrived", "in_progress"].includes(
+          mission.status
+        )
+      ) {
+        // Afficher le modal
+        setCancelModal({
+          visible: true,
+          missionId: data.missionId,
+          missionTitle: data.missionTitle,
+          reason: data.reason,
+          cancelledBy: data.cancelledBy,
+          autoCloseDelay: 0,
+        });
+        // Supprimer des missions en cours
+        setCurrentMissions((prev) =>
+          prev.filter((m) => m._id !== data.missionId)
+        );
+        Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+      }
+      // Cas 3: Autres cas, recharger les données
+      else {
+        loadAllData();
+      }
+    };
+
+    socket.on("mission-cancelled-detail", handleMissionCancelledDetail);
+
+    return () => {
+      socket.off("mission-cancelled-detail", handleMissionCancelledDetail);
+    };
+  }, [currentMissions]); // ⚠️ Ajouter currentMissions dans les dépendances
+
+  // ============================================
+  // INITIALISATION
+  // ============================================
+  useEffect(() => {
+    isMountedRef.current = true;
+
+    const init = async () => {
+      await loadAllData();
+      setLoading(false);
+    };
+    init();
+
+    // Animations d'entrée
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -133,377 +367,59 @@ export default function MissionsScreen() {
       Animated.timing(slideAnim, {
         toValue: 0,
         duration: 600,
-        easing: Easing.out(Easing.cubic),
-        useNativeDriver: true,
-      }),
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        friction: 8,
-        tension: 40,
         useNativeDriver: true,
       }),
     ]).start();
 
-    loadAllData();
-    requestLocationPermission();
+    // ✅ PAS DE POLLING - Socket.IO gère les mises à jour en temps réel
+    // Les événements WebSocket couvrent :
+    // - new-mission : quand un SOS est créé
+    // - status-update : quand une mission change de statut
+    // - mission-cancelled : quand une mission est annulée
 
     return () => {
-      stopLocationTracking();
+      isMountedRef.current = false;
+      stopLocationStream();
     };
   }, []);
-
+  // Animation de l'indicateur d'onglet
   useEffect(() => {
-    let tabIndex = 0;
-    if (activeTab === "available") tabIndex = 0;
-    if (activeTab === "current") tabIndex = 1;
-    if (activeTab === "history") tabIndex = 2;
-
     Animated.spring(tabIndicatorAnim, {
-      toValue: tabIndex,
+      toValue: activeTab === "available" ? 0 : activeTab === "current" ? 1 : 2,
       friction: 8,
       tension: 40,
       useNativeDriver: true,
     }).start();
   }, [activeTab]);
 
-  useEffect(() => {
-    if (selectedMission) {
-      setMapRegion({
-        latitude: selectedMission.location.coordinates[1],
-        longitude: selectedMission.location.coordinates[0],
-        latitudeDelta: 0.05,
-        longitudeDelta: 0.05,
-      });
-    }
-    if (selectedSOS) {
-      setMapRegion({
-        latitude: selectedSOS.location.coordinates[1],
-        longitude: selectedSOS.location.coordinates[0],
-        latitudeDelta: 0.05,
-        longitudeDelta: 0.05,
-      });
-    }
-  }, [selectedMission, selectedSOS]);
-
-  const requestLocationPermission = async () => {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert(
-        "Permission refusée",
-        "Besoin de la localisation pour voir les itinéraires"
-      );
-    }
-  };
-
-  const startLocationTracking = async (mission: Mission) => {
-    setSelectedMission(mission);
-    setSelectedSOS(null);
-    setShowMap(true);
-
-    const { status } = await Location.getForegroundPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert(
-        "Permission refusée",
-        "Activez la localisation pour voir l'itinéraire"
-      );
-      return;
-    }
-
-    try {
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
-
-      setHelperLocation({
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-      });
-
-      setMapRegion({
-        latitude:
-          (location.coords.latitude + mission.location.coordinates[1]) / 2,
-        longitude:
-          (location.coords.longitude + mission.location.coordinates[0]) / 2,
-        latitudeDelta: 0.1,
-        longitudeDelta: 0.1,
-      });
-
-      const subscription = await Location.watchPositionAsync(
-        {
-          accuracy: Location.Accuracy.High,
-          timeInterval: 5000,
-          distanceInterval: 10,
-        },
-        (newLocation) => {
-          setHelperLocation({
-            latitude: newLocation.coords.latitude,
-            longitude: newLocation.coords.longitude,
-          });
-        }
-      );
-
-      setLocationSubscription(subscription);
-    } catch (error) {
-      console.log("Erreur localisation:", error);
-    }
-  };
-
-  const stopLocationTracking = () => {
-    if (locationSubscription) {
-      locationSubscription.remove();
-      setLocationSubscription(null);
-    }
-  };
-
-  // ⚡ NOUVELLE FONCTION pour charger les SOS disponibles
-  const loadAvailableSOS = async () => {
-    try {
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
-
-      const response = await api.get("/helpers/available-sos", {
-        params: {
-          lat: location.coords.latitude,
-          lng: location.coords.longitude,
-          radius: 20,
-        },
-      });
-
-      setAvailableSOS(response.data.data || []);
-    } catch (error) {
-      console.log("Erreur chargement SOS disponibles:", error);
-    }
-  };
-
-  const loadMissions = async () => {
-    try {
-      const currentResponse = await api.get("/helpers/missions/current");
-      setCurrentMissions(currentResponse.data.data || []);
-
-      const historyResponse = await api.get("/helpers/missions/history");
-      setHistoryMissions(historyResponse.data.data || []);
-    } catch (error) {
-      console.log("Erreur chargement missions:", error);
-    }
-  };
-
-  const loadAllData = async () => {
-    setLoading(true);
-    await Promise.all([loadAvailableSOS(), loadMissions()]);
-    setLoading(false);
-  };
+  const tabIndicatorPosition = tabIndicatorAnim.interpolate({
+    inputRange: [0, 1, 2],
+    outputRange: [0, (width - 40) / 3, ((width - 40) / 3) * 2],
+  });
 
   const onRefresh = async () => {
+    Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     setRefreshing(true);
-    if (Platform.OS !== "web") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
-    }
     await loadAllData();
     setRefreshing(false);
   };
 
-  // ⚡ NOUVELLE FONCTION pour accepter un SOS
-  const handleAcceptSOS = async (sosId: string) => {
-    if (Platform.OS !== "web") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
-
-    try {
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
-
-      const response = await api.post(`/helpers/accept-sos/${sosId}`, null, {
-        params: {
-          lat: location.coords.latitude,
-          lng: location.coords.longitude,
-        },
-      });
-
-      const { intervention, eta } = response.data.data;
-
-      Alert.alert(
-        "✅ SOS accepté !",
-        `Temps d'arrivée estimé : ${eta} minutes`,
-        [
-          {
-            text: "Voir la mission",
-            onPress: () => router.push(`/missions/${intervention._id}`),
-          },
-        ]
-      );
-
-      // Recharger les données
-      await loadAllData();
-      setActiveTab("current"); // Basculer vers l'onglet "En cours"
-    } catch (error: any) {
-      Alert.alert(
-        "Erreur",
-        error.response?.data?.message || "Impossible d'accepter le SOS"
-      );
-    }
-  };
-
-  const updateMissionStatus = async (missionId: string, newStatus: string) => {
-    if (Platform.OS !== "web") {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
-    }
-
-    try {
-      await api.put(`/helpers/missions/${missionId}/status`, {
-        status: newStatus,
-      });
-
-      const mission = currentMissions.find((m) => m._id === missionId);
-
-      if (newStatus === "en_route" && mission) {
-        startLocationTracking(mission);
-      }
-
-      if (newStatus === "completed" || newStatus === "cancelled") {
-        stopLocationTracking();
-        setShowMap(false);
-        setSelectedMission(null);
-      }
-
-      await loadMissions();
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      Alert.alert("Succès", "Statut de la mission mis à jour");
-    } catch (error) {
-      Alert.alert("Erreur", "Impossible de mettre à jour le statut");
-    }
-  };
-
-  const calculateDistance = (point1: any, point2: any) => {
-    const R = 6371;
-    const dLat = ((point2.latitude - point1.latitude) * Math.PI) / 180;
-    const dLon = ((point2.longitude - point1.longitude) * Math.PI) / 180;
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos((point1.latitude * Math.PI) / 180) *
-        Math.cos((point2.latitude * Math.PI) / 180) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return R * c;
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case "accepted":
-        return "#4CAF50";
-      case "en_route":
-        return "#2196F3";
-      case "arrived":
-        return "#FF9800";
-      case "in_progress":
-        return "#9C27B0";
-      case "completed":
-        return "#4CAF50";
-      case "cancelled":
-        return "#F44336";
-      default:
-        return "#FFC107";
-    }
-  };
-
-  const getStatusIcon = (status: string) => {
-    switch (status) {
-      case "accepted":
-        return "checkmark-circle";
-      case "en_route":
-        return "car";
-      case "arrived":
-        return "location";
-      case "in_progress":
-        return "construct";
-      case "completed":
-        return "checkmark-done";
-      case "cancelled":
-        return "close-circle";
-      default:
-        return "time";
-    }
-  };
-
-  const getStatusText = (status: string) => {
-    switch (status) {
-      case "accepted":
-        return "Acceptée";
-      case "en_route":
-        return "En route";
-      case "arrived":
-        return "Arrivé";
-      case "in_progress":
-        return "En cours";
-      case "completed":
-        return "Terminée";
-      case "cancelled":
-        return "Annulée";
-      default:
-        return "En attente";
-    }
-  };
-
-  const getNextStatusOptions = (currentStatus: string) => {
-    const options: Record<string, string[]> = {
-      accepted: ["en_route", "cancelled"],
-      en_route: ["arrived", "cancelled"],
-      arrived: ["in_progress", "cancelled"],
-      in_progress: ["completed", "cancelled"],
-    };
-    return options[currentStatus] || [];
-  };
-
-  const formatTime = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleTimeString("fr-FR", {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  };
-
-  const formatDate = (dateString: string) => {
-    const date = new Date(dateString);
-    return date.toLocaleDateString("fr-FR", {
-      day: "2-digit",
-      month: "2-digit",
-      year: "numeric",
-    });
-  };
-
-  const tabIndicatorPosition = tabIndicatorAnim.interpolate({
-    inputRange: [0, 1, 2],
-    outputRange: [0, (width - 60) / 3, ((width - 60) / 3) * 2],
-  });
-
   if (loading) {
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        <StatusBar barStyle="dark-content" />
-        <Animated.View
-          style={[
-            styles.loadingContent,
-            {
-              opacity: fadeAnim,
-              transform: [{ scale: scaleAnim }],
-            },
-          ]}
-        >
+        <StatusBar barStyle="light-content" />
+        <View style={styles.loadingContainer}>
           <LinearGradient
             colors={[colors.primary, colors.secondary]}
             style={styles.loadingLogo}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
           >
             <Ionicons name="car" size={40} color="#fff" />
           </LinearGradient>
           <ActivityIndicator size="large" color={colors.primary} />
           <Text style={[styles.loadingText, { color: colors.textSecondary }]}>
-            Chargement des missions...
+            Chargement...
           </Text>
-        </Animated.View>
+        </View>
       </View>
     );
   }
@@ -512,926 +428,197 @@ export default function MissionsScreen() {
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar barStyle="light-content" />
 
-      <LinearGradient
-        colors={[colors.primary, colors.secondary]}
-        style={styles.header}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-      >
-        <View style={styles.headerContent}>
-          <TouchableOpacity
-            onPress={() => router.back()}
-            style={styles.headerButton}
-          >
-            <Ionicons name="arrow-back" size={24} color="#fff" />
-          </TouchableOpacity>
-          <Text style={styles.headerTitle}>Missions</Text>
-          <TouchableOpacity onPress={onRefresh} style={styles.headerButton}>
-            <Ionicons name="refresh" size={24} color="#fff" />
-          </TouchableOpacity>
-        </View>
-      </LinearGradient>
+      <MissionsHeader
+        onBack={() => router.back()}
+        onRefresh={onRefresh}
+        refreshing={refreshing}
+        colors={colors}
+      />
 
-      {/* Tabs avec 3 options */}
-      <View style={[styles.tabContainer, { backgroundColor: colors.card }]}>
-        <TouchableOpacity
-          style={styles.tabButton}
-          onPress={() => setActiveTab("available")}
-        >
-          <Text
-            style={[
-              styles.tabText,
-              {
-                color:
-                  activeTab === "available"
-                    ? colors.primary
-                    : colors.textSecondary,
-                fontWeight: activeTab === "available" ? "600" : "400",
-              },
-            ]}
-          >
-            Disponibles
-          </Text>
-          {availableSOS.length > 0 && activeTab === "available" && (
-            <View
-              style={[styles.tabBadge, { backgroundColor: colors.primary }]}
-            >
-              <Text style={styles.tabBadgeText}>{availableSOS.length}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.tabButton}
-          onPress={() => setActiveTab("current")}
-        >
-          <Text
-            style={[
-              styles.tabText,
-              {
-                color:
-                  activeTab === "current"
-                    ? colors.primary
-                    : colors.textSecondary,
-                fontWeight: activeTab === "current" ? "600" : "400",
-              },
-            ]}
-          >
-            En cours
-          </Text>
-          {currentMissions.length > 0 && (
-            <View
-              style={[styles.tabBadge, { backgroundColor: colors.primary }]}
-            >
-              <Text style={styles.tabBadgeText}>{currentMissions.length}</Text>
-            </View>
-          )}
-        </TouchableOpacity>
-
-        <TouchableOpacity
-          style={styles.tabButton}
-          onPress={() => setActiveTab("history")}
-        >
-          <Text
-            style={[
-              styles.tabText,
-              {
-                color:
-                  activeTab === "history"
-                    ? colors.primary
-                    : colors.textSecondary,
-                fontWeight: activeTab === "history" ? "600" : "400",
-              },
-            ]}
-          >
-            Historique
-          </Text>
-        </TouchableOpacity>
-
-        <Animated.View
-          style={[
-            styles.tabIndicator,
-            {
-              backgroundColor: colors.primary,
-              width: (width - 60) / 3 - 8,
-              transform: [{ translateX: tabIndicatorPosition }],
-            },
-          ]}
-        />
-      </View>
+      <MissionTabs
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        availableCount={availableSOS.length}
+        currentCount={currentMissions.length}
+        colors={colors}
+        tabIndicatorPosition={tabIndicatorPosition}
+      />
 
       <ScrollView
-        showsVerticalScrollIndicator={false}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
             onRefresh={onRefresh}
             tintColor={colors.primary}
-            colors={[colors.primary]}
           />
         }
+        showsVerticalScrollIndicator={false}
       >
         <Animated.View
           style={[
             styles.content,
-            {
-              opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }],
-            },
+            { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
           ]}
         >
-          {/* Carte de navigation */}
-          {activeTab === "current" && selectedMission && showMap && (
-            <View style={[styles.mapCard, { backgroundColor: colors.card }]}>
-              <View style={styles.mapHeader}>
-                <Text style={[styles.mapTitle, { color: colors.text }]}>
-                  Itinéraire vers {selectedMission.client.firstName}
-                </Text>
-                <TouchableOpacity
-                  onPress={() => setShowMap(false)}
-                  style={styles.mapCloseButton}
-                >
-                  <Ionicons
-                    name="close"
-                    size={20}
-                    color={colors.textSecondary}
-                  />
-                </TouchableOpacity>
-              </View>
-
-              <View style={styles.mapContainer}>
-                <MapView
-                  style={styles.map}
-                  provider={PROVIDER_GOOGLE}
-                  region={mapRegion}
-                  showsUserLocation={true}
-                  followsUserLocation={true}
-                >
-                  <Marker
-                    coordinate={{
-                      latitude: selectedMission.location.coordinates[1],
-                      longitude: selectedMission.location.coordinates[0],
-                    }}
-                    title={selectedMission.client.firstName}
-                    description={selectedMission.location.address}
-                  >
-                    <View
-                      style={[
-                        styles.clientMarker,
-                        { backgroundColor: colors.error },
-                      ]}
-                    >
-                      <Ionicons name="person" size={16} color="#fff" />
-                    </View>
-                  </Marker>
-
-                  {helperLocation && (
-                    <Marker coordinate={helperLocation} title="Votre position">
-                      <View
-                        style={[
-                          styles.helperMarker,
-                          { backgroundColor: colors.primary },
-                        ]}
-                      >
-                        <Ionicons name="car" size={16} color="#fff" />
-                      </View>
-                    </Marker>
-                  )}
-
-                  {helperLocation && (
-                    <MapViewDirections
-                      origin={helperLocation}
-                      destination={{
-                        latitude: selectedMission.location.coordinates[1],
-                        longitude: selectedMission.location.coordinates[0],
-                      }}
-                      apikey={GOOGLE_MAPS_APIKEY}
-                      strokeWidth={4}
-                      strokeColor={colors.primary}
-                      optimizeWaypoints={true}
-                      onReady={(result) => {
-                        console.log(`Distance: ${result.distance} km`);
-                        console.log(`Durée: ${result.duration} min`);
-                      }}
-                      onError={(errorMessage) => {
-                        console.log("Erreur itinéraire:", errorMessage);
-                      }}
-                    />
-                  )}
-                </MapView>
-              </View>
-
-              {helperLocation && (
-                <View style={styles.navigationInfo}>
-                  <View style={styles.navItem}>
-                    <Ionicons
-                      name="navigate"
-                      size={20}
-                      color={colors.primary}
-                    />
-                    <Text style={[styles.navText, { color: colors.text }]}>
-                      {calculateDistance(helperLocation, {
-                        latitude: selectedMission.location.coordinates[1],
-                        longitude: selectedMission.location.coordinates[0],
-                      }).toFixed(1)}{" "}
-                      km
-                    </Text>
-                  </View>
-                  <TouchableOpacity
-                    style={[
-                      styles.navButton,
-                      { backgroundColor: colors.primary },
-                    ]}
-                    onPress={() => {
+          {/* SOS Disponibles */}
+          {activeTab === "available" &&
+            (availableSOS.length > 0 ? (
+              availableSOS.map((sos, idx) => (
+                <SOSCard
+                  key={sos._id}
+                  sos={sos}
+                  colors={colors}
+                  onAccept={handleAcceptSOS}
+                  onLocationPress={(coords) => {
+                    if (coords) {
                       const url = Platform.select({
-                        ios: `maps:?saddr=${helperLocation.latitude},${helperLocation.longitude}&daddr=${selectedMission.location.coordinates[1]},${selectedMission.location.coordinates[0]}`,
-                        android: `google.navigation:q=${selectedMission.location.coordinates[1]},${selectedMission.location.coordinates[0]}`,
+                        ios: `maps:?q=${coords[1]},${coords[0]}`,
+                        android: `geo:${coords[1]},${coords[0]}?q=${coords[1]},${coords[0]}`,
                       });
                       if (url) Linking.openURL(url);
-                    }}
-                  >
-                    <Ionicons name="map" size={18} color="#fff" />
-                    <Text style={styles.navButtonText}>Ouvrir dans Maps</Text>
-                  </TouchableOpacity>
-                </View>
-              )}
-            </View>
-          )}
-
-          {/* TAB 1: SOS Disponibles */}
-          {activeTab === "available" && (
-            <>
-              {availableSOS.length > 0 ? (
-                availableSOS.map((sos, index) => (
-                  <Animated.View
-                    key={sos._id}
-                    style={[
-                      styles.missionCard,
-                      { backgroundColor: colors.card },
-                      selectedSOS?._id === sos._id && styles.selectedMission,
-                      {
-                        opacity: fadeAnim,
-                        transform: [
-                          {
-                            translateY: slideAnim.interpolate({
-                              inputRange: [0, 50],
-                              outputRange: [0, 15 * (index + 1)],
-                            }),
-                          },
-                        ],
-                      },
-                    ]}
-                  >
-                    <View style={styles.missionHeader}>
-                      <View style={styles.missionUser}>
-                        <LinearGradient
-                          colors={[colors.error + "20", colors.error + "10"]}
-                          style={styles.missionAvatar}
-                        >
-                          <Ionicons
-                            name="alert-circle"
-                            size={24}
-                            color={colors.error}
-                          />
-                        </LinearGradient>
-                        <View>
-                          <Text
-                            style={[
-                              styles.missionUserName,
-                              { color: colors.text },
-                            ]}
-                          >
-                            {sos.client.firstName} {sos.client.lastName}
-                          </Text>
-                          <Text
-                            style={[
-                              styles.missionType,
-                              { color: colors.textSecondary },
-                            ]}
-                          >
-                            {sos.type}
-                          </Text>
-                        </View>
-                      </View>
-
-                      <View
-                        style={[
-                          styles.statusBadge,
-                          { backgroundColor: colors.error + "15" },
-                        ]}
-                      >
-                        <Ionicons name="time" size={12} color={colors.error} />
-                        <Text
-                          style={[styles.statusText, { color: colors.error }]}
-                        >
-                          URGENT
-                        </Text>
-                      </View>
-                    </View>
-
-                    <Text
-                      style={[
-                        styles.missionDescription,
-                        { color: colors.textSecondary },
-                      ]}
-                    >
-                      {sos.problem.description}
-                    </Text>
-
-                    <View style={styles.missionInfo}>
-                      <View style={styles.infoItem}>
-                        <Ionicons
-                          name="location-outline"
-                          size={14}
-                          color={colors.primary}
-                        />
-                        <Text style={[styles.infoText, { color: colors.text }]}>
-                          {sos.distance.toFixed(1)} km
-                        </Text>
-                      </View>
-                      <View style={styles.infoItem}>
-                        <Ionicons
-                          name="cash-outline"
-                          size={14}
-                          color={colors.success}
-                        />
-                        <Text
-                          style={[styles.infoText, { color: colors.success }]}
-                        >
-                          ${sos.reward}
-                        </Text>
-                      </View>
-                      <View style={styles.infoItem}>
-                        <Ionicons
-                          name="time-outline"
-                          size={14}
-                          color={colors.textSecondary}
-                        />
-                        <Text
-                          style={[
-                            styles.infoText,
-                            { color: colors.textSecondary },
-                          ]}
-                        >
-                          {formatTime(sos.createdAt)}
-                        </Text>
-                      </View>
-                    </View>
-
-                    <TouchableOpacity
-                      style={styles.addressContainer}
-                      onPress={() => {
-                        setSelectedSOS(sos);
-                        setMapRegion({
-                          latitude: sos.location.coordinates[1],
-                          longitude: sos.location.coordinates[0],
-                          latitudeDelta: 0.05,
-                          longitudeDelta: 0.05,
-                        });
-                      }}
-                    >
-                      <Ionicons
-                        name="navigate-outline"
-                        size={14}
-                        color={colors.primary}
-                      />
-                      <Text
-                        style={[
-                          styles.addressText,
-                          { color: colors.textSecondary },
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {sos.location.address}
-                      </Text>
-                      <Ionicons
-                        name="chevron-forward"
-                        size={16}
-                        color={colors.textSecondary}
-                      />
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                      style={[
-                        styles.acceptButton,
-                        { backgroundColor: colors.success },
-                      ]}
-                      onPress={() => handleAcceptSOS(sos._id)}
-                    >
-                      <Ionicons
-                        name="checkmark-circle"
-                        size={20}
-                        color="#fff"
-                      />
-                      <Text style={styles.acceptButtonText}>
-                        Accepter la mission
-                      </Text>
-                    </TouchableOpacity>
-                  </Animated.View>
-                ))
-              ) : (
-                <View
-                  style={[
-                    styles.emptyContainer,
-                    { backgroundColor: colors.card },
-                  ]}
+                    }
+                  }}
+                  index={idx}
+                />
+              ))
+            ) : (
+              <View
+                style={[
+                  styles.emptyContainer,
+                  { backgroundColor: colors.card },
+                ]}
+              >
+                <LinearGradient
+                  colors={[colors.primary + "10", colors.secondary + "05"]}
+                  style={styles.emptyIcon}
                 >
-                  <LinearGradient
-                    colors={[colors.primary + "10", colors.secondary + "05"]}
-                    style={styles.emptyIconContainer}
-                  >
-                    <Ionicons
-                      name="alert-circle-outline"
-                      size={32}
-                      color={colors.textSecondary}
-                    />
-                  </LinearGradient>
-                  <Text style={[styles.emptyTitle, { color: colors.text }]}>
-                    Aucun SOS disponible
-                  </Text>
-                  <Text
-                    style={[styles.emptyText, { color: colors.textSecondary }]}
-                  >
-                    Les alertes SOS apparaîtront ici en temps réel
-                  </Text>
-                </View>
-              )}
-            </>
-          )}
-
-          {/* TAB 2: Missions en cours (inchangé) */}
-          {activeTab === "current" && (
-            <>
-              {currentMissions.length > 0 ? (
-                currentMissions.map((mission, index) => (
-                  <View
-                    key={mission._id}
-                    style={[
-                      styles.missionCard,
-                      { backgroundColor: colors.card },
-                      selectedMission?._id === mission._id &&
-                        styles.selectedMission,
-                    ]}
-                  >
-                    {/* ... (contenu inchangé) ... */}
-                    <View style={styles.missionHeader}>
-                      <View style={styles.missionUser}>
-                        <LinearGradient
-                          colors={[
-                            colors.primary + "20",
-                            colors.secondary + "10",
-                          ]}
-                          style={styles.missionAvatar}
-                        >
-                          <Text
-                            style={[
-                              styles.missionAvatarText,
-                              { color: colors.primary },
-                            ]}
-                          >
-                            {mission.client.firstName[0]}
-                            {mission.client.lastName[0]}
-                          </Text>
-                        </LinearGradient>
-                        <View>
-                          <Text
-                            style={[
-                              styles.missionUserName,
-                              { color: colors.text },
-                            ]}
-                          >
-                            {mission.client.firstName} {mission.client.lastName}
-                          </Text>
-                          <Text
-                            style={[
-                              styles.missionType,
-                              { color: colors.textSecondary },
-                            ]}
-                          >
-                            {mission.type}
-                          </Text>
-                        </View>
-                      </View>
-
-                      <View
-                        style={[
-                          styles.statusBadge,
-                          {
-                            backgroundColor:
-                              getStatusColor(mission.status) + "15",
-                          },
-                        ]}
-                      >
-                        <Ionicons
-                          name={getStatusIcon(mission.status)}
-                          size={12}
-                          color={getStatusColor(mission.status)}
-                        />
-                        <Text
-                          style={[
-                            styles.statusText,
-                            { color: getStatusColor(mission.status) },
-                          ]}
-                        >
-                          {getStatusText(mission.status)}
-                        </Text>
-                      </View>
-                    </View>
-
-                    <Text
-                      style={[
-                        styles.missionDescription,
-                        { color: colors.textSecondary },
-                      ]}
-                    >
-                      {mission.problem.description}
-                    </Text>
-
-                    <View style={styles.missionInfo}>
-                      <View style={styles.infoItem}>
-                        <Ionicons
-                          name="location-outline"
-                          size={14}
-                          color={colors.primary}
-                        />
-                        <Text style={[styles.infoText, { color: colors.text }]}>
-                          {mission.distance} km
-                        </Text>
-                      </View>
-                      <View style={styles.infoItem}>
-                        <Ionicons
-                          name="cash-outline"
-                          size={14}
-                          color={colors.success}
-                        />
-                        <Text
-                          style={[styles.infoText, { color: colors.success }]}
-                        >
-                          ${mission.reward}
-                        </Text>
-                      </View>
-                      <View style={styles.infoItem}>
-                        <Ionicons
-                          name="time-outline"
-                          size={14}
-                          color={colors.textSecondary}
-                        />
-                        <Text
-                          style={[
-                            styles.infoText,
-                            { color: colors.textSecondary },
-                          ]}
-                        >
-                          {formatTime(mission.createdAt)}
-                        </Text>
-                      </View>
-                    </View>
-
-                    <TouchableOpacity
-                      style={styles.addressContainer}
-                      onPress={() => startLocationTracking(mission)}
-                    >
-                      <Ionicons
-                        name="navigate-outline"
-                        size={14}
-                        color={colors.primary}
-                      />
-                      <Text
-                        style={[
-                          styles.addressText,
-                          { color: colors.textSecondary },
-                        ]}
-                        numberOfLines={1}
-                      >
-                        {mission.location.address}
-                      </Text>
-                      <Ionicons
-                        name="chevron-forward"
-                        size={16}
-                        color={colors.textSecondary}
-                      />
-                    </TouchableOpacity>
-
-                    <View style={styles.missionActions}>
-                      {getNextStatusOptions(mission.status).map(
-                        (nextStatus) => (
-                          <TouchableOpacity
-                            key={nextStatus}
-                            style={[
-                              styles.actionButton,
-                              nextStatus === "cancelled"
-                                ? styles.cancelButton
-                                : styles.primaryButton,
-                              {
-                                borderColor:
-                                  nextStatus === "cancelled"
-                                    ? colors.error
-                                    : colors.primary,
-                              },
-                            ]}
-                            onPress={() =>
-                              updateMissionStatus(mission._id, nextStatus)
-                            }
-                          >
-                            <Ionicons
-                              name={
-                                nextStatus === "en_route"
-                                  ? "car"
-                                  : nextStatus === "arrived"
-                                  ? "location"
-                                  : nextStatus === "in_progress"
-                                  ? "construct"
-                                  : nextStatus === "completed"
-                                  ? "checkmark"
-                                  : "close"
-                              }
-                              size={16}
-                              color={
-                                nextStatus === "cancelled"
-                                  ? colors.error
-                                  : colors.primary
-                              }
-                            />
-                            <Text
-                              style={[
-                                styles.actionButtonText,
-                                {
-                                  color:
-                                    nextStatus === "cancelled"
-                                      ? colors.error
-                                      : colors.primary,
-                                },
-                              ]}
-                            >
-                              {nextStatus === "en_route"
-                                ? "En route"
-                                : nextStatus === "arrived"
-                                ? "Arrivé"
-                                : nextStatus === "in_progress"
-                                ? "Commencer"
-                                : nextStatus === "completed"
-                                ? "Terminer"
-                                : "Annuler"}
-                            </Text>
-                          </TouchableOpacity>
-                        )
-                      )}
-
-                      <TouchableOpacity
-                        style={[
-                          styles.contactButton,
-                          { backgroundColor: colors.background },
-                        ]}
-                        onPress={() => {
-                          Alert.alert(
-                            "Contacter le client",
-                            `${mission.client.firstName} ${mission.client.lastName}`,
-                            [
-                              { text: "Annuler", style: "cancel" },
-                              {
-                                text: "Appeler",
-                                onPress: () =>
-                                  Alert.alert("Appel", mission.client.phone),
-                              },
-                            ]
-                          );
-                        }}
-                      >
-                        <Ionicons
-                          name="call-outline"
-                          size={18}
-                          color={colors.primary}
-                        />
-                      </TouchableOpacity>
-                    </View>
-
-                    {mission.status === "en_route" && !showMap && (
-                      <TouchableOpacity
-                        style={[
-                          styles.showMapButton,
-                          { borderColor: colors.primary },
-                        ]}
-                        onPress={() => startLocationTracking(mission)}
-                      >
-                        <Ionicons
-                          name="map-outline"
-                          size={16}
-                          color={colors.primary}
-                        />
-                        <Text
-                          style={[
-                            styles.showMapText,
-                            { color: colors.primary },
-                          ]}
-                        >
-                          Voir l'itinéraire
-                        </Text>
-                      </TouchableOpacity>
-                    )}
-                  </View>
-                ))
-              ) : (
-                <View
-                  style={[
-                    styles.emptyContainer,
-                    { backgroundColor: colors.card },
-                  ]}
+                  <Ionicons
+                    name="alert-circle-outline"
+                    size={32}
+                    color={colors.textSecondary}
+                  />
+                </LinearGradient>
+                <Text style={[styles.emptyTitle, { color: colors.text }]}>
+                  Aucun SOS
+                </Text>
+                <Text
+                  style={[styles.emptyText, { color: colors.textSecondary }]}
                 >
-                  <LinearGradient
-                    colors={[colors.primary + "10", colors.secondary + "05"]}
-                    style={styles.emptyIconContainer}
-                  >
-                    <Ionicons
-                      name="car-outline"
-                      size={32}
-                      color={colors.textSecondary}
-                    />
-                  </LinearGradient>
-                  <Text style={[styles.emptyTitle, { color: colors.text }]}>
-                    Aucune mission en cours
-                  </Text>
-                  <Text
-                    style={[styles.emptyText, { color: colors.textSecondary }]}
-                  >
-                    Les missions que vous acceptez apparaîtront ici
-                  </Text>
-                </View>
-              )}
-            </>
-          )}
+                  Les alertes apparaîtront ici
+                </Text>
+              </View>
+            ))}
 
-          {/* TAB 3: Historique (inchangé) */}
-          {activeTab === "history" && (
-            <>
-              {historyMissions.length > 0 ? (
-                historyMissions.map((mission, index) => (
-                  <View
-                    key={mission._id}
-                    style={[
-                      styles.missionCard,
-                      { backgroundColor: colors.card },
-                    ]}
-                  >
-                    <View style={styles.missionHeader}>
-                      <View style={styles.missionUser}>
-                        <LinearGradient
-                          colors={[
-                            colors.primary + "20",
-                            colors.secondary + "10",
-                          ]}
-                          style={styles.missionAvatar}
-                        >
-                          <Text
-                            style={[
-                              styles.missionAvatarText,
-                              { color: colors.primary },
-                            ]}
-                          >
-                            {mission.client.firstName[0]}
-                            {mission.client.lastName[0]}
-                          </Text>
-                        </LinearGradient>
-                        <View>
-                          <Text
-                            style={[
-                              styles.missionUserName,
-                              { color: colors.text },
-                            ]}
-                          >
-                            {mission.client.firstName} {mission.client.lastName}
-                          </Text>
-                          <Text
-                            style={[
-                              styles.missionDate,
-                              { color: colors.textSecondary },
-                            ]}
-                          >
-                            {formatDate(mission.createdAt)}
-                          </Text>
-                        </View>
-                      </View>
-
-                      <View
-                        style={[
-                          styles.statusBadge,
-                          {
-                            backgroundColor:
-                              getStatusColor(mission.status) + "15",
-                          },
-                        ]}
-                      >
-                        <Ionicons
-                          name={getStatusIcon(mission.status)}
-                          size={12}
-                          color={getStatusColor(mission.status)}
-                        />
-                        <Text
-                          style={[
-                            styles.statusText,
-                            { color: getStatusColor(mission.status) },
-                          ]}
-                        >
-                          {getStatusText(mission.status)}
-                        </Text>
-                      </View>
-                    </View>
-
-                    <View style={styles.historyInfo}>
-                      <View style={styles.infoItem}>
-                        <Ionicons
-                          name="cash-outline"
-                          size={14}
-                          color={colors.success}
-                        />
-                        <Text
-                          style={[styles.infoText, { color: colors.success }]}
-                        >
-                          ${mission.reward}
-                        </Text>
-                      </View>
-                      <View style={styles.infoItem}>
-                        <Ionicons
-                          name="location-outline"
-                          size={14}
-                          color={colors.primary}
-                        />
-                        <Text
-                          style={[
-                            styles.infoText,
-                            { color: colors.textSecondary },
-                          ]}
-                        >
-                          {mission.distance} km
-                        </Text>
-                      </View>
-                    </View>
-                  </View>
-                ))
-              ) : (
-                <View
-                  style={[
-                    styles.emptyContainer,
-                    { backgroundColor: colors.card },
-                  ]}
+          {/* Missions en cours */}
+          {activeTab === "current" &&
+            (currentMissions.length > 0 ? (
+              currentMissions.map((mission) => (
+                <CurrentMissionCard
+                  key={mission._id}
+                  mission={mission}
+                  colors={colors}
+                  onViewDetails={handleViewDetails}
+                  onCallPress={handleCallPress}
+                />
+              ))
+            ) : (
+              <View
+                style={[
+                  styles.emptyContainer,
+                  { backgroundColor: colors.card },
+                ]}
+              >
+                <LinearGradient
+                  colors={[colors.primary + "10", colors.secondary + "05"]}
+                  style={styles.emptyIcon}
                 >
-                  <LinearGradient
-                    colors={[colors.primary + "10", colors.secondary + "05"]}
-                    style={styles.emptyIconContainer}
-                  >
-                    <Ionicons
-                      name="time-outline"
-                      size={32}
-                      color={colors.textSecondary}
-                    />
-                  </LinearGradient>
-                  <Text style={[styles.emptyTitle, { color: colors.text }]}>
-                    Aucun historique
-                  </Text>
-                  <Text
-                    style={[styles.emptyText, { color: colors.textSecondary }]}
-                  >
-                    Vos missions terminées apparaîtront ici
-                  </Text>
-                </View>
-              )}
-            </>
-          )}
+                  <Ionicons
+                    name="car-outline"
+                    size={32}
+                    color={colors.textSecondary}
+                  />
+                </LinearGradient>
+                <Text style={[styles.emptyTitle, { color: colors.text }]}>
+                  Aucune mission
+                </Text>
+                <Text
+                  style={[styles.emptyText, { color: colors.textSecondary }]}
+                >
+                  Les missions acceptées apparaîtront ici
+                </Text>
+              </View>
+            ))}
+
+          {/* Historique */}
+          {activeTab === "history" &&
+            (historyMissions.length > 0 ? (
+              historyMissions.map((mission) => (
+                <HistoryCard
+                  key={mission._id}
+                  mission={mission}
+                  colors={colors}
+                />
+              ))
+            ) : (
+              <View
+                style={[
+                  styles.emptyContainer,
+                  { backgroundColor: colors.card },
+                ]}
+              >
+                <LinearGradient
+                  colors={[colors.primary + "10", colors.secondary + "05"]}
+                  style={styles.emptyIcon}
+                >
+                  <Ionicons
+                    name="time-outline"
+                    size={32}
+                    color={colors.textSecondary}
+                  />
+                </LinearGradient>
+                <Text style={[styles.emptyTitle, { color: colors.text }]}>
+                  Aucun historique
+                </Text>
+                <Text
+                  style={[styles.emptyText, { color: colors.textSecondary }]}
+                >
+                  Vos missions terminées ici
+                </Text>
+              </View>
+            ))}
         </Animated.View>
       </ScrollView>
+
+      <CancelMissionModal
+        visible={cancelModalVisible}
+        onClose={() => setCancelModalVisible(false)}
+        onConfirm={handleCancelConfirm}
+        colors={colors}
+        colorScheme={colorScheme}
+      />
+      {/* Modal d'annulation pour missions en cours */}
+      <CancelNotificationModal
+        visible={cancelModal.visible}
+        missionId={cancelModal.missionId}
+        missionTitle={cancelModal.missionTitle}
+        reason={cancelModal.reason}
+        cancelledBy={cancelModal.cancelledBy}
+        autoCloseDelay={cancelModal.autoCloseDelay}
+        onClose={() => setCancelModal((prev) => ({ ...prev, visible: false }))}
+        onDismiss={() =>
+          setCancelModal((prev) => ({ ...prev, visible: false }))
+        }
+        colors={colors}
+        colorScheme={colorScheme}
+      />
     </View>
   );
 }
 
+// Styles communs
 const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  header: {
-    paddingTop: Platform.OS === "ios" ? 60 : 40,
-    paddingBottom: 20,
-    borderBottomLeftRadius: 30,
-    borderBottomRightRadius: 30,
-  },
-  headerContent: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    paddingHorizontal: 20,
-  },
-  headerButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "rgba(255,255,255,0.2)",
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  headerTitle: {
-    fontSize: 18,
-    fontWeight: "600",
-    color: "#fff",
-  },
-  loadingContent: {
+  container: { flex: 1 },
+  loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
@@ -1444,309 +631,21 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  loadingText: {
-    fontSize: 14,
-  },
-  tabContainer: {
-    flexDirection: "row",
-    marginHorizontal: 20,
-    marginTop: 16,
-    padding: 4,
-    borderRadius: 16,
-    position: "relative",
-  },
-  tabButton: {
-    flex: 1,
-    paddingVertical: 10,
-    alignItems: "center",
-    flexDirection: "row",
-    justifyContent: "center",
-    gap: 6,
-  },
-  tabText: {
-    fontSize: 13,
-    fontWeight: "500",
-  },
-  tabBadge: {
-    paddingHorizontal: 6,
-    paddingVertical: 2,
-    borderRadius: 10,
-    minWidth: 20,
-    alignItems: "center",
-  },
-  tabBadgeText: {
-    color: "#fff",
-    fontSize: 10,
-    fontWeight: "600",
-  },
-  tabIndicator: {
-    position: "absolute",
-    bottom: 4,
-    left: 4,
-    height: 32,
-    borderRadius: 12,
-    zIndex: -1,
-  },
-  content: {
-    padding: 20,
-    gap: 12,
-  },
-  mapCard: {
-    padding: 16,
-    borderRadius: 20,
-    marginBottom: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  mapHeader: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  mapTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  mapCloseButton: {
-    padding: 4,
-  },
-  mapContainer: {
-    height: 200,
-    borderRadius: 16,
-    overflow: "hidden",
-  },
-  map: {
-    flex: 1,
-  },
-  clientMarker: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: "#fff",
-  },
-  helperMarker: {
-    width: 30,
-    height: 30,
-    borderRadius: 15,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: "#fff",
-  },
-  navigationInfo: {
-    marginTop: 12,
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-  },
-  navItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-  },
-  navText: {
-    fontSize: 14,
-    fontWeight: "500",
-  },
-  navButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 8,
-    borderRadius: 20,
-    gap: 6,
-  },
-  navButtonText: {
-    color: "#fff",
-    fontSize: 13,
-    fontWeight: "600",
-  },
-  missionCard: {
-    padding: 16,
-    borderRadius: 20,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  selectedMission: {
-    borderWidth: 2,
-    borderColor: "rgba(184, 134, 11, 0.5)",
-  },
-  missionHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 12,
-  },
-  missionUser: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 12,
-  },
-  missionAvatar: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: "center",
-    alignItems: "center",
-  },
-  missionAvatarText: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  missionUserName: {
-    fontSize: 15,
-    fontWeight: "600",
-    marginBottom: 2,
-  },
-  missionType: {
-    fontSize: 12,
-  },
-  missionDate: {
-    fontSize: 11,
-  },
-  statusBadge: {
-    flexDirection: "row",
-    alignItems: "center",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-    gap: 4,
-  },
-  statusText: {
-    fontSize: 10,
-    fontWeight: "600",
-  },
-  missionDescription: {
-    fontSize: 13,
-    marginBottom: 12,
-    lineHeight: 18,
-  },
-  missionInfo: {
-    flexDirection: "row",
-    gap: 16,
-    marginBottom: 8,
-  },
-  infoItem: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 4,
-  },
-  infoText: {
-    fontSize: 12,
-    fontWeight: "500",
-  },
-  addressContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    marginBottom: 16,
-    paddingVertical: 8,
-    paddingHorizontal: 10,
-    borderRadius: 12,
-    backgroundColor: "rgba(0,0,0,0.02)",
-  },
-  addressText: {
-    flex: 1,
-    fontSize: 12,
-  },
-  missionActions: {
-    flexDirection: "row",
-    gap: 8,
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  actionButton: {
-    flex: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 10,
-    paddingHorizontal: 12,
-    borderRadius: 30,
-    borderWidth: 1,
-    gap: 6,
-  },
-  primaryButton: {
-    backgroundColor: "transparent",
-  },
-  cancelButton: {
-    backgroundColor: "transparent",
-  },
-  actionButtonText: {
-    fontSize: 12,
-    fontWeight: "600",
-  },
-  contactButton: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: "rgba(0,0,0,0.05)",
-  },
-  showMapButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    paddingVertical: 10,
-    borderRadius: 20,
-    borderWidth: 1,
-    gap: 6,
-  },
-  showMapText: {
-    fontSize: 13,
-    fontWeight: "500",
-  },
-  // ⚡ NOUVEAU STYLE
-  acceptButton: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "center",
-    padding: 14,
-    borderRadius: 30,
-    gap: 8,
-    marginTop: 8,
-  },
-  acceptButtonText: {
-    color: "#fff",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  historyInfo: {
-    flexDirection: "row",
-    gap: 16,
-    marginTop: 8,
-  },
+  loadingText: { fontSize: 14 },
+  content: { padding: 20, gap: 12 },
   emptyContainer: {
     alignItems: "center",
     padding: 32,
     borderRadius: 24,
     gap: 12,
   },
-  emptyIconContainer: {
+  emptyIcon: {
     width: 64,
     height: 64,
     borderRadius: 32,
     justifyContent: "center",
     alignItems: "center",
   },
-  emptyTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  emptyText: {
-    fontSize: 13,
-    textAlign: "center",
-  },
+  emptyTitle: { fontSize: 16, fontWeight: "600" },
+  emptyText: { fontSize: 13, textAlign: "center" },
 });

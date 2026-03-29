@@ -1,0 +1,315 @@
+STRUCTURE DE L'APPLICATION : MOXTOR HELPERS (Version 1.0)
+---------------------------------------------------------
+
+1. SYSTÈME D'INSCRIPTION ET VALIDATION (ONBOARDING)
+   - Soumission de pièces d'identité et casier judiciaire.
+   - Téléchargement des certifications mécaniques (Optionnel pour Niveau 1).
+   - Test de diagnostic IA : Résolution de 3 pannes théoriques via photos/sons.
+   - Inventaire d'outils : Liste du matériel possédé (câbles, cric, scanner OBD2).
+
+2. TABLEAU DE BORD "MODE INTERVENTION" (DASHBOARD)
+   - Toggle "En ligne / Hors ligne" (comme Uber).
+   - Carte thermique : Visualisation des zones à forte demande de pannes.
+   - Compteur de gains : Revenus du jour, de la semaine et pourboires.
+   - Note de fiabilité : Score basé sur les avis clients et la validation IA.
+
+3. RÉCEPTION ET GESTION DES MISSIONS
+   - Notification Push : Type de panne (ex: Batterie), distance, et prix net Helper.
+   - Fiche Pré-Diagnostic IA : Visualisation de la photo du client + analyse IA 
+     (ex: "Probabilité de 90% batterie déchargée, prévoyez câbles 12V").
+   - Navigation intégrée : Guidage GPS vers la position précise du véhicule.
+
+4. ASSISTANT D'INTERVENTION (LE CŒUR DE L'APP)
+   - Check-list de sécurité : "Avez-vous placé les cônes ?", "Le frein à main est-il mis ?".
+   - Guide AR (Réalité Augmentée) : Aide visuelle pour localiser les points de levage 
+     ou les bornes de batterie sur le modèle spécifique du client.
+   - Chat direct / Appel : Communication sécurisée avec l'utilisateur.
+
+5. VALIDATION TECHNIQUE DE FIN DE MISSION (IA AUDIT)
+   - Capture de preuve : Photo obligatoire de la réparation effectuée.
+   - Analyse IA post-travail : L'IA confirme visuellement que la pièce est bien posée.
+   - Rapport d'intervention : Résumé automatique envoyé au client et au "Dossier Moxtor".
+
+6. PORTEFEUILLE ET RÉCOMPENSES (WALLET)
+   - Transfert de fonds immédiat (Instant Pay).
+   - Boutique Helpers : Achat de consommables (mèches, liquide lave-glace) à prix réduit.
+   - Programme Ambassadeur : Bonus pour le parrainage de nouveaux Helpers qualifiés.
+
+7. PARAMÈTRES ET PRÉFÉRENCES
+   - Rayon d'action : Distance maximale pour les alertes (ex: 5km, 10km).
+   - Types de pannes acceptées : Filtrage selon les compétences (ex: Pneus seulement).
+---------------------------------------------------------
+
+
+
+
+
+
+🔴 PRIORITÉ 1 : CRITIQUE (Sécurité et Confiance)
+
+1. Ajouter une check-list de sécurité avant intervention
+
+Pourquoi ?
+C'est le point le plus important. Les interventions routières sont dangereuses. Sans cette check-list, un helper peut oublier de :
+
+Placer les triangles de signalisation
+Enfiler son gilet de sécurité
+Engager le frein à main
+Vérifier que le véhicule est stable avant de le lever
+Risque sans cette fonctionnalité :
+Accident grave, blessures, responsabilité juridique pour la plateforme.
+
+À valider : Mettre en place une modal obligatoire avant chaque intervention.
+
+2. Ajouter une preuve photo obligatoire en fin de mission
+
+Pourquoi ?
+Actuellement, un helper peut déclarer une mission terminée sans preuve. Cela expose à :
+
+Litiges clients ("il n'a rien réparé")
+Fraude (accepter et marquer terminé sans intervention)
+Absence de traçabilité des interventions
+Risque sans cette fonctionnalité :
+Impossibilité de prouver qu'une intervention a eu lieu, difficulté en cas de réclamation client, perte de crédibilité.
+
+À valider : Rendre la photo obligatoire avant de pouvoir cliquer sur "Terminer".
+
+3. Ajouter une vérification des documents avant validation du helper
+
+Pourquoi ?
+Actuellement, les documents (permis, assurance) sont uploadés mais ne sont pas vérifiés par un admin avant que le helper ne devienne actif. Un helper pourrait commencer à intervenir avec des documents invalides.
+
+Risque sans cette fonctionnalité :
+Risque légal si un helper intervient sans assurance valide. Responsabilité de la plateforme en cas d'accident.
+
+À valider : Bloquer l'activation du compte tant que les documents ne sont pas vérifiés par un admin.
+
+🟠 PRIORITÉ 2 : ÉLEVÉE (Expérience et Fiabilité)
+
+4. Ajouter un test de diagnostic théorique à l'inscription
+
+Pourquoi ?
+Sans test, n'importe qui peut devenir helper. Des helpers non qualifiés peuvent :
+
+Mal diagnostiquer une panne
+Aggraver la situation
+Donner une mauvaise image de la plateforme
+Risque sans cette fonctionnalité :
+Qualité de service inégale, insatisfaction client, helpers incompétents.
+
+À valider : Créer un quiz de 5-10 questions sur les pannes courantes. Score minimum requis pour validation.
+
+5. Ajouter l'envoi d'un rapport d'intervention au client
+
+Pourquoi ?
+Actuellement, le client n'a aucune trace de ce qui a été fait. Un rapport automatique :
+
+Crée une preuve de l'intervention
+Permet au client de suivre l'entretien de son véhicule
+Valorise le travail du helper
+Réduit les litiges
+Risque sans cette fonctionnalité :
+Manque de professionnalisme, absence de traçabilité.
+
+À valider : Envoyer un résumé par email après chaque intervention (panne, actions effectuées, photos).
+
+6. Ajouter un système de pourboire
+
+Pourquoi ?
+Les applications de service utilisent toutes le pourboire (Uber, Deliveroo). C'est :
+
+Une source de revenus supplémentaire pour les helpers
+Un marqueur de qualité (un helper qui reçoit des pourboires est bon)
+Une attente des clients habitués à ce système
+Risque sans cette fonctionnalité :
+Frustration des helpers qui perdent un revenu potentiel, frustration des clients qui veulent récompenser un bon service.
+
+À valider : Ajouter une option "Pourboire" dans le paiement final (montant libre ou suggestions).
+
+7. Ajouter la gestion hors-ligne des missions
+
+Pourquoi ?
+Les pannes arrivent souvent dans des zones sans réseau (parkings souterrains, zones rurales). Actuellement, l'application devient inutilisable sans connexion.
+
+Risque sans cette fonctionnalité :
+Impossibilité de terminer une mission, helper bloqué, client mécontent.
+
+À valider : Stocker les données localement et synchroniser quand la connexion revient.
+
+🟡 PRIORITÉ 3 : MOYENNE (Optimisation et Gains)
+
+8. Ajouter une carte thermique des zones à forte demande
+
+Pourquoi ?
+Les helpers naviguent à l'aveugle actuellement. Une carte thermique leur montrerait où se positionner pour maximiser leurs chances de recevoir des missions.
+
+Risque sans cette fonctionnalité :
+Temps d'attente plus long pour les clients, helpers moins efficaces.
+
+À valider : Afficher sur la carte les zones où les SOS sont fréquents.
+
+9. Ajouter l'intégration d'un scanner OBD2
+
+Pourquoi ?
+Le diagnostic IA actuel se base sur la parole du client, ce qui est subjectif. Un scanner OBD2 donne des données précises.
+
+Risque sans cette fonctionnalité :
+Diagnostic moins précis, perte de temps sur des pannes mal identifiées.
+
+À valider : Permettre aux helpers de connecter un scanner Bluetooth et d'envoyer les codes d'erreur.
+
+10. Ajouter une boutique Helpers
+
+Pourquoi ?
+Les helpers achètent des consommables (mèches, fusibles, câbles). Une boutique intégrée leur permettrait d'acheter à prix réduit, ce qui :
+
+Fidélise les helpers
+Crée une source de revenus pour la plateforme
+Garantit des produits de qualité
+Risque sans cette fonctionnalité :
+Opportunité de revenus manquée, helpers qui s'approvisionnent ailleurs.
+
+À valider : Créer un catalogue de produits avec commande intégrée.
+
+11. Ajouter un programme ambassadeur (parrainage)
+
+Pourquoi ?
+C'est le levier de croissance le plus efficace. Un helper qui parraine un autre helper est le meilleur ambassadeur.
+
+Risque sans cette fonctionnalité :
+Croissance plus lente, coût d'acquisition client plus élevé.
+
+À valider : Offrir une prime pour chaque nouveau helper qualifié parrainé.
+
+🟢 PRIORITÉ 4 : FAIBLE (Innovation et Différenciation)
+
+12. Ajouter un guide en Réalité Augmentée (AR)
+
+Pourquoi ?
+C'est un différenciateur fort par rapport à la concurrence. L'AR pourrait aider les helpers à localiser des points techniques sur des modèles qu'ils ne connaissent pas.
+
+Risque sans cette fonctionnalité :
+Pas de risque majeur, mais perte d'un avantage concurrentiel.
+
+À valider : Vérifier le coût de développement et la valeur ajoutée réelle.
+
+13. Ajouter un mode nuit optimisé
+
+Pourquoi ?
+Les pannes arrivent souvent la nuit. Une lampe torche intégrée, des gros boutons et un contraste renforcé faciliteraient le travail dans l'obscurité.
+
+Risque sans cette fonctionnalité :
+Expérience utilisateur dégradée la nuit, frustration des helpers.
+
+À valider : Prioriser selon le nombre d'interventions nocturnes.
+
+14. Ajouter l'analyse IA post-travail des photos
+
+Pourquoi ?
+Une photo ne suffit pas toujours. L'IA pourrait vérifier que la roue de secours est bien montée, que le capot est fermé, etc.
+
+Risque sans cette fonctionnalité :
+Des erreurs peuvent passer inaperçues, mais le risque est limité.
+
+À valider : Complexité technique à évaluer. À implémenter après les fonctionnalités critiques.
+
+15. Ajouter la vérification du casier judiciaire
+
+Pourquoi ?
+C'est une exigence dans certains secteurs de service à la personne. Mais le coût et la complexité peuvent être importants.
+
+Risque sans cette fonctionnalité :
+Risque réputationnel si un incident survient, mais peu de plateformes le font actuellement.
+
+À valider : Vérifier les exigences légales dans votre pays. À faire si obligatoire, sinon à reporter.
+
+📋 RÉCAPITULATIF POUR VALIDATION
+
+#	Tâche	Priorité	Validation
+1	Check-list de sécurité	🔴 CRITIQUE	⬜ À valider ✅
+2	Preuve photo obligatoire	🔴 CRITIQUE	⬜ À valider ✅
+3	Vérification documents	🔴 CRITIQUE	⬜ À valider ✅
+4	Test diagnostic théorique	🟠 ÉLEVÉE	⬜ À valider ✅
+5	Rapport d'intervention	🟠 ÉLEVÉE	⬜ À valider ✅
+6	Système de pourboire	🟠 ÉLEVÉE	⬜ À valider ✅
+7	Gestion hors-ligne	🟠 ÉLEVÉE	⬜ À valider ❌
+8	Carte thermique	🟡 MOYENNE	⬜ À valider ❌
+9	Scanner OBD2	🟡 MOYENNE	⬜ À valider ⏸️
+10	Boutique Helpers	🟡 MOYENNE	⬜ À valider ❌
+11	Programme ambassadeur	🟡 MOYENNE	⬜ À valider ❌
+12	Réalité Augmentée	🟢 FAIBLE	⬜ À valider
+13	Mode nuit	🟢 FAIBLE	⬜ À valider ❌
+14	Analyse IA post-travail	🟢 FAIBLE	⬜ À valider ✅
+15	Vérification casier	🟢 FAIBLE	⬜ À valider ⏸️
+Veuillez indiquer pour chaque tâche :
+
+✅ GARDER : À implémenter
+❌ RETIRER : Pas prioritaire
+⏸️ REPORTER : À faire plus tard
+
+
+📋 PLAN D'ACTION DÉTAILLÉ
+
+Tâche 1 : Check-list de sécurité
+
+Objectif : Imposer une validation de sécurité avant chaque intervention.
+
+À faire :
+
+Créer une modal qui s'affiche après l'acceptation d'une mission
+Intégrer des checkboxes obligatoires (cônes, gilet, frein à main, etc.)
+Bloquer le passage à l'étape "En route" tant que la liste n'est pas validée
+Tâche 2 : Preuve photo obligatoire
+
+Objectif : Rendre la photo de fin de mission obligatoire.
+
+À faire :
+
+Ajouter un bouton "Prendre une photo" dans l'écran de fin de mission
+Rendre la photo obligatoire avant d'activer le bouton "Terminer"
+Envoyer la photo au backend avec l'intervention
+Tâche 3 : Vérification documents
+
+Objectif : Empêcher un helper d'intervenir sans documents valides.
+
+À faire :
+
+Ajouter un champ documentsVerified dans le modèle Helper
+Modifier le statut du helper : pending → active uniquement après validation admin
+Bloquer l'accès aux missions tant que le helper n'est pas active
+Tâche 4 : Test diagnostic théorique
+
+Objectif : Valider les compétences techniques des helpers.
+
+À faire :
+
+Créer un nouvel écran dans l'onboarding avec un quiz
+5 à 10 questions sur les pannes courantes
+Score minimum requis (ex: 70%) pour continuer l'inscription
+Tâche 5 : Rapport d'intervention
+
+Objectif : Envoyer un récapitulatif au client après chaque mission.
+
+À faire :
+
+Créer un template email de rapport
+Inclure : date, type de panne, actions effectuées, photos
+Envoyer automatiquement après validation de la mission
+Tâche 6 : Système de pourboire
+
+Objectif : Permettre aux clients de laisser un pourboire.
+
+À faire :
+
+Ajouter un champ "pourboire" dans le formulaire de paiement
+Proposer des montants suggérés (ex: 5$, 10$, 15$)
+Intégrer dans le calcul des gains du helper
+Tâche 14 : Analyse IA post-travail
+
+Objectif : Vérifier automatiquement la qualité de la réparation.
+
+À faire :
+
+Envoyer la photo finale à l'API IA
+L'IA analyse si la réparation est conforme (pneu bien monté, capot fermé)
+Signaler un problème si l'analyse détecte une anomalie

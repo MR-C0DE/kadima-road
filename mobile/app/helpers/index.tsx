@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -11,11 +11,12 @@ import {
   Platform,
   Alert,
   ActivityIndicator,
+  RefreshControl,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
 import * as Location from "expo-location";
-import MapView, { Marker, Callout } from "react-native-maps";
+import MapView, { Marker, Callout, PROVIDER_GOOGLE } from "react-native-maps";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import { useAuth } from "../../contexts/AuthContext";
@@ -24,18 +25,55 @@ import { Colors } from "@/constants/theme";
 import { useColorScheme } from "@/hooks/use-color-scheme";
 import * as Haptics from "expo-haptics";
 import * as Linking from "expo-linking";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 const { width, height } = Dimensions.get("window");
 
-// Types de services
+// Types de services avec icônes et couleurs
 const SERVICE_TYPES = [
-  { id: "all", label: "Tous", icon: "apps" },
-  { id: "battery", label: "Batterie", icon: "battery-dead" },
-  { id: "tire", label: "Pneu", icon: "car-sport" },
-  { id: "fuel", label: "Essence", icon: "water" },
-  { id: "engine", label: "Moteur", icon: "cog" },
-  { id: "towing", label: "Remorquage", icon: "car" },
+  { id: "all", label: "Tous", icon: "apps", color: "#6C5B7B" },
+  { id: "battery", label: "Batterie", icon: "battery-dead", color: "#FF6B6B" },
+  { id: "tire", label: "Pneu", icon: "car-sport", color: "#4ECDC4" },
+  { id: "fuel", label: "Essence", icon: "water", color: "#45B7D1" },
+  { id: "engine", label: "Moteur", icon: "cog", color: "#96CEB4" },
+  { id: "towing", label: "Remorquage", icon: "car", color: "#FFEAA7" },
+  { id: "lockout", label: "Clés", icon: "key", color: "#DDA0DD" },
+  { id: "jumpstart", label: "Démarrage", icon: "flash", color: "#FFD93D" },
 ];
+
+// Interface pour un helper
+interface Helper {
+  _id: string;
+  user: {
+    firstName: string;
+    lastName: string;
+    phone: string;
+    photo?: string;
+  };
+  services: string[];
+  stats: {
+    averageRating: number;
+    completedInterventions: number;
+    averageResponseTime: number;
+  };
+  distance: number;
+  pricing: {
+    basePrice: number;
+    perKm: number;
+  };
+  availability: {
+    isAvailable: boolean;
+    schedule?: Array<{ day: string; startTime: string; endTime: string }>;
+  };
+  location?: {
+    coordinates: [number, number];
+    address?: string;
+  };
+}
+
+// Cache key
+const CACHE_KEY = "helpers_cache";
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
 
 export default function HelpersScreen() {
   const router = useRouter();
@@ -43,14 +81,16 @@ export default function HelpersScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? "light"];
 
-  const [location, setLocation] = useState(null);
-  const [region, setRegion] = useState(null);
-  const [helpers, setHelpers] = useState([]);
-  const [filteredHelpers, setFilteredHelpers] = useState([]);
+  // États
+  const [location, setLocation] = useState<any>(null);
+  const [region, setRegion] = useState<any>(null);
+  const [helpers, setHelpers] = useState<Helper[]>([]);
+  const [filteredHelpers, setFilteredHelpers] = useState<Helper[]>([]);
   const [selectedService, setSelectedService] = useState("all");
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [mapType, setMapType] = useState("standard");
-  const [viewMode, setViewMode] = useState("map");
+  const [viewMode, setViewMode] = useState<"map" | "list">("map");
 
   // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -82,18 +122,44 @@ export default function HelpersScreen() {
     getLocationAndHelpers();
   }, []);
 
+  useFocusEffect(
+    useCallback(() => {
+      // Rafraîchir quand l'écran revient au premier plan
+      getLocationAndHelpers(true);
+    }, [])
+  );
+
   useEffect(() => {
     filterHelpers();
   }, [selectedService, helpers]);
 
-  const getLocationAndHelpers = async () => {
+  // Charger les helpers avec cache
+  const getLocationAndHelpers = async (forceRefresh = false) => {
     try {
+      // 1. Vérifier le cache
+      if (!forceRefresh) {
+        const cached = await AsyncStorage.getItem(CACHE_KEY);
+        if (cached) {
+          const { data, timestamp } = JSON.parse(cached);
+          if (Date.now() - timestamp < CACHE_DURATION && data.length > 0) {
+            setHelpers(data);
+            setFilteredHelpers(data);
+          }
+        }
+      }
+
+      // 2. Obtenir la position
       const { status } = await Location.requestForegroundPermissionsAsync();
       if (status !== "granted") {
         Alert.alert(
           "Permission refusée",
-          "La géolocalisation est nécessaire pour trouver des helpers"
+          "La géolocalisation est nécessaire pour trouver des helpers",
+          [
+            { text: "Annuler", style: "cancel" },
+            { text: "Réessayer", onPress: () => getLocationAndHelpers() },
+          ]
         );
+        setLoading(false);
         return;
       }
 
@@ -111,22 +177,39 @@ export default function HelpersScreen() {
       setLocation(userLocation);
       setRegion(userLocation);
 
-      // Récupérer les helpers depuis l'API
+      // 3. Appeler l'API
       const response = await api.get("/helpers/nearby", {
         params: {
           lat: loc.coords.latitude,
           lng: loc.coords.longitude,
-          radius: 10,
+          radius: 50, // ← 50 km pour couvrir Ottawa
         },
       });
 
-      setHelpers(response.data.data || []);
-      setFilteredHelpers(response.data.data || []);
-    } catch (error) {
+      const helpersData = response.data.data || [];
+      setHelpers(helpersData);
+      setFilteredHelpers(helpersData);
+
+      // 4. Sauvegarder dans le cache
+      await AsyncStorage.setItem(
+        CACHE_KEY,
+        JSON.stringify({
+          data: helpersData,
+          timestamp: Date.now(),
+        })
+      );
+    } catch (error: any) {
       console.error("Erreur:", error);
-      Alert.alert("Erreur", "Impossible de charger les helpers");
+      // Ne pas afficher d'alerte si on a des données en cache
+      if (helpers.length === 0) {
+        Alert.alert(
+          "Erreur",
+          error.response?.data?.message || "Impossible de charger les helpers"
+        );
+      }
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -140,7 +223,12 @@ export default function HelpersScreen() {
     }
   };
 
-  const handleServiceSelect = (serviceId) => {
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await getLocationAndHelpers(true);
+  };
+
+  const handleServiceSelect = (serviceId: string) => {
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
@@ -160,31 +248,66 @@ export default function HelpersScreen() {
     ]).start();
   };
 
-  const handleHelperPress = (helper) => {
+  const handleHelperPress = (helper: Helper) => {
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
-    // Pour l'instant, juste un alert, plus tard on fera une page détail
+
+    // Calculer le prix estimé (base + km)
+    const estimatedPrice = helper.pricing?.basePrice || 25;
+    const pricePerKm = helper.pricing?.perKm || 1;
+    const totalEstimate = estimatedPrice + pricePerKm * helper.distance;
+
     Alert.alert(
-      helper.user?.firstName + " " + helper.user?.lastName,
-      `Distance: ${helper.distance?.toFixed(1)} km\nNote: ${
-        helper.stats?.averageRating?.toFixed(1) || "5.0"
-      }/5\nInterventions: ${helper.stats?.completedInterventions || 0}`,
+      `${helper.user?.firstName} ${helper.user?.lastName}`,
+      `📞 ${helper.user?.phone}\n\n` +
+        `📍 Distance: ${helper.distance?.toFixed(1)} km\n` +
+        `⭐ Note: ${helper.stats?.averageRating?.toFixed(1) || "5.0"}/5\n` +
+        `🔧 Interventions: ${helper.stats?.completedInterventions || 0}\n` +
+        `💰 Estimation: ${totalEstimate.toFixed(2)} CAD\n` +
+        `✅ Disponible: ${helper.availability?.isAvailable ? "Oui" : "Non"}`,
       [
         { text: "Fermer", style: "cancel" },
         {
           text: "Appeler",
-          onPress: () => Linking.openURL(`tel:${helper.user?.phone}`),
+          onPress: () => handleCall(helper.user?.phone),
+        },
+        {
+          text: "Voir sur la carte",
+          onPress: () => {
+            setViewMode("map");
+            if (helper.location?.coordinates) {
+              setRegion({
+                latitude: helper.location.coordinates[1],
+                longitude: helper.location.coordinates[0],
+                latitudeDelta: 0.01,
+                longitudeDelta: 0.01,
+              });
+            }
+          },
         },
       ]
     );
   };
 
-  const handleCall = (phone) => {
+  const handleCall = (phone: string) => {
+    if (!phone) {
+      Alert.alert("Erreur", "Numéro de téléphone non disponible");
+      return;
+    }
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
     Linking.openURL(`tel:${phone}`);
+  };
+
+  const getAvailabilityText = (helper: Helper) => {
+    if (!helper.availability?.isAvailable) return "Indisponible";
+    return "Disponible";
+  };
+
+  const getAvailabilityColor = (helper: Helper) => {
+    return helper.availability?.isAvailable ? "#4CAF50" : "#F44336";
   };
 
   const filterScale = filterAnim.interpolate({
@@ -192,7 +315,7 @@ export default function HelpersScreen() {
     outputRange: [1, 0.95],
   });
 
-  if (loading) {
+  if (loading && helpers.length === 0) {
     return (
       <View
         style={[
@@ -222,7 +345,7 @@ export default function HelpersScreen() {
 
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
-      {/* Header personnalisé - COLLÉ EN HAUT */}
+      {/* Header */}
       <LinearGradient
         colors={[colors.primary, colors.secondary]}
         style={styles.header}
@@ -248,7 +371,7 @@ export default function HelpersScreen() {
         </TouchableOpacity>
       </LinearGradient>
 
-      {/* Filtres de services */}
+      {/* Filtres */}
       <ScrollView
         horizontal
         showsHorizontalScrollIndicator={false}
@@ -268,7 +391,12 @@ export default function HelpersScreen() {
               style={[
                 styles.filterButton,
                 selectedService === service.id && styles.filterButtonActive,
-                { borderColor: colors.border },
+                {
+                  borderColor:
+                    selectedService === service.id
+                      ? service.color
+                      : colors.border,
+                },
               ]}
               onPress={() => handleServiceSelect(service.id)}
               activeOpacity={0.7}
@@ -276,7 +404,7 @@ export default function HelpersScreen() {
               <LinearGradient
                 colors={
                   selectedService === service.id
-                    ? [colors.primary, colors.secondary]
+                    ? [service.color, service.color + "80"]
                     : ["transparent", "transparent"]
                 }
                 style={styles.filterGradient}
@@ -285,7 +413,7 @@ export default function HelpersScreen() {
                   name={service.icon}
                   size={20}
                   color={
-                    selectedService === service.id ? "#fff" : colors.primary
+                    selectedService === service.id ? "#fff" : service.color
                   }
                 />
                 <Text
@@ -305,13 +433,13 @@ export default function HelpersScreen() {
         ))}
       </ScrollView>
 
-      {/* Vue carte ou liste */}
+      {/* Vue principale */}
       {viewMode === "map" ? (
-        // Vue carte
         <View style={styles.mapContainer}>
           {region && (
             <MapView
               style={styles.map}
+              provider={PROVIDER_GOOGLE}
               region={region}
               mapType={mapType}
               showsUserLocation
@@ -332,7 +460,9 @@ export default function HelpersScreen() {
                   <View
                     style={[
                       styles.markerContainer,
-                      { backgroundColor: colors.primary },
+                      {
+                        backgroundColor: getAvailabilityColor(helper),
+                      },
                     ]}
                   >
                     <Ionicons name="person" size={16} color="#fff" />
@@ -367,6 +497,22 @@ export default function HelpersScreen() {
                           {helper.stats?.averageRating?.toFixed(1) || "5.0"}
                         </Text>
                       </View>
+                      <View style={styles.calloutAvailability}>
+                        <View
+                          style={[
+                            styles.calloutDot,
+                            { backgroundColor: getAvailabilityColor(helper) },
+                          ]}
+                        />
+                        <Text
+                          style={[
+                            styles.calloutAvailabilityText,
+                            { color: colors.textSecondary },
+                          ]}
+                        >
+                          {getAvailabilityText(helper)}
+                        </Text>
+                      </View>
                     </BlurView>
                   </Callout>
                 </Marker>
@@ -374,7 +520,6 @@ export default function HelpersScreen() {
             </MapView>
           )}
 
-          {/* Bouton changement de type de carte */}
           <TouchableOpacity
             style={[styles.mapTypeButton, { backgroundColor: colors.surface }]}
             onPress={() =>
@@ -384,7 +529,6 @@ export default function HelpersScreen() {
             <Ionicons name="layers" size={24} color={colors.primary} />
           </TouchableOpacity>
 
-          {/* Bouton recentrer */}
           <TouchableOpacity
             style={[styles.recenterButton, { backgroundColor: colors.surface }]}
             onPress={() => setRegion(location)}
@@ -393,10 +537,17 @@ export default function HelpersScreen() {
           </TouchableOpacity>
         </View>
       ) : (
-        // Vue liste
         <ScrollView
           style={styles.listContainer}
           showsVerticalScrollIndicator={false}
+          refreshControl={
+            <RefreshControl
+              refreshing={refreshing}
+              onRefresh={onRefresh}
+              tintColor={colors.primary}
+              colors={[colors.primary]}
+            />
+          }
         >
           {filteredHelpers.length > 0 ? (
             filteredHelpers.map((helper, index) => (
@@ -429,24 +580,54 @@ export default function HelpersScreen() {
                     <View
                       style={[
                         styles.helperAvatar,
-                        { backgroundColor: colors.primary + "20" },
+                        {
+                          backgroundColor: getAvailabilityColor(helper) + "20",
+                        },
                       ]}
                     >
                       <Text
                         style={[
                           styles.helperAvatarText,
-                          { color: colors.primary },
+                          { color: getAvailabilityColor(helper) },
                         ]}
                       >
                         {helper.user?.firstName?.[0]}
                         {helper.user?.lastName?.[0]}
                       </Text>
+                      <View
+                        style={[
+                          styles.availabilityDot,
+                          { backgroundColor: getAvailabilityColor(helper) },
+                        ]}
+                      />
                     </View>
 
                     <View style={styles.helperDetails}>
-                      <Text style={[styles.helperName, { color: colors.text }]}>
-                        {helper.user?.firstName} {helper.user?.lastName}
-                      </Text>
+                      <View style={styles.helperNameRow}>
+                        <Text
+                          style={[styles.helperName, { color: colors.text }]}
+                        >
+                          {helper.user?.firstName} {helper.user?.lastName}
+                        </Text>
+                        <View
+                          style={[
+                            styles.availabilityBadge,
+                            {
+                              backgroundColor:
+                                getAvailabilityColor(helper) + "20",
+                            },
+                          ]}
+                        >
+                          <Text
+                            style={[
+                              styles.availabilityBadgeText,
+                              { color: getAvailabilityColor(helper) },
+                            ]}
+                          >
+                            {getAvailabilityText(helper)}
+                          </Text>
+                        </View>
+                      </View>
 
                       <View style={styles.helperMeta}>
                         <View style={styles.helperRating}>
@@ -492,27 +673,63 @@ export default function HelpersScreen() {
                             {helper.stats?.completedInterventions || 0}
                           </Text>
                         </View>
-                      </View>
 
-                      <View style={styles.helperServices}>
-                        {helper.services?.slice(0, 3).map((service) => (
-                          <View
-                            key={service}
-                            style={[
-                              styles.serviceTag,
-                              { backgroundColor: colors.primary + "10" },
-                            ]}
-                          >
+                        {helper.stats?.averageResponseTime > 0 && (
+                          <View style={styles.helperResponseTime}>
+                            <Ionicons
+                              name="time"
+                              size={12}
+                              color={colors.textSecondary}
+                            />
                             <Text
                               style={[
-                                styles.serviceTagText,
-                                { color: colors.primary },
+                                styles.helperResponseTimeText,
+                                { color: colors.textSecondary },
                               ]}
                             >
-                              {service}
+                              {helper.stats.averageResponseTime} min
                             </Text>
                           </View>
-                        ))}
+                        )}
+                      </View>
+
+                      {/* Services */}
+                      <View style={styles.helperServices}>
+                        {helper.services?.slice(0, 3).map((service) => {
+                          const serviceConfig = SERVICE_TYPES.find(
+                            (s) => s.id === service
+                          );
+                          return (
+                            <View
+                              key={service}
+                              style={[
+                                styles.serviceTag,
+                                {
+                                  backgroundColor:
+                                    (serviceConfig?.color || colors.primary) +
+                                    "15",
+                                },
+                              ]}
+                            >
+                              <Ionicons
+                                name={serviceConfig?.icon || "help-circle"}
+                                size={10}
+                                color={serviceConfig?.color || colors.primary}
+                              />
+                              <Text
+                                style={[
+                                  styles.serviceTagText,
+                                  {
+                                    color:
+                                      serviceConfig?.color || colors.primary,
+                                  },
+                                ]}
+                              >
+                                {service}
+                              </Text>
+                            </View>
+                          );
+                        })}
                         {(helper.services?.length || 0) > 3 && (
                           <Text
                             style={[
@@ -523,6 +740,28 @@ export default function HelpersScreen() {
                             +{helper.services.length - 3}
                           </Text>
                         )}
+                      </View>
+
+                      {/* Prix estimé */}
+                      <View style={styles.priceEstimate}>
+                        <Ionicons
+                          name="cash-outline"
+                          size={12}
+                          color={colors.success}
+                        />
+                        <Text
+                          style={[
+                            styles.priceEstimateText,
+                            { color: colors.success },
+                          ]}
+                        >
+                          ~$
+                          {(
+                            (helper.pricing?.basePrice || 25) +
+                            (helper.pricing?.perKm || 1) * helper.distance
+                          ).toFixed(0)}{" "}
+                          CAD
+                        </Text>
                       </View>
                     </View>
                   </View>
@@ -566,8 +805,23 @@ export default function HelpersScreen() {
                     { color: colors.textSecondary },
                   ]}
                 >
-                  Aucun helper ne correspond à vos critères
+                  {selectedService !== "all"
+                    ? `Aucun helper ne propose le service "${selectedService}"`
+                    : "Aucun helper n'est disponible dans votre région"}
                 </Text>
+                {selectedService !== "all" && (
+                  <TouchableOpacity
+                    style={[
+                      styles.resetFilterButton,
+                      { backgroundColor: colors.primary },
+                    ]}
+                    onPress={() => setSelectedService("all")}
+                  >
+                    <Text style={styles.resetFilterText}>
+                      Voir tous les helpers
+                    </Text>
+                  </TouchableOpacity>
+                )}
               </LinearGradient>
             </View>
           )}
@@ -575,12 +829,15 @@ export default function HelpersScreen() {
       )}
 
       {/* Indicateur de nombre de helpers */}
-      <BlurView intensity={80} tint={colorScheme} style={styles.statsBadge}>
-        <Text style={[styles.statsText, { color: colors.text }]}>
-          {filteredHelpers.length} helper{filteredHelpers.length > 1 ? "s" : ""}{" "}
-          trouvé{filteredHelpers.length > 1 ? "s" : ""}
-        </Text>
-      </BlurView>
+      {filteredHelpers.length > 0 && (
+        <BlurView intensity={80} tint={colorScheme} style={styles.statsBadge}>
+          <Text style={[styles.statsText, { color: colors.text }]}>
+            {filteredHelpers.length} helper
+            {filteredHelpers.length > 1 ? "s" : ""} trouvé
+            {filteredHelpers.length > 1 ? "s" : ""}
+          </Text>
+        </BlurView>
+      )}
     </View>
   );
 }
@@ -702,6 +959,20 @@ const styles = StyleSheet.create({
   calloutRatingText: {
     fontSize: 11,
   },
+  calloutAvailability: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+    marginTop: 4,
+  },
+  calloutDot: {
+    width: 6,
+    height: 6,
+    borderRadius: 3,
+  },
+  calloutAvailabilityText: {
+    fontSize: 10,
+  },
   mapTypeButton: {
     position: "absolute",
     top: 20,
@@ -764,22 +1035,48 @@ const styles = StyleSheet.create({
     borderRadius: 30,
     justifyContent: "center",
     alignItems: "center",
+    position: "relative",
   },
   helperAvatarText: {
     fontSize: 24,
     fontWeight: "bold",
   },
+  availabilityDot: {
+    position: "absolute",
+    bottom: 2,
+    right: 2,
+    width: 12,
+    height: 12,
+    borderRadius: 6,
+    borderWidth: 2,
+    borderColor: "#fff",
+  },
   helperDetails: {
     flex: 1,
+  },
+  helperNameRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 6,
   },
   helperName: {
     fontSize: 16,
     fontWeight: "600",
-    marginBottom: 6,
+  },
+  availabilityBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 12,
+  },
+  availabilityBadgeText: {
+    fontSize: 10,
+    fontWeight: "600",
   },
   helperMeta: {
     flexDirection: "row",
     alignItems: "center",
+    flexWrap: "wrap",
     gap: 12,
     marginBottom: 8,
   },
@@ -808,25 +1105,46 @@ const styles = StyleSheet.create({
   helperInterventionsText: {
     fontSize: 13,
   },
+  helperResponseTime: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  helperResponseTimeText: {
+    fontSize: 11,
+  },
   helperServices: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
     flexWrap: "wrap",
+    gap: 6,
+    marginBottom: 6,
   },
   serviceTag: {
-    paddingHorizontal: 10,
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 8,
     paddingVertical: 4,
-    borderRadius: 15,
+    borderRadius: 12,
+    gap: 4,
   },
   serviceTagText: {
-    fontSize: 11,
+    fontSize: 10,
     fontWeight: "500",
     textTransform: "capitalize",
   },
   moreServices: {
     fontSize: 11,
     marginLeft: 2,
+  },
+  priceEstimate: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 4,
+  },
+  priceEstimateText: {
+    fontSize: 11,
+    fontWeight: "600",
   },
   callButton: {
     width: 44,
@@ -864,6 +1182,17 @@ const styles = StyleSheet.create({
   emptySubtitle: {
     fontSize: 14,
     textAlign: "center",
+  },
+  resetFilterButton: {
+    marginTop: 20,
+    paddingHorizontal: 20,
+    paddingVertical: 10,
+    borderRadius: 25,
+  },
+  resetFilterText: {
+    color: "#fff",
+    fontSize: 14,
+    fontWeight: "600",
   },
   statsBadge: {
     position: "absolute",

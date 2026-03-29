@@ -1,3 +1,5 @@
+// helpers/app/(tabs)/_layout.tsx - Version corrigée (sans position fixed)
+
 import { Tabs } from "expo-router";
 import React, { useEffect, useRef } from "react";
 import { useAuth } from "../../contexts/AuthContext";
@@ -35,25 +37,20 @@ export default function TabLayout() {
         tabBarActiveTintColor: colors.primary,
         tabBarInactiveTintColor: colors.tabIconDefault,
         tabBarStyle: {
-          position: "absolute",
-          bottom: Platform.OS === "ios" ? 0 : 0,
-          left: 20,
-          right: 20,
-          backgroundColor: "transparent",
-          borderTopWidth: 0,
-          elevation: 0,
-          shadowOpacity: 0,
-          height: Platform.OS === "ios" ? 75 : 65,
-          borderRadius: 35,
+          // ✅ SUPPRESSION de position: "absolute"
+          // ✅ Style standard pour la tab bar
+          backgroundColor: colors.background,
+          borderTopWidth: 1,
+          borderTopColor: colors.border,
+          elevation: 8,
+          shadowOpacity: 0.1,
+          shadowRadius: 4,
+          shadowOffset: { width: 0, height: -2 },
+          height: Platform.OS === "ios" ? 85 : 65,
+          paddingBottom: Platform.OS === "ios" ? 25 : 10,
+          paddingTop: 8,
           transform: [{ translateY: tabBarTranslateY }],
         },
-        tabBarBackground: () => (
-          <BlurView
-            intensity={80}
-            tint={effectiveTheme === "dark" ? "dark" : "light"}
-            style={StyleSheet.absoluteFill}
-          />
-        ),
         tabBarItemStyle: {
           paddingVertical: 8,
         },

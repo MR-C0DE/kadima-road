@@ -6,14 +6,17 @@ import {
   quickDiagnostic,
   getTutorials
 } from '../controllers/diagnosticController.js';
+// ⚡ NOUVEAU : middleware pour charger le contexte véhicule
+import { loadVehicleContext } from '../middlewares/vehicleContextMiddleware.js';
 
 const router = express.Router();
 
 router.use(protect);
 
-router.post('/start', startDiagnostic);
-router.post('/result', getDiagnosticResult);
-router.post('/quick', quickDiagnostic);
+// ⚡ AJOUT du middleware loadVehicleContext pour charger l'historique du véhicule
+router.post('/start', loadVehicleContext, startDiagnostic);
+router.post('/result', loadVehicleContext, getDiagnosticResult);
+router.post('/quick', loadVehicleContext, quickDiagnostic);
 router.get('/tutorials/:type', getTutorials);
 
 export default router;

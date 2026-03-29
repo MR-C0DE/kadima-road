@@ -1,0 +1,42 @@
+STRUCTURE DE L'APPLICATION : MOXTOR USER (Version 1.0)
+------------------------------------------------------
+
+1. LE GARAGE VIRTUEL (PROFIL VÉHICULE)
+   - Ajout par plaque/VIN : Extraction automatique du modèle, année et moteur.
+   - Coffre-fort numérique : Scan et stockage (Assurance, Carte Grise, Permis).
+   - Historique intelligent : Compilation de toutes les factures et interventions.
+   - Alertes entretien : Notifications basées sur le kilométrage (Vidange, Courroie).
+
+2. L'IA SCANNER (DIAGNOSTIC INSTANTANÉ)
+   - Analyse de voyant : Photo du tableau de bord -> Explication + Gravité.
+   - Analyse sonore : Enregistrement du moteur -> Détection de bruits anormaux.
+   - Analyse de pneus : Scan de l'usure de la gomme et détection de crevaisons.
+   - Verdict IA : "Roulez prudemment", "Arrêtez-vous", ou "Besoin d'un Helper".
+
+3. MODULE "BESOIN D'AIDE" (L'EXPÉRIENCE UBER)
+   - Bouton SOS : Géolocalisation précise et envoi du diagnostic à la communauté.
+   - Choix du sauveur : 
+     * Helper (Niveau 1/2) : Pour dépannage rapide (Batterie, Pneu, Essence).
+     * Garage (Pro) : Pour réparations lourdes (Freins, Embrayage).
+   - Estimation de prix : Affichage du coût moyen AVANT de commander.
+   - Suivi en direct : Visualisation de l'arrivée du Helper sur la carte.
+
+4. L'ANTICIPATEUR (MAINTENANCE PRÉDICTIVE)
+   - Score de santé (0-100%) : État général du véhicule mis à jour par l'IA.
+   - Conseils météo : "Gel prévu cette nuit, vérifiez votre batterie via Moxtor".
+   - Éco-conduite : Analyse des habitudes pour réduire l'usure prématurée.
+
+5. COMPARATEUR ET DEVIS (ANTI-ARNAQUE)
+   - Analyseur de devis : Photo d'un devis garage -> L'IA détecte les surcoûts.
+   - Annuaire certifié : Liste des garages partenaires notés par la communauté.
+   - Garantie Moxtor : Assurance que le prix final respecte l'estimation IA.
+
+6. PAIEMENT ET SÉCURITÉ
+   - Wallet intégré : Paiement sécurisé par carte, Apple/Google Pay.
+   - Validation de fin : Le client confirme la réparation avant le transfert d'argent.
+   - Bouton d'urgence : Appel direct aux secours si l'IA détecte un danger critique.
+
+7. RÉSEAU COMMUNAUTAIRE
+   - Mode "Helper Occasionnel" : Possibilité pour l'user de passer en mode Helper.
+   - Forum Moxtor : Conseils entre propriétaires du même modèle de voiture.
+------------------------------------------------------

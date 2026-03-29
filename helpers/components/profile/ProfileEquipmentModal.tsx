@@ -1,4 +1,6 @@
-import React from "react";
+// helpers/components/profile/ProfileEquipmentModal.tsx
+
+import React, { useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -6,18 +8,19 @@ import {
   TouchableOpacity,
   Modal,
   ScrollView,
+  Animated, // ← Importer Animated depuis react-native
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
+
 import { EQUIPMENT_LIST } from "./constants";
 
 interface ProfileEquipmentModalProps {
   visible: boolean;
   selectedEquipment: string[];
   colors: any;
-  colorScheme: string | null | undefined;
-  scaleAnim: any;
+  colorScheme: string | null;
   onClose: () => void;
   onToggleEquipment: (equipmentId: string) => void;
   onSave: () => void;
@@ -28,11 +31,25 @@ export default function ProfileEquipmentModal({
   selectedEquipment,
   colors,
   colorScheme,
-  scaleAnim,
   onClose,
   onToggleEquipment,
   onSave,
 }: ProfileEquipmentModalProps) {
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
+
+  useEffect(() => {
+    if (visible) {
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      scaleAnim.setValue(0.9);
+    }
+  }, [visible]);
+
   return (
     <Modal
       visible={visible}
@@ -41,7 +58,12 @@ export default function ProfileEquipmentModal({
       onRequestClose={onClose}
     >
       <BlurView intensity={90} tint={colorScheme} style={styles.modalOverlay}>
-        <TouchableOpacity style={StyleSheet.absoluteFill} onPress={onClose} />
+        <TouchableOpacity
+          style={StyleSheet.absoluteFill}
+          onPress={onClose}
+          activeOpacity={1}
+        />
+
         <Animated.View
           style={[
             styles.modalContent,
@@ -52,69 +74,120 @@ export default function ProfileEquipmentModal({
           ]}
         >
           <View style={styles.modalHeader}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>
-              Équipement
-            </Text>
-            <TouchableOpacity onPress={onClose} style={styles.modalClose}>
+            <View style={styles.modalHeaderLeft}>
+              <LinearGradient
+                colors={[colors.primary + "20", colors.secondary + "10"]}
+                style={styles.modalHeaderIcon}
+              >
+                <Ionicons name="build" size={22} color={colors.primary} />
+              </LinearGradient>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
+                Équipement
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={onClose}
+              style={styles.modalClose}
+              activeOpacity={0.7}
+            >
               <Ionicons name="close" size={24} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
 
-          <ScrollView showsVerticalScrollIndicator={false}>
-            {EQUIPMENT_LIST.map((item) => (
-              <TouchableOpacity
-                key={item.id}
-                style={[
-                  styles.modalItem,
-                  { borderColor: colors.border },
-                  selectedEquipment.includes(item.id) &&
-                    styles.modalItemSelected,
-                ]}
-                onPress={() => onToggleEquipment(item.id)}
-              >
-                <View
-                  style={[
-                    styles.modalItemIcon,
-                    { backgroundColor: colors.primary + "20" },
-                  ]}
-                >
-                  <Ionicons name={item.icon} size={22} color={colors.primary} />
-                </View>
-                <View style={styles.modalItemContent}>
-                  <Text style={[styles.modalItemTitle, { color: colors.text }]}>
-                    {item.label}
-                  </Text>
-                  <Text
+          <Text
+            style={[styles.modalDescription, { color: colors.textSecondary }]}
+          >
+            Sélectionnez l'équipement dont vous disposez
+          </Text>
+
+          <ScrollView
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.scrollContent}
+          >
+            <View style={styles.equipmentGrid}>
+              {EQUIPMENT_LIST.map((item) => {
+                const isSelected = selectedEquipment.includes(item.id);
+                return (
+                  <TouchableOpacity
+                    key={item.id}
                     style={[
-                      styles.modalItemDesc,
-                      { color: colors.textSecondary },
+                      styles.equipmentCard,
+                      {
+                        backgroundColor: colors.background,
+                        borderColor: isSelected
+                          ? colors.primary
+                          : colors.border,
+                      },
                     ]}
+                    onPress={() => onToggleEquipment(item.id)}
+                    activeOpacity={0.7}
                   >
-                    {item.category}
-                  </Text>
-                </View>
-                {selectedEquipment.includes(item.id) && (
-                  <View
-                    style={[
-                      styles.modalCheck,
-                      { backgroundColor: colors.primary },
-                    ]}
-                  >
-                    <Ionicons name="checkmark" size={16} color="#fff" />
-                  </View>
-                )}
-              </TouchableOpacity>
-            ))}
+                    <View
+                      style={[
+                        styles.equipmentIcon,
+                        {
+                          backgroundColor: isSelected
+                            ? colors.primary + "20"
+                            : colors.primary + "10",
+                        },
+                      ]}
+                    >
+                      <Ionicons
+                        name={item.icon as any}
+                        size={28}
+                        color={
+                          isSelected ? colors.primary : colors.textSecondary
+                        }
+                      />
+                    </View>
+                    <Text
+                      style={[
+                        styles.equipmentLabel,
+                        {
+                          color: isSelected ? colors.primary : colors.text,
+                          fontWeight: isSelected ? "600" : "500",
+                        },
+                      ]}
+                    >
+                      {item.label}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.equipmentCategory,
+                        { color: colors.textSecondary },
+                      ]}
+                    >
+                      {item.category}
+                    </Text>
+                    {isSelected && (
+                      <View
+                        style={[
+                          styles.selectedBadge,
+                          { backgroundColor: colors.primary },
+                        ]}
+                      >
+                        <Ionicons name="checkmark" size={14} color="#fff" />
+                      </View>
+                    )}
+                  </TouchableOpacity>
+                );
+              })}
+            </View>
           </ScrollView>
 
-          <TouchableOpacity style={styles.modalButton} onPress={onSave}>
+          <TouchableOpacity
+            style={styles.saveButton}
+            onPress={onSave}
+            activeOpacity={0.8}
+          >
             <LinearGradient
               colors={[colors.primary, colors.secondary]}
-              style={styles.modalButtonGradient}
+              style={styles.saveButtonGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
             >
-              <Text style={styles.modalButtonText}>Enregistrer</Text>
+              <Ionicons name="save-outline" size={20} color="#fff" />
+              <Text style={styles.saveButtonText}>Enregistrer</Text>
             </LinearGradient>
           </TouchableOpacity>
         </Animated.View>
@@ -122,9 +195,6 @@ export default function ProfileEquipmentModal({
     </Modal>
   );
 }
-
-// Note: Importer Animated
-import Animated from "react-native-reanimated";
 
 const styles = StyleSheet.create({
   modalOverlay: {
@@ -134,7 +204,7 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     width: "90%",
-    maxHeight: "80%",
+    maxHeight: "85%",
     borderRadius: 28,
     padding: 20,
     shadowColor: "#000",
@@ -147,65 +217,95 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 12,
   },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-  },
-  modalClose: {
-    padding: 4,
-  },
-  modalItem: {
+  modalHeaderLeft: {
     flexDirection: "row",
     alignItems: "center",
-    padding: 12,
-    borderRadius: 16,
-    marginBottom: 8,
-    borderWidth: 1,
     gap: 12,
   },
-  modalItemSelected: {
-    borderColor: "transparent",
-    backgroundColor: "rgba(0,0,0,0.02)",
-  },
-  modalItemIcon: {
+  modalHeaderIcon: {
     width: 44,
     height: 44,
     borderRadius: 22,
     justifyContent: "center",
     alignItems: "center",
   },
-  modalItemContent: {
-    flex: 1,
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "600",
   },
-  modalItemTitle: {
-    fontSize: 15,
-    fontWeight: "500",
-    marginBottom: 2,
+  modalClose: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
   },
-  modalItemDesc: {
-    fontSize: 12,
+  modalDescription: {
+    fontSize: 14,
+    marginBottom: 20,
+    paddingHorizontal: 4,
   },
-  modalCheck: {
+  scrollContent: {
+    paddingBottom: 16,
+  },
+  equipmentGrid: {
+    flexDirection: "row",
+    flexWrap: "wrap",
+    justifyContent: "space-between",
+    gap: 12,
+  },
+  equipmentCard: {
+    width: "48%",
+    padding: 16,
+    borderRadius: 20,
+    borderWidth: 1,
+    alignItems: "center",
+    position: "relative",
+  },
+  equipmentIcon: {
+    width: 64,
+    height: 64,
+    borderRadius: 32,
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  equipmentLabel: {
+    fontSize: 14,
+    marginBottom: 4,
+    textAlign: "center",
+  },
+  equipmentCategory: {
+    fontSize: 11,
+    textAlign: "center",
+  },
+  selectedBadge: {
+    position: "absolute",
+    top: 12,
+    right: 12,
     width: 24,
     height: 24,
     borderRadius: 12,
     justifyContent: "center",
     alignItems: "center",
   },
-  modalButton: {
-    marginTop: 20,
+  saveButton: {
+    marginTop: 16,
     borderRadius: 30,
     overflow: "hidden",
   },
-  modalButtonGradient: {
-    padding: 16,
+  saveButtonGradient: {
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    padding: 16,
+    gap: 8,
   },
-  modalButtonText: {
+  saveButtonText: {
     color: "#fff",
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: "600",
   },
 });

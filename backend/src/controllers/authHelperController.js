@@ -9,12 +9,12 @@ const generateToken = (id) => {
   });
 };
 
-// @desc    Inscription helper (Kadima Helpers)
-// @route   POST /api/auth/helper/register
-// @access  Public
 export const registerHelper = async (req, res) => {
   try {
-    const { firstName, lastName, email, phone, password } = req.body;
+    // ⚡ AJOUTE location DANS LA DESTRUCTURATION
+    const { firstName, lastName, email, phone, password, location } = req.body;
+
+    console.log("📍 Location reçue:", location); // Pour debug
 
     // Vérifier si l'utilisateur existe déjà
     let user = await User.findOne({ email });
@@ -32,10 +32,16 @@ export const registerHelper = async (req, res) => {
       user.role = 'helper';
       user.isHelper = true;
       
-      // Créer le profil helper
+      // ⚡ CRÉER LE HELPER AVEC LES COORDONNÉES
       const helper = await Helper.create({
         user: user._id,
         status: 'pending',
+        serviceArea: {
+          type: 'Point',
+          coordinates: location?.coordinates || [-75.6919, 45.4215],
+          radius: 20
+        },
+        address: location?.address || '',
         services: [],
         equipment: [],
         pricing: {
@@ -68,7 +74,8 @@ export const registerHelper = async (req, res) => {
           },
           helper: {
             id: helper._id,
-            status: helper.status
+            status: helper.status,
+            serviceArea: helper.serviceArea // ← Ajouté pour vérification
           },
           token
         }
@@ -86,10 +93,16 @@ export const registerHelper = async (req, res) => {
       isHelper: true
     });
 
-    // Créer le profil helper
+    // ⚡ CRÉER LE HELPER AVEC LES COORDONNÉES
     const helper = await Helper.create({
       user: user._id,
       status: 'pending',
+      serviceArea: {
+        type: 'Point',
+        coordinates: location?.coordinates || [-75.6919, 45.4215],
+        radius: 20
+      },
+      address: location?.address || '',
       services: [],
       equipment: [],
       pricing: {
@@ -107,7 +120,7 @@ export const registerHelper = async (req, res) => {
 
     const token = generateToken(user._id);
 
-    logger.info(`✅ Nouveau helper créé: ${email}`);
+    logger.info(`✅ Nouveau helper créé: ${email} avec coordonnées:`, location?.coordinates);
 
     res.status(201).json({
       success: true,
@@ -124,7 +137,8 @@ export const registerHelper = async (req, res) => {
         },
         helper: {
           id: helper._id,
-          status: helper.status
+          status: helper.status,
+          serviceArea: helper.serviceArea
         },
         token
       }

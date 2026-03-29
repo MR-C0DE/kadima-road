@@ -1,3 +1,5 @@
+// app/diagnostic/result.tsx - Version avec écran de chargement après questions
+
 import React, { useState, useEffect, useRef } from "react";
 import {
   View,
@@ -54,6 +56,18 @@ export default function DiagnosticResultScreen() {
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? "light"];
 
+  // États
+  const [diagnostic, setDiagnostic] = useState<any>(null);
+  const [loading, setLoading] = useState(true);
+  const [isProcessing, setIsProcessing] = useState(false); // NOUVEAU : état pour le traitement après questions
+  const [questions, setQuestions] = useState<string[]>([]);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [answers, setAnswers] = useState<
+    { question: string; answer: string }[]
+  >([]);
+  const [textAnswer, setTextAnswer] = useState("");
+  const [sessionId, setSessionId] = useState<string | null>(null);
+
   // Animations
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
@@ -61,19 +75,32 @@ export default function DiagnosticResultScreen() {
   const progressAnim = useRef(new Animated.Value(0)).current;
   const rotateAnim = useRef(new Animated.Value(0)).current;
 
-  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
-  const [questions, setQuestions] = useState([]);
-  const [answers, setAnswers] = useState([]);
-  const [diagnostic, setDiagnostic] = useState(null);
-  const [loading, setLoading] = useState(false);
-  const [textAnswer, setTextAnswer] = useState("");
-
   useEffect(() => {
-    if (params.questions) {
-      setQuestions(JSON.parse(params.questions));
+    // Vérifier si on a un résultat direct ou des questions
+    if (params.result) {
+      // Résultat direct (cas où il n'y a pas eu de questions)
+      try {
+        const resultData = JSON.parse(params.result as string);
+        setDiagnostic(resultData);
+        setLoading(false);
+      } catch (e) {
+        console.error("Erreur parsing résultat:", e);
+      }
+    } else if (params.questions) {
+      // Questions à poser
+      try {
+        const questionsList = JSON.parse(params.questions as string);
+        setQuestions(questionsList);
+        setSessionId(params.sessionId as string);
+        setLoading(false);
+      } catch (e) {
+        console.error("Erreur parsing questions:", e);
+      }
+    } else {
+      setLoading(false);
     }
 
-    // Animation d'entrée
+    // Animations
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -94,7 +121,6 @@ export default function DiagnosticResultScreen() {
       }),
     ]).start();
 
-    // Animation de rotation continue
     Animated.loop(
       Animated.timing(rotateAnim, {
         toValue: 1,
@@ -107,7 +133,6 @@ export default function DiagnosticResultScreen() {
 
   useEffect(() => {
     if (diagnostic) {
-      // Animation de progression quand le diagnostic arrive
       Animated.timing(progressAnim, {
         toValue: 1,
         duration: 1000,
@@ -127,7 +152,7 @@ export default function DiagnosticResultScreen() {
     }
   }, [diagnostic]);
 
-  const handleAnswer = async (answer) => {
+  const handleAnswer = async (answer: string) => {
     if (Platform.OS !== "web") {
       Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
@@ -142,10 +167,11 @@ export default function DiagnosticResultScreen() {
     setAnswers(newAnswers);
 
     if (currentQuestionIndex === questions.length - 1) {
+      // ⚡ DERNIÈRE QUESTION : afficher l'écran de chargement avant d'appeler l'API
+      setIsProcessing(true);
       await getDiagnostic(newAnswers);
     } else {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
-      // Animation pour la question suivante
       Animated.sequence([
         Animated.timing(fadeAnim, {
           toValue: 0,
@@ -161,7 +187,7 @@ export default function DiagnosticResultScreen() {
     }
   };
 
-  const handleTextAnswer = (answer) => {
+  const handleTextAnswer = (answer: string) => {
     if (!answer.trim()) {
       Alert.alert("Erreur", "Veuillez entrer une réponse");
       return;
@@ -181,11 +207,12 @@ export default function DiagnosticResultScreen() {
     setAnswers(newAnswers);
 
     if (currentQuestionIndex === questions.length - 1) {
+      // ⚡ DERNIÈRE QUESTION : afficher l'écran de chargement avant d'appeler l'API
+      setIsProcessing(true);
       getDiagnostic(newAnswers);
     } else {
       setCurrentQuestionIndex(currentQuestionIndex + 1);
       setTextAnswer("");
-      // Animation pour la question suivante
       Animated.sequence([
         Animated.timing(fadeAnim, {
           toValue: 0,
@@ -201,24 +228,33 @@ export default function DiagnosticResultScreen() {
     }
   };
 
-  const getDiagnostic = async (finalAnswers) => {
-    setLoading(true);
+  const getDiagnostic = async (
+    finalAnswers: { question: string; answer: string }[]
+  ) => {
+    // ⚡ On ne met pas setLoading(true) ici, on utilise setIsProcessing
     try {
       const response = await api.post("/diagnostic/result", {
         description: params.description,
         answers: finalAnswers,
+        vehicleId: params.vehicleId,
+        sessionId,
       });
 
       setDiagnostic(response.data.data);
-    } catch (error) {
-      Alert.alert("Erreur", "Impossible d'obtenir le diagnostic");
-    } finally {
-      setLoading(false);
+    } catch (error: any) {
+      Alert.alert(
+        "Erreur",
+        error.response?.data?.message || "Impossible d'obtenir le diagnostic"
+      );
+      setIsProcessing(false);
     }
   };
 
-  const getSeverityConfig = (severity) => {
-    return SEVERITY_CONFIG[severity] || SEVERITY_CONFIG.VERT;
+  const getSeverityConfig = (severity: string) => {
+    return (
+      SEVERITY_CONFIG[severity as keyof typeof SEVERITY_CONFIG] ||
+      SEVERITY_CONFIG.VERT
+    );
   };
 
   const rotate = rotateAnim.interpolate({
@@ -231,8 +267,220 @@ export default function DiagnosticResultScreen() {
     outputRange: ["0%", "100%"],
   });
 
+  const renderVehicleInfo = () => {
+    if (!params.vehicleMake && !params.vehicleId) return null;
+
+    return (
+      <View
+        style={[styles.vehicleInfoCard, { backgroundColor: colors.surface }]}
+      >
+        <View
+          style={[
+            styles.vehicleIconContainer,
+            { backgroundColor: colors.primary + "10" },
+          ]}
+        >
+          <Ionicons name="car" size={24} color={colors.primary} />
+        </View>
+        <View style={styles.vehicleInfo}>
+          <Text style={[styles.vehicleTitle, { color: colors.text }]}>
+            {params.vehicleMake} {params.vehicleModel} ({params.vehicleYear})
+          </Text>
+          <Text style={[styles.vehiclePlate, { color: colors.textSecondary }]}>
+            {params.vehicleLicensePlate || "Véhicule sélectionné"}
+          </Text>
+        </View>
+      </View>
+    );
+  };
+
+  // ⚡ Écran de chargement après les questions (comme avant)
+  const renderProcessingScreen = () => (
+    <View style={[styles.container, { backgroundColor: colors.background }]}>
+      <LinearGradient
+        colors={
+          colorScheme === "dark"
+            ? ["rgba(212,175,55,0.15)", "rgba(128,0,32,0.15)"]
+            : ["rgba(212,175,55,0.1)", "rgba(128,0,32,0.1)"]
+        }
+        style={StyleSheet.absoluteFill}
+      />
+
+      <Animated.View
+        style={[
+          styles.loadingCircle1,
+          {
+            backgroundColor: colors.primary + "20",
+            transform: [{ scale: scaleAnim }],
+          },
+        ]}
+      />
+      <Animated.View
+        style={[
+          styles.loadingCircle2,
+          {
+            backgroundColor: colors.secondary + "20",
+            transform: [{ scale: scaleAnim }],
+          },
+        ]}
+      />
+      <Animated.View
+        style={[
+          styles.loadingCircle3,
+          {
+            backgroundColor: colors.primary + "15",
+            transform: [{ scale: scaleAnim }],
+          },
+        ]}
+      />
+
+      <View style={styles.loadingContent}>
+        <Animated.View
+          style={[
+            styles.loadingLogoContainer,
+            {
+              transform: [{ scale: scaleAnim }, { rotate: rotate }],
+            },
+          ]}
+        >
+          <LinearGradient
+            colors={[colors.primary, colors.secondary]}
+            style={styles.loadingLogoGradient}
+          >
+            <Ionicons name="medkit" size={60} color="#fff" />
+          </LinearGradient>
+        </Animated.View>
+
+        <Text style={[styles.loadingMainText, { color: colors.text }]}>
+          Diagnostic en cours
+        </Text>
+
+        <View style={styles.loadingProgressContainer}>
+          <View
+            style={[
+              styles.loadingProgressRing,
+              { borderColor: colors.primary + "30" },
+            ]}
+          >
+            <ActivityIndicator size="large" color={colors.primary} />
+          </View>
+          <Text style={[styles.loadingProgressText, { color: colors.primary }]}>
+            {Math.floor(progressAnim._value * 100)}%
+          </Text>
+        </View>
+
+        <View style={styles.loadingSteps}>
+          <Animated.View
+            style={[
+              styles.loadingStep,
+              {
+                opacity: fadeAnim,
+                transform: [{ translateX: slideAnim }],
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.loadingStepDot,
+                { backgroundColor: colors.primary },
+              ]}
+            />
+            <Text style={[styles.loadingStepText, { color: colors.text }]}>
+              1. Analyse des réponses
+            </Text>
+            {progressAnim._value > 0.3 && (
+              <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
+            )}
+          </Animated.View>
+
+          <Animated.View
+            style={[
+              styles.loadingStep,
+              {
+                opacity: fadeAnim,
+                transform: [{ translateX: slideAnim }],
+                marginLeft: 10,
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.loadingStepDot,
+                { backgroundColor: colors.primary },
+              ]}
+            />
+            <Text style={[styles.loadingStepText, { color: colors.text }]}>
+              2. Recherche de causes
+            </Text>
+            {progressAnim._value > 0.6 && (
+              <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
+            )}
+          </Animated.View>
+
+          <Animated.View
+            style={[
+              styles.loadingStep,
+              {
+                opacity: fadeAnim,
+                transform: [{ translateX: slideAnim }],
+                marginLeft: 20,
+              },
+            ]}
+          >
+            <View
+              style={[
+                styles.loadingStepDot,
+                { backgroundColor: colors.primary },
+              ]}
+            />
+            <Text style={[styles.loadingStepText, { color: colors.text }]}>
+              3. Génération des recommandations
+            </Text>
+            {progressAnim._value > 0.9 && (
+              <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
+            )}
+          </Animated.View>
+        </View>
+
+        <Text style={[styles.loadingMessage, { color: colors.textSecondary }]}>
+          Notre intelligence artificielle analyse votre situation...
+        </Text>
+
+        <View
+          style={[
+            styles.loadingLinearProgress,
+            { backgroundColor: colors.border },
+          ]}
+        >
+          <Animated.View
+            style={[
+              styles.loadingLinearFill,
+              {
+                backgroundColor: colors.primary,
+                width: progressWidth,
+              },
+            ]}
+          />
+        </View>
+
+        <TouchableOpacity
+          style={[styles.loadingCancelButton, { borderColor: colors.border }]}
+          onPress={() => router.push("/diagnostic")}
+          activeOpacity={0.7}
+        >
+          <Ionicons name="close" size={20} color={colors.textSecondary} />
+          <Text
+            style={[styles.loadingCancelText, { color: colors.textSecondary }]}
+          >
+            Annuler le diagnostic
+          </Text>
+        </TouchableOpacity>
+      </View>
+    </View>
+  );
+
   // Écran de questions
-  if (!diagnostic && !loading) {
+  if (!diagnostic && !loading && questions.length > 0 && !isProcessing) {
     const currentQuestion = questions[currentQuestionIndex];
     const isTextQuestion =
       currentQuestion?.toLowerCase().includes("modèle") ||
@@ -242,14 +490,10 @@ export default function DiagnosticResultScreen() {
       currentQuestion?.toLowerCase().includes("dernière révision") ||
       currentQuestion?.toLowerCase().includes("type de carburant") ||
       currentQuestion?.toLowerCase().includes("couleur") ||
-      currentQuestion?.toLowerCase().includes("immatriculation") ||
-      currentQuestion?.toLowerCase().includes("modèle") ||
-      currentQuestion?.toLowerCase().includes("version") ||
-      currentQuestion?.toLowerCase().includes("motorisation");
+      currentQuestion?.toLowerCase().includes("immatriculation");
 
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        {/* Barre de navigation */}
         <LinearGradient
           colors={[colors.primary, colors.secondary]}
           style={styles.navGradient}
@@ -273,7 +517,6 @@ export default function DiagnosticResultScreen() {
           </TouchableOpacity>
         </LinearGradient>
 
-        {/* Barre de progression */}
         <View style={[styles.progressBar, { backgroundColor: colors.border }]}>
           <Animated.View
             style={[
@@ -301,6 +544,8 @@ export default function DiagnosticResultScreen() {
               },
             ]}
           >
+            {renderVehicleInfo()}
+
             <View style={styles.questionIcon}>
               <Ionicons
                 name={isTextQuestion ? "create-outline" : "help-circle"}
@@ -314,7 +559,6 @@ export default function DiagnosticResultScreen() {
             </Text>
 
             {isTextQuestion ? (
-              // Interface pour questions textuelles
               <View style={styles.textInputContainer}>
                 <TextInput
                   style={[
@@ -333,7 +577,6 @@ export default function DiagnosticResultScreen() {
                   numberOfLines={3}
                   textAlignVertical="top"
                 />
-
                 <View style={styles.textInputButtons}>
                   <TouchableOpacity
                     style={[
@@ -351,7 +594,6 @@ export default function DiagnosticResultScreen() {
                       Effacer
                     </Text>
                   </TouchableOpacity>
-
                   <TouchableOpacity
                     style={[
                       styles.confirmButton,
@@ -365,7 +607,6 @@ export default function DiagnosticResultScreen() {
                 </View>
               </View>
             ) : (
-              // Interface Oui/Non pour les autres questions
               <View style={styles.answerButtons}>
                 <TouchableOpacity
                   style={[styles.answerButton, { borderColor: colors.border }]}
@@ -405,7 +646,6 @@ export default function DiagnosticResultScreen() {
               </View>
             )}
 
-            {/* Indicateur de progression */}
             <Text
               style={[styles.questionHint, { color: colors.textSecondary }]}
             >
@@ -419,218 +659,29 @@ export default function DiagnosticResultScreen() {
     );
   }
 
-  // Écran de chargement - VERSION AMÉLIORÉE
+  // ⚡ Écran de chargement après les questions
+  if (isProcessing) {
+    return renderProcessingScreen();
+  }
+
+  // Écran de chargement initial
   if (loading) {
-    return (
-      <View style={[styles.container, { backgroundColor: colors.background }]}>
-        {/* Overlay avec dégradé */}
-        <LinearGradient
-          colors={
-            colorScheme === "dark"
-              ? ["rgba(212,175,55,0.15)", "rgba(128,0,32,0.15)"]
-              : ["rgba(212,175,55,0.1)", "rgba(128,0,32,0.1)"]
-          }
-          style={StyleSheet.absoluteFill}
-        />
-
-        {/* Cercles décoratifs animés */}
-        <Animated.View
-          style={[
-            styles.loadingCircle1,
-            {
-              backgroundColor: colors.primary + "20",
-              transform: [{ scale: scaleAnim }],
-            },
-          ]}
-        />
-        <Animated.View
-          style={[
-            styles.loadingCircle2,
-            {
-              backgroundColor: colors.secondary + "20",
-              transform: [{ scale: scaleAnim }],
-            },
-          ]}
-        />
-        <Animated.View
-          style={[
-            styles.loadingCircle3,
-            {
-              backgroundColor: colors.primary + "15",
-              transform: [{ scale: scaleAnim }],
-            },
-          ]}
-        />
-
-        <View style={styles.loadingContent}>
-          {/* Logo animé avec rotation */}
-          <Animated.View
-            style={[
-              styles.loadingLogoContainer,
-              {
-                transform: [{ scale: scaleAnim }, { rotate: rotate }],
-              },
-            ]}
-          >
-            <LinearGradient
-              colors={[colors.primary, colors.secondary]}
-              style={styles.loadingLogoGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
-              <Ionicons name="medkit" size={60} color="#fff" />
-            </LinearGradient>
-          </Animated.View>
-
-          {/* Texte principal */}
-          <Text style={[styles.loadingMainText, { color: colors.text }]}>
-            Diagnostic en cours
-          </Text>
-
-          {/* Indicateur de progression personnalisé */}
-          <View style={styles.loadingProgressContainer}>
-            <View
-              style={[
-                styles.loadingProgressRing,
-                { borderColor: colors.primary + "30" },
-              ]}
-            >
-              <ActivityIndicator size="large" color={colors.primary} />
-            </View>
-            <Text
-              style={[styles.loadingProgressText, { color: colors.primary }]}
-            >
-              {Math.floor(progressAnim._value * 100)}%
-            </Text>
-          </View>
-
-          {/* Étapes du diagnostic avec animation */}
-          <View style={styles.loadingSteps}>
-            <Animated.View
-              style={[
-                styles.loadingStep,
-                {
-                  opacity: fadeAnim,
-                  transform: [{ translateX: slideAnim }],
-                },
-              ]}
-            >
-              <View
-                style={[
-                  styles.loadingStepDot,
-                  { backgroundColor: colors.primary },
-                ]}
-              />
-              <Text style={[styles.loadingStepText, { color: colors.text }]}>
-                1. Analyse des symptômes
-              </Text>
-              {progressAnim._value > 0.3 && (
-                <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
-              )}
-            </Animated.View>
-
-            <Animated.View
-              style={[
-                styles.loadingStep,
-                {
-                  opacity: fadeAnim,
-                  transform: [{ translateX: slideAnim }],
-                  marginLeft: 10,
-                },
-              ]}
-            >
-              <View
-                style={[
-                  styles.loadingStepDot,
-                  { backgroundColor: colors.primary },
-                ]}
-              />
-              <Text style={[styles.loadingStepText, { color: colors.text }]}>
-                2. Recherche de causes
-              </Text>
-              {progressAnim._value > 0.6 && (
-                <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
-              )}
-            </Animated.View>
-
-            <Animated.View
-              style={[
-                styles.loadingStep,
-                {
-                  opacity: fadeAnim,
-                  transform: [{ translateX: slideAnim }],
-                  marginLeft: 20,
-                },
-              ]}
-            >
-              <View
-                style={[
-                  styles.loadingStepDot,
-                  { backgroundColor: colors.primary },
-                ]}
-              />
-              <Text style={[styles.loadingStepText, { color: colors.text }]}>
-                3. Génération des recommandations
-              </Text>
-              {progressAnim._value > 0.9 && (
-                <Ionicons name="checkmark-circle" size={16} color="#4CAF50" />
-              )}
-            </Animated.View>
-          </View>
-
-          {/* Message rassurant */}
-          <Text
-            style={[styles.loadingMessage, { color: colors.textSecondary }]}
-          >
-            Notre intelligence artificielle analyse votre situation...
-          </Text>
-
-          {/* Barre de progression linéaire */}
-          <View
-            style={[
-              styles.loadingLinearProgress,
-              { backgroundColor: colors.border },
-            ]}
-          >
-            <Animated.View
-              style={[
-                styles.loadingLinearFill,
-                {
-                  backgroundColor: colors.primary,
-                  width: progressWidth,
-                },
-              ]}
-            />
-          </View>
-
-          {/* Bouton d'annulation */}
-          <TouchableOpacity
-            style={[styles.loadingCancelButton, { borderColor: colors.border }]}
-            onPress={() => router.push("/diagnostic")}
-            activeOpacity={0.7}
-          >
-            <Ionicons name="close" size={20} color={colors.textSecondary} />
-            <Text
-              style={[
-                styles.loadingCancelText,
-                { color: colors.textSecondary },
-              ]}
-            >
-              Annuler le diagnostic
-            </Text>
-          </TouchableOpacity>
-        </View>
-      </View>
-    );
+    return renderProcessingScreen();
   }
 
   // Écran de résultat
   if (diagnostic) {
     const severityConfig = getSeverityConfig(diagnostic.diagnostic?.severity);
+    const recommendation =
+      diagnostic.recommendation ||
+      (diagnostic.diagnostic?.severity === "ROUGE"
+        ? "appeler un helper"
+        : diagnostic.diagnostic?.severity === "ORANGE"
+        ? "conduire au garage"
+        : "réparer soi-même");
 
     return (
       <View style={[styles.container, { backgroundColor: colors.background }]}>
-        {/* Barre de navigation */}
         <LinearGradient
           colors={[colors.primary, colors.secondary]}
           style={styles.navGradient}
@@ -665,7 +716,8 @@ export default function DiagnosticResultScreen() {
               },
             ]}
           >
-            {/* Header avec sévérité */}
+            {renderVehicleInfo()}
+
             <LinearGradient
               colors={[severityConfig.color, severityConfig.color + "80"]}
               style={styles.severityHeader}
@@ -681,7 +733,6 @@ export default function DiagnosticResultScreen() {
               </Text>
             </LinearGradient>
 
-            {/* Barre de confiance */}
             <View
               style={[
                 styles.confidenceContainer,
@@ -721,7 +772,6 @@ export default function DiagnosticResultScreen() {
               </View>
             </View>
 
-            {/* Cause probable */}
             <View style={[styles.card, { backgroundColor: colors.surface }]}>
               <View style={styles.cardHeader}>
                 <Ionicons name="construct" size={24} color={colors.primary} />
@@ -734,7 +784,6 @@ export default function DiagnosticResultScreen() {
               </Text>
             </View>
 
-            {/* Explication */}
             <View style={[styles.card, { backgroundColor: colors.surface }]}>
               <View style={styles.cardHeader}>
                 <Ionicons
@@ -751,7 +800,6 @@ export default function DiagnosticResultScreen() {
               </Text>
             </View>
 
-            {/* Actions recommandées */}
             {diagnostic.actions?.length > 0 && (
               <View style={[styles.card, { backgroundColor: colors.surface }]}>
                 <View style={styles.cardHeader}>
@@ -760,7 +808,7 @@ export default function DiagnosticResultScreen() {
                     Actions recommandées
                   </Text>
                 </View>
-                {diagnostic.actions.map((action, index) => (
+                {diagnostic.actions.map((action: any, index: number) => (
                   <Animated.View
                     key={index}
                     style={[
@@ -800,7 +848,6 @@ export default function DiagnosticResultScreen() {
               </View>
             )}
 
-            {/* Recommandation finale */}
             <View
               style={[
                 styles.recommendationCard,
@@ -816,18 +863,17 @@ export default function DiagnosticResultScreen() {
                 color={severityConfig.color}
               />
               <Text style={[styles.recommendationText, { color: colors.text }]}>
-                {diagnostic.recommendation === "conduire au garage" &&
-                  "🚗 Rendez-vous dans un garage"}
-                {diagnostic.recommendation === "appeler un helper" &&
+                {recommendation === "appeler un helper" &&
                   "🆘 Appelez un helper immédiatement"}
-                {diagnostic.recommendation === "réparer soi-même" &&
+                {recommendation === "conduire au garage" &&
+                  "🚗 Rendez-vous dans un garage"}
+                {recommendation === "réparer soi-même" &&
                   "🔧 Vous pouvez réparer vous-même"}
               </Text>
             </View>
 
-            {/* Boutons d'action */}
             <View style={styles.actionButtons}>
-              {diagnostic.recommendation === "appeler un helper" && (
+              {recommendation === "appeler un helper" && (
                 <TouchableOpacity
                   style={styles.primaryButton}
                   onPress={() => router.push("/sos")}
@@ -836,8 +882,6 @@ export default function DiagnosticResultScreen() {
                   <LinearGradient
                     colors={[colors.primary, colors.secondary]}
                     style={styles.primaryButtonGradient}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
                   >
                     <Ionicons name="alert-circle" size={24} color="#fff" />
                     <Text style={styles.buttonText}>Appeler un helper</Text>
@@ -845,19 +889,17 @@ export default function DiagnosticResultScreen() {
                 </TouchableOpacity>
               )}
 
-              {diagnostic.recommendation === "conduire au garage" && (
+              {recommendation === "conduire au garage" && (
                 <TouchableOpacity
                   style={styles.primaryButton}
-                  onPress={() => router.push("/helpers")}
+                  onPress={() => router.push("/helpers?tab=garages")}
                   activeOpacity={0.8}
                 >
                   <LinearGradient
                     colors={[colors.primary, colors.secondary]}
                     style={styles.primaryButtonGradient}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
                   >
-                    <Ionicons name="car" size={24} color="#fff" />
+                    <Ionicons name="business" size={24} color="#fff" />
                     <Text style={styles.buttonText}>Trouver un garage</Text>
                   </LinearGradient>
                 </TouchableOpacity>
@@ -942,6 +984,38 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingBottom: 30,
   },
+  vehicleInfoCard: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    borderRadius: 16,
+    marginBottom: 16,
+    marginHorizontal: 20,
+    gap: 12,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 4,
+    elevation: 2,
+  },
+  vehicleIconContainer: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  vehicleInfo: {
+    flex: 1,
+  },
+  vehicleTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  vehiclePlate: {
+    fontSize: 12,
+  },
   questionContainer: {
     flex: 1,
     padding: 20,
@@ -992,7 +1066,6 @@ const styles = StyleSheet.create({
     fontSize: 14,
     textAlign: "center",
   },
-  // Styles pour les questions textuelles
   textInputContainer: {
     width: "100%",
     marginVertical: 20,
@@ -1033,7 +1106,6 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "600",
   },
-  // Styles pour l'écran de chargement
   loadingCircle1: {
     position: "absolute",
     width: screenWidth * 0.8,

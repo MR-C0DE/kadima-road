@@ -9,38 +9,59 @@ interface ProfileHeaderProps {
   profile: HelperProfile | null;
   colors: any;
   onPhotoPress: () => void;
+  uploadingPhoto?: boolean;
 }
 
 export default function ProfileHeader({
   profile,
   colors,
   onPhotoPress,
+  uploadingPhoto,
 }: ProfileHeaderProps) {
   return (
     <View style={[styles.profileCard, { backgroundColor: colors.card }]}>
       <View style={styles.profileHeader}>
-        <TouchableOpacity onPress={onPhotoPress} style={styles.avatarContainer}>
-          {profile?.user.photo ? (
-            <Image
-              source={{ uri: profile.user.photo }}
-              style={styles.avatarImage}
-            />
-          ) : (
-            <LinearGradient
-              colors={[colors.primary, colors.secondary]}
-              style={styles.avatarGradient}
+        <TouchableOpacity
+          onPress={onPhotoPress}
+          style={styles.avatarContainer}
+          disabled={uploadingPhoto}
+        >
+          {uploadingPhoto ? (
+            <View
+              style={[
+                styles.avatarGradient,
+                { justifyContent: "center", alignItems: "center" },
+              ]}
             >
-              <View style={styles.avatarInner}>
-                <Text style={styles.avatarText}>
-                  {profile?.user.firstName?.[0]}
-                  {profile?.user.lastName?.[0]}
-                </Text>
+              <ActivityIndicator size="large" color={colors.primary} />
+            </View>
+          ) : (
+            <>
+              {profile?.photo ? (
+                <Image
+                  source={{ uri: profile.photo }}
+                  style={styles.avatarImage}
+                />
+              ) : (
+                <LinearGradient
+                  colors={[colors.primary, colors.secondary]}
+                  style={styles.avatarGradient}
+                >
+                  <View style={styles.avatarInner}>
+                    <Text style={styles.avatarText}>
+                      {profile?.user.firstName?.[0]?.toUpperCase() || ""}
+                      {profile?.user.lastName?.[0]?.toUpperCase() || ""}
+                    </Text>
+                  </View>
+                </LinearGradient>
+              )}
+              <View
+                style={[styles.editBadge, { backgroundColor: colors.primary }]}
+              >
+                <Ionicons name="camera" size={12} color="#fff" />
               </View>
-            </LinearGradient>
+            </>
           )}
-          <View style={[styles.editBadge, { backgroundColor: colors.primary }]}>
-            <Ionicons name="camera" size={12} color="#fff" />
-          </View>
         </TouchableOpacity>
 
         <View style={styles.profileInfo}>
@@ -76,7 +97,6 @@ export default function ProfileHeader({
                 {getStatusText(profile?.status || "pending")}
               </Text>
             </View>
-
             {profile?.certification.isCertified && (
               <View
                 style={[
@@ -112,6 +132,7 @@ export default function ProfileHeader({
   );
 }
 
+// Styles (à copier depuis le fichier original)
 const styles = StyleSheet.create({
   profileCard: {
     borderRadius: 24,
@@ -123,20 +144,9 @@ const styles = StyleSheet.create({
     shadowRadius: 12,
     elevation: 5,
   },
-  profileHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 16,
-  },
-  avatarContainer: {
-    position: "relative",
-  },
-  avatarGradient: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-    padding: 3,
-  },
+  profileHeader: { flexDirection: "row", alignItems: "center", gap: 16 },
+  avatarContainer: { position: "relative" },
+  avatarGradient: { width: 80, height: 80, borderRadius: 40, padding: 3 },
   avatarInner: {
     flex: 1,
     borderRadius: 37,
@@ -144,16 +154,8 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  avatarText: {
-    fontSize: 32,
-    fontWeight: "bold",
-    color: "#333",
-  },
-  avatarImage: {
-    width: 80,
-    height: 80,
-    borderRadius: 40,
-  },
+  avatarText: { fontSize: 32, fontWeight: "bold", color: "#333" },
+  avatarImage: { width: 80, height: 80, borderRadius: 40 },
   editBadge: {
     position: "absolute",
     bottom: 0,
@@ -166,18 +168,9 @@ const styles = StyleSheet.create({
     borderWidth: 2,
     borderColor: "#fff",
   },
-  profileInfo: {
-    flex: 1,
-  },
-  profileName: {
-    fontSize: 20,
-    fontWeight: "bold",
-    marginBottom: 8,
-  },
-  badgeContainer: {
-    flexDirection: "row",
-    gap: 8,
-  },
+  profileInfo: { flex: 1 },
+  profileName: { fontSize: 20, fontWeight: "bold", marginBottom: 8 },
+  badgeContainer: { flexDirection: "row", gap: 8 },
   statusBadge: {
     flexDirection: "row",
     alignItems: "center",
@@ -186,15 +179,8 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     gap: 4,
   },
-  statusDot: {
-    width: 6,
-    height: 6,
-    borderRadius: 3,
-  },
-  statusText: {
-    fontSize: 11,
-    fontWeight: "500",
-  },
+  statusDot: { width: 6, height: 6, borderRadius: 3 },
+  statusText: { fontSize: 11, fontWeight: "500" },
   certBadge: {
     flexDirection: "row",
     alignItems: "center",
@@ -203,21 +189,8 @@ const styles = StyleSheet.create({
     borderRadius: 20,
     gap: 4,
   },
-  certText: {
-    fontSize: 11,
-    fontWeight: "500",
-  },
-  contactSection: {
-    marginTop: 16,
-    gap: 8,
-  },
-  contactRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-  },
-  contactText: {
-    fontSize: 13,
-    flex: 1,
-  },
+  certText: { fontSize: 11, fontWeight: "500" },
+  contactSection: { marginTop: 16, gap: 8 },
+  contactRow: { flexDirection: "row", alignItems: "center", gap: 10 },
+  contactText: { fontSize: 13, flex: 1 },
 });

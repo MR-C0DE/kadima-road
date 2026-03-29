@@ -94,3 +94,367 @@
 {"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"available-sos\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-13T08:39:24.231Z"}
 {"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"available-sos\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-13T08:45:49.471Z"}
 {"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"available-sos\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-13T08:46:01.552Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-14T15:11:38.725Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-14T15:11:41.340Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"available-sos\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-14T15:12:06.475Z"}
+{"level":"error","message":"Erreur analyse problème: 401 Incorrect API key provided: sk-proj-********************************************************************************************************************************************************9EsA. You can find your API key at https://platform.openai.com/account/api-keys.","timestamp":"2026-03-14T15:12:36.141Z"}
+{"level":"error","message":"Erreur start diagnostic: 401 Incorrect API key provided: sk-proj-********************************************************************************************************************************************************9EsA. You can find your API key at https://platform.openai.com/account/api-keys.","timestamp":"2026-03-14T15:12:36.142Z"}
+{"level":"error","message":"Erreur getHelperProfile: Cannot read properties of null (reading '_id')","timestamp":"2026-03-18T18:21:01.965Z"}
+{"level":"error","message":"Erreur getDocuments: Cannot read properties of null (reading '_id')","timestamp":"2026-03-18T18:21:02.134Z"}
+{"level":"error","message":"Erreur inscription helper: Helper validation failed: serviceArea.coordinates: Path `serviceArea.coordinates` is required.","timestamp":"2026-03-18T18:23:25.798Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"available-sos\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-18T18:40:56.116Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"available-sos\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-18T18:41:20.729Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"available-sos\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-18T18:45:32.263Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"available-sos\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-18T18:45:34.161Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"available-sos\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-18T18:51:15.554Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"available-sos\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-18T18:52:07.164Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-18T18:54:25.064Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"available-sos\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-18T19:01:28.982Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"available-sos\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-18T19:06:26.917Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"available-sos\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-18T19:08:38.002Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"available-sos\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-18T19:08:48.728Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69baf5dc2ecb93dc44d3358e?lat=45.286648782056766&lng=-75.66667633959077 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-18T19:13:04.050Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69baf912fe7c6ce1631a3914?lat=45.286648782056766&lng=-75.66667633959077 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-18T19:13:08.296Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69baf5dc2ecb93dc44d3358e?lat=45.286683713454536&lng=-75.6667320782964 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-18T19:14:31.684Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69baf5dc2ecb93dc44d3358e?lat=45.28668120704009&lng=-75.66671658123548 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-18T19:14:33.659Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69baf5dc2ecb93dc44d3358e?lat=45.28668120704009&lng=-75.66671658123548 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-18T19:14:34.201Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69baf5dc2ecb93dc44d3358e?lat=45.28668120704009&lng=-75.66671658123548 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-18T19:14:34.399Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69baf5dc2ecb93dc44d3358e?lat=45.28668230377061&lng=-75.6667154866171 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-18T19:14:34.589Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69baf5dc2ecb93dc44d3358e?lat=45.28668230377061&lng=-75.6667154866171 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-18T19:14:34.794Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69baf5dc2ecb93dc44d3358e?lat=45.28668230377061&lng=-75.6667154866171 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-18T19:14:34.935Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69baf5dc2ecb93dc44d3358e?lat=45.28668230377061&lng=-75.6667154866171 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-18T19:14:35.110Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69baf5dc2ecb93dc44d3358e?lat=45.28668230377061&lng=-75.6667154866171 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-18T19:14:35.293Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69baf5dc2ecb93dc44d3358e?lat=45.286684956005786&lng=-75.66670939194421 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-18T19:14:35.448Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69baf5dc2ecb93dc44d3358e?lat=45.286684956005786&lng=-75.66670939194421 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-18T19:14:35.650Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69baf5dc2ecb93dc44d3358e?lat=45.28669333199753&lng=-75.66670701943744 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-18T19:14:38.198Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69baf5dc2ecb93dc44d3358e?lat=45.286698205022546&lng=-75.66670740345837 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-18T19:14:38.383Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69baf5dc2ecb93dc44d3358e?lat=45.286698205022546&lng=-75.66670740345837 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-18T19:14:38.564Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69baf5dc2ecb93dc44d3358e?lat=45.286698205022546&lng=-75.66670740345837 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-18T19:14:38.772Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69baf5dc2ecb93dc44d3358e?lat=45.286698205022546&lng=-75.66670740345837 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-18T19:14:38.915Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69baf5dc2ecb93dc44d3358e?lat=45.286698205022546&lng=-75.66670740345837 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-18T19:14:39.141Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69baf5dc2ecb93dc44d3358e?lat=45.286695524885275&lng=-75.66672556461194 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-18T19:14:39.290Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69baf5dc2ecb93dc44d3358e?lat=45.286695524885275&lng=-75.66672556461194 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-18T19:14:39.298Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69baf5dc2ecb93dc44d3358e?lat=45.286695524885275&lng=-75.66672556461194 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-18T19:14:39.302Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69baf5dc2ecb93dc44d3358e?lat=45.286695524885275&lng=-75.66672556461194 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-18T19:14:39.304Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69baf5dc2ecb93dc44d3358e?lat=45.286695524885275&lng=-75.66672556461194 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-18T19:14:39.306Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69baf5dc2ecb93dc44d3358e?lat=45.286695524885275&lng=-75.66672556461194 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-18T19:14:39.307Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69baf5dc2ecb93dc44d3358e?lat=45.286695524885275&lng=-75.66672556461194 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-18T19:14:39.308Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69baf5dc2ecb93dc44d3358e?lat=45.286695524885275&lng=-75.66672556461194 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-18T19:14:39.317Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69baf5dc2ecb93dc44d3358e?lat=45.286695524885275&lng=-75.66672556461194 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-18T19:14:39.324Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69baf5dc2ecb93dc44d3358e?lat=45.286695524885275&lng=-75.66672556461194 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-18T19:14:39.324Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69baf9d3fe7c6ce1631a3ac3?lat=45.286648782056766&lng=-75.66667633959077 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-18T19:16:03.328Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69bb07c0426f498806a9f871?lat=45.286648782056766&lng=-75.66667633959077 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-18T20:15:21.442Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-18T20:26:57.631Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-18T20:26:58.578Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69bb5508e7124b47f76e7c3c?lat=45.286648782056766&lng=-75.66667633959077 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-19T01:44:45.939Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69bb5508e7124b47f76e7c3c?lat=45.286648782056766&lng=-75.66667633959077 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-19T01:44:56.970Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69bb5508e7124b47f76e7c3c?lat=45.286648782056766&lng=-75.66667633959077 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-19T01:45:06.848Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69bb57a13fe7b2ff732bc450?lat=45.286648782056766&lng=-75.66667633959077 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-19T01:55:50.659Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69bb5823c66a7144fe117884?lat=45.286648782056766&lng=-75.66667633959077 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-19T01:58:01.316Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69bb5823c66a7144fe117884?lat=45.286648782056766&lng=-75.66667633959077 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-19T01:58:10.391Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69bb5823c66a7144fe117884?lat=45.286648782056766&lng=-75.66667633959077 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-19T01:58:14.538Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69bb5823c66a7144fe117884?lat=45.286648782056766&lng=-75.66667633959077 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-19T01:58:20.222Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69bb5823c66a7144fe117884?lat=45.286648782056766&lng=-75.66667633959077 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-19T01:58:23.395Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69bb5823c66a7144fe117884?lat=45.286648782056766&lng=-75.66667633959077 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-19T02:00:00.631Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69bb5823c66a7144fe117884?lat=45.286648782056766&lng=-75.66667633959077 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-19T02:00:08.221Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69bb5823c66a7144fe117884?lat=45.286648782056766&lng=-75.66667633959077 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-19T02:04:46.684Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69bb5823c66a7144fe117884?lat=45.286648782056766&lng=-75.66667633959077 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-19T02:05:39.809Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69bb5823c66a7144fe117884?lat=45.286648782056766&lng=-75.66667633959077 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-19T02:06:27.494Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69bb5823c66a7144fe117884?lat=45.286648782056766&lng=-75.66667633959077 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-19T02:06:52.130Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69bb5f6679d8575eb56097a9?lat=45.286648782056766&lng=-75.66667633959077 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-19T02:29:40.903Z"}
+{"level":"error","message":"500 - Unexpected token 'n', \"null\" is not valid JSON - /api/helpers/accept-sos/69bb843679d8575eb5609ab0?lat=45.286648782056766&lng=-75.66667633959077 - POST - ::ffff:192.168.2.156","timestamp":"2026-03-19T05:06:07.264Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-19T05:33:05.522Z"}
+{"level":"error","message":"Erreur updateMissionStatus: Authenticate","timestamp":"2026-03-19T05:33:05.522Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-19T05:34:04.487Z"}
+{"level":"error","message":"Erreur updateMissionStatus: Authenticate","timestamp":"2026-03-19T05:34:04.487Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-19T05:34:06.769Z"}
+{"level":"error","message":"Erreur updateMissionStatus: Authenticate","timestamp":"2026-03-19T05:34:06.769Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-19T05:41:02.298Z"}
+{"level":"error","message":"Erreur updateMissionStatus: Authenticate","timestamp":"2026-03-19T05:41:02.299Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-19T05:41:11.819Z"}
+{"level":"error","message":"Erreur updateMissionStatus: Authenticate","timestamp":"2026-03-19T05:41:11.819Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-19T05:41:29.431Z"}
+{"level":"error","message":"Erreur updateMissionStatus: Authenticate","timestamp":"2026-03-19T05:41:29.432Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-19T05:41:37.080Z"}
+{"level":"error","message":"Erreur updateMissionStatus: Authenticate","timestamp":"2026-03-19T05:41:37.081Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-19T05:49:55.145Z"}
+{"level":"error","message":"Erreur updateMissionStatus: Authenticate","timestamp":"2026-03-19T05:49:55.145Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-19T07:00:56.695Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-20T04:28:13.939Z"}
+{"level":"error","message":"Erreur updateMissionStatus: Authenticate","timestamp":"2026-03-20T04:28:13.940Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-20T04:38:04.292Z"}
+{"level":"error","message":"Erreur updateMissionStatus: Authenticate","timestamp":"2026-03-20T04:38:04.293Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-20T04:53:02.720Z"}
+{"level":"error","message":"Erreur updateMissionStatus: Authenticate","timestamp":"2026-03-20T04:53:02.720Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-20T04:53:06.392Z"}
+{"level":"error","message":"Erreur updateMissionStatus: Authenticate","timestamp":"2026-03-20T04:53:06.393Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-20T04:53:08.702Z"}
+{"level":"error","message":"Erreur updateMissionStatus: Authenticate","timestamp":"2026-03-20T04:53:08.703Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-20T04:53:15.970Z"}
+{"level":"error","message":"Erreur updateMissionStatus: Authenticate","timestamp":"2026-03-20T04:53:15.971Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-20T05:28:36.189Z"}
+{"level":"error","message":"Erreur updateMissionStatus: Authenticate","timestamp":"2026-03-20T05:28:36.191Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-20T05:29:10.802Z"}
+{"level":"error","message":"Erreur updateMissionStatus: Authenticate","timestamp":"2026-03-20T05:29:10.802Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-20T05:33:15.226Z"}
+{"level":"error","message":"Erreur updateMissionStatus: Authenticate","timestamp":"2026-03-20T05:33:15.228Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-20T05:38:00.213Z"}
+{"level":"error","message":"Erreur updateMissionStatus: Authenticate","timestamp":"2026-03-20T05:38:00.214Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-20T05:40:47.642Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-20T05:41:48.516Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-20T05:43:25.050Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-20T05:43:38.211Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-20T05:43:56.734Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-20T06:06:52.683Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-20T06:10:02.986Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-20T06:11:44.606Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-20T06:13:06.568Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-20T06:14:43.796Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-20T06:17:19.119Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-20T06:18:02.878Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-20T06:18:05.904Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-20T06:18:12.432Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-20T06:20:31.847Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-20T06:20:53.656Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-20T06:21:26.621Z"}
+{"level":"error","message":"Erreur getUserById: Cast to ObjectId failed for value \"vehicles\" (type string) at path \"_id\" for model \"User\"","timestamp":"2026-03-20T06:53:14.337Z"}
+{"level":"error","message":"Erreur getSOSById: Cast to ObjectId failed for value \"history\" (type string) at path \"_id\" for model \"SOSAlert\"","timestamp":"2026-03-20T06:53:14.407Z"}
+{"level":"error","message":"Erreur getUserById: Cast to ObjectId failed for value \"vehicles\" (type string) at path \"_id\" for model \"User\"","timestamp":"2026-03-20T06:55:22.863Z"}
+{"level":"error","message":"Erreur getSOSById: Cast to ObjectId failed for value \"history\" (type string) at path \"_id\" for model \"SOSAlert\"","timestamp":"2026-03-20T06:55:22.942Z"}
+{"level":"error","message":"Erreur getUserById: Cast to ObjectId failed for value \"vehicles\" (type string) at path \"_id\" for model \"User\"","timestamp":"2026-03-20T06:57:10.080Z"}
+{"level":"error","message":"Erreur getSOSById: Cast to ObjectId failed for value \"history\" (type string) at path \"_id\" for model \"SOSAlert\"","timestamp":"2026-03-20T06:57:10.194Z"}
+{"level":"error","message":"Erreur getUserById: Cast to ObjectId failed for value \"vehicles\" (type string) at path \"_id\" for model \"User\"","timestamp":"2026-03-20T06:57:32.741Z"}
+{"level":"error","message":"Erreur getSOSById: Cast to ObjectId failed for value \"history\" (type string) at path \"_id\" for model \"SOSAlert\"","timestamp":"2026-03-20T06:57:32.881Z"}
+{"level":"error","message":"Erreur getUserById: Cast to ObjectId failed for value \"vehicles\" (type string) at path \"_id\" for model \"User\"","timestamp":"2026-03-20T07:31:26.877Z"}
+{"level":"error","message":"Erreur getSOSById: Cast to ObjectId failed for value \"history\" (type string) at path \"_id\" for model \"SOSAlert\"","timestamp":"2026-03-20T07:31:26.976Z"}
+{"level":"error","message":"Erreur getUserById: Cast to ObjectId failed for value \"vehicles\" (type string) at path \"_id\" for model \"User\"","timestamp":"2026-03-20T07:44:37.690Z"}
+{"level":"error","message":"Erreur getSOSById: Cast to ObjectId failed for value \"history\" (type string) at path \"_id\" for model \"SOSAlert\"","timestamp":"2026-03-20T07:44:37.766Z"}
+{"level":"error","message":"Erreur getUserById: Cast to ObjectId failed for value \"vehicles\" (type string) at path \"_id\" for model \"User\"","timestamp":"2026-03-20T07:44:52.571Z"}
+{"level":"error","message":"Erreur getSOSById: Cast to ObjectId failed for value \"history\" (type string) at path \"_id\" for model \"SOSAlert\"","timestamp":"2026-03-20T07:44:52.639Z"}
+{"level":"error","message":"Erreur getUserById: Cast to ObjectId failed for value \"vehicles\" (type string) at path \"_id\" for model \"User\"","timestamp":"2026-03-20T07:45:06.660Z"}
+{"level":"error","message":"Erreur getSOSById: Cast to ObjectId failed for value \"history\" (type string) at path \"_id\" for model \"SOSAlert\"","timestamp":"2026-03-20T07:45:06.740Z"}
+{"level":"error","message":"Erreur getUserById: Cast to ObjectId failed for value \"vehicles\" (type string) at path \"_id\" for model \"User\"","timestamp":"2026-03-20T07:57:41.026Z"}
+{"level":"error","message":"Erreur getSOSById: Cast to ObjectId failed for value \"history\" (type string) at path \"_id\" for model \"SOSAlert\"","timestamp":"2026-03-20T07:57:41.098Z"}
+{"level":"error","message":"Erreur getUserById: Cast to ObjectId failed for value \"vehicles\" (type string) at path \"_id\" for model \"User\"","timestamp":"2026-03-20T07:58:01.476Z"}
+{"level":"error","message":"Erreur getSOSById: Cast to ObjectId failed for value \"history\" (type string) at path \"_id\" for model \"SOSAlert\"","timestamp":"2026-03-20T07:58:01.549Z"}
+{"level":"error","message":"Erreur getUserById: Cast to ObjectId failed for value \"vehicles\" (type string) at path \"_id\" for model \"User\"","timestamp":"2026-03-20T08:02:05.373Z"}
+{"level":"error","message":"Erreur getSOSById: Cast to ObjectId failed for value \"history\" (type string) at path \"_id\" for model \"SOSAlert\"","timestamp":"2026-03-20T08:02:05.447Z"}
+{"level":"error","message":"Erreur getUserById: Cast to ObjectId failed for value \"vehicles\" (type string) at path \"_id\" for model \"User\"","timestamp":"2026-03-20T08:13:41.651Z"}
+{"level":"error","message":"Erreur getSOSById: Cast to ObjectId failed for value \"history\" (type string) at path \"_id\" for model \"SOSAlert\"","timestamp":"2026-03-20T08:13:42.193Z"}
+{"level":"error","message":"Erreur getUserById: Cast to ObjectId failed for value \"vehicles\" (type string) at path \"_id\" for model \"User\"","timestamp":"2026-03-20T08:13:59.462Z"}
+{"level":"error","message":"Erreur getSOSById: Cast to ObjectId failed for value \"history\" (type string) at path \"_id\" for model \"SOSAlert\"","timestamp":"2026-03-20T08:13:59.536Z"}
+{"level":"error","message":"Erreur getUserById: Cast to ObjectId failed for value \"vehicles\" (type string) at path \"_id\" for model \"User\"","timestamp":"2026-03-20T08:16:21.137Z"}
+{"level":"error","message":"Erreur getSOSById: Cast to ObjectId failed for value \"history\" (type string) at path \"_id\" for model \"SOSAlert\"","timestamp":"2026-03-20T08:16:21.214Z"}
+{"level":"error","message":"Erreur getSOSById: Cast to ObjectId failed for value \"history\" (type string) at path \"_id\" for model \"SOSAlert\"","timestamp":"2026-03-20T08:25:23.517Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-20T08:27:51.381Z"}
+{"level":"error","message":"Erreur getSOSById: Cast to ObjectId failed for value \"history\" (type string) at path \"_id\" for model \"SOSAlert\"","timestamp":"2026-03-20T08:28:01.431Z"}
+{"level":"error","message":"Erreur getSOSById: Cast to ObjectId failed for value \"history\" (type string) at path \"_id\" for model \"SOSAlert\"","timestamp":"2026-03-20T08:32:06.820Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-20T08:33:29.032Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-20T08:33:38.065Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-20T08:33:40.751Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-20T08:33:51.484Z"}
+{"level":"error","message":"Erreur getSOSById: Cast to ObjectId failed for value \"history\" (type string) at path \"_id\" for model \"SOSAlert\"","timestamp":"2026-03-20T09:04:41.630Z"}
+{"level":"error","message":"Erreur getSOSById: Cast to ObjectId failed for value \"history\" (type string) at path \"_id\" for model \"SOSAlert\"","timestamp":"2026-03-20T09:27:34.716Z"}
+{"level":"error","message":"Erreur getSOSById: Cast to ObjectId failed for value \"history\" (type string) at path \"_id\" for model \"SOSAlert\"","timestamp":"2026-03-20T09:58:01.360Z"}
+{"level":"error","message":"Erreur getSOSById: Cast to ObjectId failed for value \"history\" (type string) at path \"_id\" for model \"SOSAlert\"","timestamp":"2026-03-20T09:59:49.243Z"}
+{"level":"error","message":"Erreur getSOSById: Cast to ObjectId failed for value \"history\" (type string) at path \"_id\" for model \"SOSAlert\"","timestamp":"2026-03-20T23:28:52.528Z"}
+{"level":"error","message":"Erreur getSOSById: Cast to ObjectId failed for value \"history\" (type string) at path \"_id\" for model \"SOSAlert\"","timestamp":"2026-03-20T23:34:49.201Z"}
+{"level":"error","message":"Erreur getSOSById: Cast to ObjectId failed for value \"history\" (type string) at path \"_id\" for model \"SOSAlert\"","timestamp":"2026-03-20T23:34:51.875Z"}
+{"level":"error","message":"Erreur createVehicle: VehicleDocument validation failed: fileUrl: Path `fileUrl` is required., type: `acquisition` is not a valid enum value for path `type`.","timestamp":"2026-03-21T01:19:21.510Z"}
+{"level":"error","message":"Erreur getVehicleById: Cast to ObjectId failed for value \"undefined\" (type string) at path \"_id\" for model \"Vehicle\"","timestamp":"2026-03-21T01:19:56.379Z"}
+{"level":"error","message":"Erreur getUserVehicles: Schema hasn't been registered for model \"VehicleLog\".\nUse mongoose.model(name, schema)","timestamp":"2026-03-21T01:20:43.875Z"}
+{"level":"error","message":"Erreur getUserVehicles: Schema hasn't been registered for model \"VehicleLog\".\nUse mongoose.model(name, schema)","timestamp":"2026-03-21T01:20:43.877Z"}
+{"level":"error","message":"Erreur getSOSById: Cast to ObjectId failed for value \"history\" (type string) at path \"_id\" for model \"SOSAlert\"","timestamp":"2026-03-21T01:23:15.263Z"}
+{"level":"error","message":"Erreur getUserVehicles: Schema hasn't been registered for model \"VehicleLog\".\nUse mongoose.model(name, schema)","timestamp":"2026-03-21T03:15:54.315Z"}
+{"level":"error","message":"Erreur getUserVehicles: Schema hasn't been registered for model \"VehicleLog\".\nUse mongoose.model(name, schema)","timestamp":"2026-03-21T03:15:57.673Z"}
+{"level":"error","message":"Erreur getUserVehicles: Schema hasn't been registered for model \"VehicleLog\".\nUse mongoose.model(name, schema)","timestamp":"2026-03-21T03:15:59.108Z"}
+{"level":"error","message":"Erreur getUserVehicles: Schema hasn't been registered for model \"VehicleLog\".\nUse mongoose.model(name, schema)","timestamp":"2026-03-21T03:16:00.304Z"}
+{"level":"error","message":"Erreur getUserVehicles: Schema hasn't been registered for model \"VehicleLog\".\nUse mongoose.model(name, schema)","timestamp":"2026-03-21T03:16:05.922Z"}
+{"level":"error","message":"Erreur getUserVehicles: Schema hasn't been registered for model \"VehicleLog\".\nUse mongoose.model(name, schema)","timestamp":"2026-03-21T03:16:05.927Z"}
+{"level":"error","message":"Erreur getUserVehicles: Schema hasn't been registered for model \"VehicleLog\".\nUse mongoose.model(name, schema)","timestamp":"2026-03-21T03:16:12.589Z"}
+{"level":"error","message":"Erreur getUserVehicles: Schema hasn't been registered for model \"VehicleLog\".\nUse mongoose.model(name, schema)","timestamp":"2026-03-21T03:16:15.060Z"}
+{"level":"error","message":"Erreur getVehicleById: Cast to ObjectId failed for value \"undefined\" (type string) at path \"_id\" for model \"Vehicle\"","timestamp":"2026-03-21T03:17:54.909Z"}
+{"level":"error","message":"Erreur getVehicleById: Cast to ObjectId failed for value \"undefined\" (type string) at path \"_id\" for model \"Vehicle\"","timestamp":"2026-03-21T03:17:59.928Z"}
+{"level":"error","message":"Erreur deleteVehicle: Cast to ObjectId failed for value \"undefined\" (type string) at path \"_id\" for model \"Vehicle\"","timestamp":"2026-03-21T03:19:44.017Z"}
+{"level":"error","message":"Erreur updateVehicle: Cast to ObjectId failed for value \"undefined\" (type string) at path \"_id\" for model \"Vehicle\"","timestamp":"2026-03-21T03:19:47.629Z"}
+{"level":"error","message":"Erreur updateVehicle: Cast to ObjectId failed for value \"undefined\" (type string) at path \"_id\" for model \"Vehicle\"","timestamp":"2026-03-21T03:19:56.310Z"}
+{"level":"error","message":"Erreur deleteVehicle: Cast to ObjectId failed for value \"undefined\" (type string) at path \"_id\" for model \"Vehicle\"","timestamp":"2026-03-21T03:19:59.493Z"}
+{"level":"error","message":"Erreur createVehicle: Vehicle validation failed: vin: VIN invalide (17 caractères alphanumériques)","timestamp":"2026-03-21T03:21:33.825Z"}
+{"level":"error","message":"Erreur deleteVehicle: Cast to ObjectId failed for value \"undefined\" (type string) at path \"_id\" for model \"Vehicle\"","timestamp":"2026-03-21T03:23:15.062Z"}
+{"level":"error","message":"Erreur updateVehicle: Cast to ObjectId failed for value \"undefined\" (type string) at path \"_id\" for model \"Vehicle\"","timestamp":"2026-03-21T03:23:33.301Z"}
+{"level":"error","message":"Erreur getVehicleById: Cast to ObjectId failed for value \"undefined\" (type string) at path \"_id\" for model \"Vehicle\"","timestamp":"2026-03-21T03:23:57.832Z"}
+{"level":"error","message":"Erreur getVehicleById: Cast to ObjectId failed for value \"undefined\" (type string) at path \"_id\" for model \"Vehicle\"","timestamp":"2026-03-21T03:27:43.310Z"}
+{"level":"error","message":"Erreur createVehicle: VehicleDocument validation failed: fileUrl: Path `fileUrl` is required., type: `acquisition` is not a valid enum value for path `type`.","timestamp":"2026-03-21T03:30:51.950Z"}
+{"level":"error","message":"Erreur getVehicleById: Cast to ObjectId failed for value \"undefined\" (type string) at path \"_id\" for model \"Vehicle\"","timestamp":"2026-03-21T03:36:19.131Z"}
+{"level":"error","message":"Erreur getVehicleById: Cast to ObjectId failed for value \"undefined\" (type string) at path \"_id\" for model \"Vehicle\"","timestamp":"2026-03-21T03:37:40.994Z"}
+{"level":"error","message":"Erreur getUserById: Cast to ObjectId failed for value \"search\" (type string) at path \"_id\" for model \"User\"","timestamp":"2026-03-21T05:09:48.517Z"}
+{"level":"error","message":"Erreur getUserById: Cast to ObjectId failed for value \"search\" (type string) at path \"_id\" for model \"User\"","timestamp":"2026-03-21T05:09:56.428Z"}
+{"level":"error","message":"Erreur getUserById: Cast to ObjectId failed for value \"search\" (type string) at path \"_id\" for model \"User\"","timestamp":"2026-03-21T05:09:59.839Z"}
+{"level":"error","message":"Erreur getUserById: Cast to ObjectId failed for value \"search\" (type string) at path \"_id\" for model \"User\"","timestamp":"2026-03-21T05:10:09.678Z"}
+{"level":"error","message":"Erreur getUserById: Cast to ObjectId failed for value \"search\" (type string) at path \"_id\" for model \"User\"","timestamp":"2026-03-21T05:10:16.550Z"}
+{"level":"error","message":"Erreur getUserById: Cast to ObjectId failed for value \"search\" (type string) at path \"_id\" for model \"User\"","timestamp":"2026-03-21T06:57:01.892Z"}
+{"level":"error","message":"Erreur getSOSById: Cast to ObjectId failed for value \"history\" (type string) at path \"_id\" for model \"SOSAlert\"","timestamp":"2026-03-21T13:43:24.293Z"}
+{"level":"error","message":"Erreur getSOSById: Cast to ObjectId failed for value \"history\" (type string) at path \"_id\" for model \"SOSAlert\"","timestamp":"2026-03-22T00:55:53.848Z"}
+{"level":"error","message":"Erreur getUserById: Cast to ObjectId failed for value \"export-data\" (type string) at path \"_id\" for model \"User\"","timestamp":"2026-03-22T01:05:32.033Z"}
+{"level":"error","message":"Erreur getSOSById: Cast to ObjectId failed for value \"history\" (type string) at path \"_id\" for model \"SOSAlert\"","timestamp":"2026-03-22T02:54:47.023Z"}
+{"level":"error","message":"Erreur getSOSById: Cast to ObjectId failed for value \"history\" (type string) at path \"_id\" for model \"SOSAlert\"","timestamp":"2026-03-22T02:54:51.025Z"}
+{"level":"error","message":"Erreur getSOSById: Cast to ObjectId failed for value \"history\" (type string) at path \"_id\" for model \"SOSAlert\"","timestamp":"2026-03-22T03:06:48.583Z"}
+{"level":"error","message":"Erreur getSOSById: Cast to ObjectId failed for value \"history\" (type string) at path \"_id\" for model \"SOSAlert\"","timestamp":"2026-03-22T03:58:16.833Z"}
+{"level":"error","message":"Erreur getSOSById: Cast to ObjectId failed for value \"history\" (type string) at path \"_id\" for model \"SOSAlert\"","timestamp":"2026-03-22T14:58:13.495Z"}
+{"level":"error","message":"Erreur getSOSById: Cast to ObjectId failed for value \"history\" (type string) at path \"_id\" for model \"SOSAlert\"","timestamp":"2026-03-23T01:37:25.143Z"}
+{"level":"error","message":"Erreur getUserById: Cast to ObjectId failed for value \"search\" (type string) at path \"_id\" for model \"User\"","timestamp":"2026-03-23T10:48:15.313Z"}
+{"level":"error","message":"Erreur getUserById: Cast to ObjectId failed for value \"search\" (type string) at path \"_id\" for model \"User\"","timestamp":"2026-03-23T10:48:23.273Z"}
+{"level":"error","message":"Erreur getUserById: Cast to ObjectId failed for value \"search\" (type string) at path \"_id\" for model \"User\"","timestamp":"2026-03-23T10:48:28.496Z"}
+{"level":"error","message":"Erreur getUserById: Cast to ObjectId failed for value \"search\" (type string) at path \"_id\" for model \"User\"","timestamp":"2026-03-23T10:48:33.977Z"}
+{"level":"error","message":"Erreur getUserById: Cast to ObjectId failed for value \"search\" (type string) at path \"_id\" for model \"User\"","timestamp":"2026-03-23T10:51:59.725Z"}
+{"level":"error","message":"Erreur getUserById: Cast to ObjectId failed for value \"search\" (type string) at path \"_id\" for model \"User\"","timestamp":"2026-03-23T10:52:11.535Z"}
+{"level":"error","message":"Erreur getUserById: Cast to ObjectId failed for value \"search\" (type string) at path \"_id\" for model \"User\"","timestamp":"2026-03-23T10:52:48.414Z"}
+{"level":"error","message":"Erreur getUserById: Cast to ObjectId failed for value \"search\" (type string) at path \"_id\" for model \"User\"","timestamp":"2026-03-23T10:54:07.495Z"}
+{"level":"error","message":"Erreur getUserById: Cast to ObjectId failed for value \"search\" (type string) at path \"_id\" for model \"User\"","timestamp":"2026-03-23T10:54:34.012Z"}
+{"level":"error","message":"Erreur getUserById: Cast to ObjectId failed for value \"search\" (type string) at path \"_id\" for model \"User\"","timestamp":"2026-03-23T10:56:57.147Z"}
+{"level":"error","message":"Erreur getUserById: Cast to ObjectId failed for value \"search\" (type string) at path \"_id\" for model \"User\"","timestamp":"2026-03-23T10:57:07.565Z"}
+{"level":"error","message":"Erreur getUserById: Cast to ObjectId failed for value \"search\" (type string) at path \"_id\" for model \"User\"","timestamp":"2026-03-23T10:57:08.531Z"}
+{"level":"error","message":"Erreur exportUserData: Cannot populate path `interventions` because it is not in your schema. Set the `strictPopulate` option to false to override.","timestamp":"2026-03-23T21:38:31.435Z"}
+{"level":"error","message":"Erreur update settings: User validation failed: preferences.notifications: Cast to Object failed for value \"undefined\" (type undefined) at path \"preferences.notifications\"","timestamp":"2026-03-23T21:46:20.955Z"}
+{"level":"error","message":"Erreur update settings: User validation failed: preferences.notifications: Cast to Object failed for value \"undefined\" (type undefined) at path \"preferences.notifications\"","timestamp":"2026-03-23T21:46:28.391Z"}
+{"level":"error","message":"Erreur update settings: User validation failed: preferences.notifications: Cast to Object failed for value \"undefined\" (type undefined) at path \"preferences.notifications\"","timestamp":"2026-03-23T21:46:41.257Z"}
+{"level":"error","message":"Erreur update settings: User validation failed: preferences.notifications: Cast to Object failed for value \"undefined\" (type undefined) at path \"preferences.notifications\"","timestamp":"2026-03-23T21:46:43.894Z"}
+{"level":"error","message":"Erreur update settings: User validation failed: preferences.notifications: Cast to Object failed for value \"undefined\" (type undefined) at path \"preferences.notifications\"","timestamp":"2026-03-23T21:46:54.932Z"}
+{"level":"error","message":"Erreur update settings: User validation failed: preferences.notifications: Cast to Object failed for value \"undefined\" (type undefined) at path \"preferences.notifications\"","timestamp":"2026-03-23T21:46:58.697Z"}
+{"level":"error","message":"Erreur update settings: User validation failed: preferences.notifications: Cast to Object failed for value \"undefined\" (type undefined) at path \"preferences.notifications\"","timestamp":"2026-03-23T21:47:00.226Z"}
+{"level":"error","message":"Erreur update settings: User validation failed: preferences.notifications: Cast to Object failed for value \"undefined\" (type undefined) at path \"preferences.notifications\"","timestamp":"2026-03-23T21:49:10.686Z"}
+{"level":"error","message":"Erreur getSOSById: Cast to ObjectId failed for value \"history\" (type string) at path \"_id\" for model \"SOSAlert\"","timestamp":"2026-03-24T03:46:58.796Z"}
+{"level":"error","message":"Erreur getSOSById: Cast to ObjectId failed for value \"history\" (type string) at path \"_id\" for model \"SOSAlert\"","timestamp":"2026-03-24T04:23:33.164Z"}
+{"level":"error","message":"Erreur getSOSById: Cast to ObjectId failed for value \"history\" (type string) at path \"_id\" for model \"SOSAlert\"","timestamp":"2026-03-24T04:30:08.192Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-24T04:49:02.670Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-24T04:50:21.179Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-24T04:50:22.257Z"}
+{"level":"error","message":"Erreur getSOSById: Cast to ObjectId failed for value \"history\" (type string) at path \"_id\" for model \"SOSAlert\"","timestamp":"2026-03-24T04:57:56.611Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-24T04:58:35.481Z"}
+{"level":"error","message":"500 - request entity too large - /api/diagnostic/quick - POST - ::ffff:192.168.2.98","timestamp":"2026-03-24T06:29:22.855Z"}
+{"level":"error","message":"Erreur getSOSById: Cast to ObjectId failed for value \"history\" (type string) at path \"_id\" for model \"SOSAlert\"","timestamp":"2026-03-24T06:32:46.560Z"}
+{"level":"error","message":"Erreur diagnostic avec contexte: 429 Rate limit reached for gpt-4 in organization org-6uI9A80M4udgcX4hSjLLDr1p on tokens per min (TPM): Limit 10000, Used 9667, Requested 710. Please try again in 2.262s. Visit https://platform.openai.com/account/rate-limits to learn more.","timestamp":"2026-03-24T12:18:37.099Z"}
+{"level":"error","message":"Erreur analyse avec contexte: 429 Rate limit reached for gpt-4 in organization org-6uI9A80M4udgcX4hSjLLDr1p on tokens per min (TPM): Limit 10000, Used 9667, Requested 710. Please try again in 2.262s. Visit https://platform.openai.com/account/rate-limits to learn more.","timestamp":"2026-03-24T12:18:37.100Z"}
+{"level":"error","message":"Erreur diagnostic: 429 Rate limit reached for gpt-4 in organization org-6uI9A80M4udgcX4hSjLLDr1p on tokens per min (TPM): Limit 10000, Used 9667, Requested 710. Please try again in 2.262s. Visit https://platform.openai.com/account/rate-limits to learn more.","timestamp":"2026-03-24T12:18:37.100Z"}
+{"level":"error","message":"Erreur getSOSById: Cast to ObjectId failed for value \"history\" (type string) at path \"_id\" for model \"SOSAlert\"","timestamp":"2026-03-24T15:29:06.017Z"}
+{"level":"error","message":"Erreur getSOSById: Cast to ObjectId failed for value \"history\" (type string) at path \"_id\" for model \"SOSAlert\"","timestamp":"2026-03-24T16:08:36.576Z"}
+{"level":"error","message":"Erreur getSOSById: Cast to ObjectId failed for value \"history\" (type string) at path \"_id\" for model \"SOSAlert\"","timestamp":"2026-03-24T17:16:36.463Z"}
+{"level":"error","message":"Erreur getSOSById: Cast to ObjectId failed for value \"history\" (type string) at path \"_id\" for model \"SOSAlert\"","timestamp":"2026-03-24T17:36:39.261Z"}
+{"level":"error","message":"Erreur getSOSById: Cast to ObjectId failed for value \"history\" (type string) at path \"_id\" for model \"SOSAlert\"","timestamp":"2026-03-24T17:56:10.667Z"}
+{"level":"error","message":"Erreur getSOSById: Cast to ObjectId failed for value \"history\" (type string) at path \"_id\" for model \"SOSAlert\"","timestamp":"2026-03-24T18:08:25.260Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-24T21:23:44.375Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-24T21:23:46.562Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-24T21:23:54.847Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-24T21:25:41.879Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-24T23:55:15.000Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-24T23:55:24.909Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-24T23:56:41.423Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T00:27:36.218Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T00:27:41.919Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T00:28:19.520Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T00:28:19.533Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T00:43:03.243Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T01:22:33.463Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T01:22:40.205Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T01:23:11.088Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T01:29:27.438Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T01:29:33.981Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T01:29:41.456Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T01:42:09.955Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T01:42:17.811Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T01:42:30.978Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-25T04:06:42.591Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T04:09:46.774Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T04:15:58.213Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T04:16:11.276Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T04:20:40.703Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T04:29:11.064Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T04:29:21.694Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T04:29:29.109Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T04:36:15.286Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T04:36:29.224Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T04:36:46.278Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T04:49:58.254Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T04:50:10.330Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T04:50:22.041Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T04:53:43.850Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T04:54:05.501Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T05:21:28.880Z"}
+{"level":"error","message":"Erreur annulation: Authenticate","timestamp":"2026-03-25T05:21:28.880Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T05:25:09.663Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T05:33:48.282Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T05:33:52.763Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T05:34:05.511Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T05:48:00.760Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T05:51:04.381Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T05:51:29.466Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T05:51:55.985Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T05:53:48.849Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T05:54:12.541Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T06:04:42.438Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T06:04:55.598Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T06:39:08.271Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T07:02:54.655Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-25T07:03:07.427Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-25T19:24:39.825Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-25T19:35:47.185Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-25T19:39:11.008Z"}
+{"level":"error","message":"Erreur getAllHelpers: Cannot read properties of undefined (reading 'role')","timestamp":"2026-03-25T20:39:04.258Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-26T02:08:19.442Z"}
+{"level":"error","message":"Erreur updateHelperProfile: Helper validation failed: serviceArea.type: Path `serviceArea.type` is required., serviceArea.coordinates: Path `serviceArea.coordinates` is required.","timestamp":"2026-03-26T02:28:54.654Z"}
+{"level":"error","message":"Erreur updateHelperProfile: Helper validation failed: serviceArea.type: Path `serviceArea.type` is required.","timestamp":"2026-03-26T02:31:53.741Z"}
+{"level":"error","message":"Erreur updateHelperProfile: Helper validation failed: serviceArea.type: Path `serviceArea.type` is required.","timestamp":"2026-03-26T02:32:08.269Z"}
+{"level":"error","message":"Erreur updateHelperProfile: Helper validation failed: serviceArea.type: Path `serviceArea.type` is required.","timestamp":"2026-03-26T02:34:32.612Z"}
+{"level":"error","message":"Erreur updateHelperProfile: Helper validation failed: serviceArea.type: Path `serviceArea.type` is required.","timestamp":"2026-03-26T02:51:46.226Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-26T05:09:46.896Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-26T06:37:14.824Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-26T06:47:56.890Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-26T07:16:43.027Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-26T07:24:05.338Z"}
+{"level":"error","message":"Erreur updateHelperProfile: Helper validation failed: services.5: `diagnostic` is not a valid enum value for path `services.5`.","timestamp":"2026-03-26T07:24:19.315Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-26T13:33:38.644Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-26T13:38:07.267Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-26T13:44:51.882Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-26T14:21:29.221Z"}
+{"level":"error","message":"Error: querySrv ECONNREFUSED _mongodb._tcp.cluster0.jxh4dfk.mongodb.net","timestamp":"2026-03-27T01:15:17.154Z"}
+{"level":"error","message":"❌ Erreur au démarrage: Listen method has been called more than once without closing.","timestamp":"2026-03-27T05:09:15.152Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-27T07:23:24.442Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-27T20:52:26.519Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-27T22:21:52.480Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-27T22:28:01.559Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-27T22:47:39.381Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-27T23:06:44.714Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-27T23:10:04.871Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-28T02:10:50.062Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-28T02:24:41.916Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-28T02:26:28.518Z"}
+{"level":"error","message":"Erreur updateHelperProfile: Helper validation failed: services.6: `diagnostic` is not a valid enum value for path `services.6`.","timestamp":"2026-03-28T02:27:43.482Z"}
+{"level":"error","message":"Erreur updateHelperProfile: Helper validation failed: services.6: `diagnostic` is not a valid enum value for path `services.6`.","timestamp":"2026-03-28T02:28:07.639Z"}
+{"level":"error","message":"Erreur updateHelperProfile: Helper validation failed: services.7: `diagnostic` is not a valid enum value for path `services.7`.","timestamp":"2026-03-28T02:28:21.036Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-28T02:41:11.581Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-28T02:41:40.651Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-28T02:55:44.770Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-28T04:20:37.470Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-28T04:52:16.398Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-28T11:17:20.556Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-28T11:20:06.304Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-28T11:22:42.718Z"}
+{"level":"error","message":"Erreur getHelperById: Cast to ObjectId failed for value \"availability\" (type string) at path \"_id\" for model \"Helper\"","timestamp":"2026-03-28T11:23:12.358Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-29T04:31:57.237Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-29T04:33:15.887Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-29T04:34:08.029Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-29T04:34:59.495Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-29T04:38:52.851Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-29T04:40:11.585Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-29T04:55:24.470Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-29T04:55:50.947Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-29T04:56:42.376Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-29T21:08:03.963Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-29T21:11:06.448Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-29T21:15:33.270Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-29T21:17:37.827Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-29T21:18:26.202Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-29T21:20:25.502Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-29T21:21:27.681Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-29T21:21:53.997Z"}
+{"level":"error","message":"Erreur envoi SMS: Authenticate","timestamp":"2026-03-29T21:23:05.482Z"}

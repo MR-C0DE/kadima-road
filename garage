@@ -1,0 +1,42 @@
+STRUCTURE DE L'INTERFACE : MOXTOR GARAGES (Version PRO)
+-------------------------------------------------------
+
+1. PORTAIL D'ADMISSION NUMÉRIQUE (RÉCEPTION IA)
+   - Réception de "Fiches de Diagnostic IA" : Avant que la voiture n'arrive, 
+     le garage reçoit les codes erreurs, photos des voyants et bruits moteurs.
+   - Devis Pré-rempli : L'IA suggère les pièces et le temps de main-d'œuvre 
+     standard (selon barème constructeur) pour gagner du temps.
+   - Historique Complet : Accès au "Carnet de Santé Moxtor" du véhicule client 
+     (entretien passé, anciennes pannes).
+
+2. GESTION DU CALENDRIER ET DES RENDEZ-VOUS
+   - Planning Dynamique : Créneaux disponibles visibles par les utilisateurs.
+   - Réservation Directe : Le client prend RDV depuis son app après un diagnostic.
+   - Rappels Automatiques : SMS/Push envoyés au client pour confirmer la visite.
+
+3. LE "COMPARATEUR DE CONFIANCE" (CERTIFICATION)
+   - Badge "Certifié Moxtor" : Score de transparence basé sur le respect des 
+     estimations de prix fournies par l'IA de l'application.
+   - Réponses aux Devis : Le garage peut ajuster et justifier un surcoût 
+     directement via l'app (ex: "Pièce grippée, nécessite 30 min de plus").
+
+4. BOUTIQUE DE PIÈCES ET LOGISTIQUE
+   - Commande Intégrée : Commande de pièces auprès de fournisseurs partenaires 
+     Moxtor dès que le client valide le devis.
+   - Suivi de Livraison : Temps estimé d'arrivée des pièces pour le mécanicien.
+
+5. VALIDATION ET GARANTIE MOXTOR
+   - Preuve de Réparation : Le mécanicien photographie la pièce neuve installée.
+   - Rapport Post-Entretien : L'IA valide le travail et met à jour 
+     automatiquement le "Dossier Moxtor" de la voiture du client.
+   - Facturation Automatisée : Paiement sécurisé via le Wallet de l'utilisateur.
+
+6. ANALYSES ET RAPPORTS (BUSINESS INTELLIGENCE)
+   - Statistiques de Revenus : Chiffre d'affaires généré via Moxtor.
+   - Taux de Conversion : Pourcentage de diagnostics IA qui finissent en RDV.
+   - Avis et Réputation : Gestion des commentaires clients pour améliorer le rang.
+
+7. MODE "APPEL À EXPERT" (B2B)
+   - Le garage peut demander l'envoi d'un "Helper Niveau 3" (Dépanneur) pour 
+     ramener un véhicule complexe à l'atelier si le client est immobilisé.
+-------------------------------------------------------

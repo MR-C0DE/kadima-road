@@ -3,39 +3,28 @@ import { View, Text, StyleSheet, TouchableOpacity, Modal } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
-import Animated, { useAnimatedStyle } from "react-native-reanimated";
-import { HelperProfile } from "./types";
 
 interface ProfilePhotoModalProps {
   visible: boolean;
-  profile: HelperProfile | null;
   colors: any;
-  colorScheme: string | null | undefined;
-  scaleAnim: any; // Type any pour reanimated
+  colorScheme: string | null;
   onClose: () => void;
   onTakePhoto: () => void;
   onPickImage: () => void;
   onDeletePhoto: () => void;
+  hasPhoto: boolean;
 }
 
-const ProfilePhotoModal = ({
+export default function ProfilePhotoModal({
   visible,
-  profile,
   colors,
   colorScheme,
-  scaleAnim,
   onClose,
   onTakePhoto,
   onPickImage,
   onDeletePhoto,
-}: ProfilePhotoModalProps) => {
-  // Créer un style animé avec reanimated
-  const animatedStyle = useAnimatedStyle(() => {
-    return {
-      transform: [{ scale: scaleAnim.value }],
-    };
-  });
-
+  hasPhoto,
+}: ProfilePhotoModalProps) {
   return (
     <Modal
       visible={visible}
@@ -49,15 +38,7 @@ const ProfilePhotoModal = ({
           onPress={onClose}
           activeOpacity={1}
         />
-        <Animated.View
-          style={[
-            styles.modalContent,
-            {
-              backgroundColor: colors.card,
-            },
-            animatedStyle, // Appliquer le style animé
-          ]}
-        >
+        <View style={[styles.modalContent, { backgroundColor: colors.card }]}>
           <Text
             style={[
               styles.modalTitle,
@@ -69,10 +50,7 @@ const ProfilePhotoModal = ({
 
           <TouchableOpacity
             style={[styles.photoOption, { borderColor: colors.border }]}
-            onPress={() => {
-              onClose();
-              onTakePhoto();
-            }}
+            onPress={onTakePhoto}
           >
             <View
               style={[
@@ -99,10 +77,7 @@ const ProfilePhotoModal = ({
 
           <TouchableOpacity
             style={[styles.photoOption, { borderColor: colors.border }]}
-            onPress={() => {
-              onClose();
-              onPickImage();
-            }}
+            onPress={onPickImage}
           >
             <View
               style={[
@@ -127,13 +102,10 @@ const ProfilePhotoModal = ({
             </View>
           </TouchableOpacity>
 
-          {profile?.user.photo && (
+          {hasPhoto && (
             <TouchableOpacity
               style={[styles.photoOption, { borderColor: colors.border }]}
-              onPress={() => {
-                onClose();
-                onDeletePhoto();
-              }}
+              onPress={onDeletePhoto}
             >
               <View
                 style={[
@@ -170,18 +142,14 @@ const ProfilePhotoModal = ({
               <Text style={styles.modalButtonText}>Annuler</Text>
             </LinearGradient>
           </TouchableOpacity>
-        </Animated.View>
+        </View>
       </BlurView>
     </Modal>
   );
-};
+}
 
 const styles = StyleSheet.create({
-  modalOverlay: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-  },
+  modalOverlay: { flex: 1, justifyContent: "center", alignItems: "center" },
   modalContent: {
     width: "90%",
     borderRadius: 28,
@@ -192,10 +160,7 @@ const styles = StyleSheet.create({
     shadowRadius: 16,
     elevation: 10,
   },
-  modalTitle: {
-    fontSize: 20,
-    fontWeight: "600",
-  },
+  modalTitle: { fontSize: 20, fontWeight: "600" },
   photoOption: {
     flexDirection: "row",
     alignItems: "center",
@@ -212,30 +177,10 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
   },
-  photoOptionText: {
-    flex: 1,
-  },
-  photoOptionTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    marginBottom: 2,
-  },
-  photoOptionDesc: {
-    fontSize: 13,
-  },
-  modalButton: {
-    borderRadius: 30,
-    overflow: "hidden",
-  },
-  modalButtonGradient: {
-    padding: 16,
-    alignItems: "center",
-  },
-  modalButtonText: {
-    color: "#fff",
-    fontSize: 15,
-    fontWeight: "600",
-  },
+  photoOptionText: { flex: 1 },
+  photoOptionTitle: { fontSize: 16, fontWeight: "600", marginBottom: 2 },
+  photoOptionDesc: { fontSize: 13 },
+  modalButton: { borderRadius: 30, overflow: "hidden" },
+  modalButtonGradient: { padding: 16, alignItems: "center" },
+  modalButtonText: { color: "#fff", fontSize: 15, fontWeight: "600" },
 });
-
-export default ProfilePhotoModal;

@@ -1,10 +1,4 @@
-// Export des types
-export * from "./types";
-
-// Export des constantes
-export * from "./constants";
-
-// Export des composants
+// helpers/components/profile/index.ts
 export { default as ProfileHeader } from "./ProfileHeader";
 export { default as ProfileStats } from "./ProfileStats";
 export { default as ProfileMenu } from "./ProfileMenu";
@@ -16,3 +10,5 @@ export { default as ProfileZoneModal } from "./ProfileZoneModal";
 export { default as ProfilePricingModal } from "./ProfilePricingModal";
 export { default as ProfileDocumentsModal } from "./ProfileDocumentsModal";
 export { default as ProfilePreferencesModal } from "./ProfilePreferencesModal";
+export * from "./types";
+export * from "./constants";

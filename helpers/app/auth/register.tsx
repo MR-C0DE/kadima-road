@@ -23,11 +23,32 @@ import { LinearGradient } from "expo-linear-gradient";
 
 const { width } = Dimensions.get("window");
 
+// ============================================
+// COORDONNÉES DES VILLES (Ottawa et Gatineau)
+// ============================================
+const CITIES = [
+  {
+    id: "ottawa",
+    name: "Ottawa",
+    coordinates: [-75.6919, 45.4215], // [longitude, latitude]
+    address: "Ottawa, ON",
+  },
+  {
+    id: "gatineau",
+    name: "Gatineau",
+    coordinates: [-75.7122, 45.4764], // [longitude, latitude]
+    address: "Gatineau, QC",
+  },
+];
+
 export default function RegisterScreen() {
   const router = useRouter();
   const colorScheme = useColorScheme();
   const colors = Colors[colorScheme ?? "light"];
 
+  // ============================================
+  // ÉTATS
+  // ============================================
   const [form, setForm] = useState({
     firstName: "",
     lastName: "",
@@ -36,6 +57,11 @@ export default function RegisterScreen() {
     password: "",
     confirmPassword: "",
   });
+
+  // ⚡ NOUVEAU : État pour la ville sélectionnée
+  const [selectedCity, setSelectedCity] = useState<string | null>(null);
+  const [citySelectorVisible, setCitySelectorVisible] = useState(false);
+
   const [loading, setLoading] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
@@ -68,6 +94,9 @@ export default function RegisterScreen() {
     ]).start();
   }, []);
 
+  // ============================================
+  // VALIDATION
+  // ============================================
   const validateField = (field: string, value: string) => {
     let error = "";
     switch (field) {
@@ -112,24 +141,49 @@ export default function RegisterScreen() {
       const error = validateField(key, form[key as keyof typeof form]);
       if (error) newErrors[key] = error;
     });
+
+    // ⚡ Validation de la ville
+    if (!selectedCity) {
+      Alert.alert("Erreur", "Veuillez sélectionner votre ville d'intervention");
+      return false;
+    }
+
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
 
+  // ============================================
+  // INSCRIPTION
+  // ============================================
   const handleRegister = async () => {
     if (!validateForm()) {
-      Alert.alert("Erreur", "Veuillez corriger les erreurs dans le formulaire");
       return;
     }
 
     setLoading(true);
     try {
+      // Trouver la ville sélectionnée
+      const city = CITIES.find((c) => c.id === selectedCity);
+
+      if (!city) {
+        Alert.alert("Erreur", "Ville non valide");
+        setLoading(false);
+        return;
+      }
+
+      // ✅ Appel API avec les coordonnées
       const response = await api.post("/auth/helper/register", {
         firstName: form.firstName,
         lastName: form.lastName,
         email: form.email.toLowerCase().trim(),
         phone: form.phone.replace(/\s/g, ""),
         password: form.password,
+
+        // ⚡ AJOUT DES COORDONNÉES
+        location: {
+          coordinates: city.coordinates,
+          address: city.address,
+        },
       });
 
       Alert.alert(
@@ -147,6 +201,9 @@ export default function RegisterScreen() {
     }
   };
 
+  // ============================================
+  // RENDER DES INPUTS
+  // ============================================
   const renderInput = (
     field: string,
     placeholder: string,
@@ -233,6 +290,113 @@ export default function RegisterScreen() {
     );
   };
 
+  // ⚡ Render du sélecteur de ville
+  const renderCitySelector = () => (
+    <Animated.View style={{ opacity: fadeAnim }}>
+      <View style={styles.inputWrapper}>
+        <Text style={[styles.inputLabel, { color: colors.textSecondary }]}>
+          Ville d'intervention *
+        </Text>
+
+        {/* Bouton du sélecteur */}
+        <TouchableOpacity
+          style={[
+            styles.citySelector,
+            {
+              backgroundColor: colors.card,
+              borderColor: selectedCity ? colors.primary : colors.border,
+            },
+          ]}
+          onPress={() => setCitySelectorVisible(!citySelectorVisible)}
+        >
+          <View style={styles.citySelectorContent}>
+            <Ionicons
+              name="location"
+              size={20}
+              color={selectedCity ? colors.primary : colors.textSecondary}
+            />
+            <Text
+              style={[
+                styles.citySelectorText,
+                { color: selectedCity ? colors.primary : colors.textSecondary },
+              ]}
+            >
+              {selectedCity
+                ? CITIES.find((c) => c.id === selectedCity)?.name
+                : "Choisissez votre ville"}
+            </Text>
+          </View>
+          <Ionicons
+            name={citySelectorVisible ? "chevron-up" : "chevron-down"}
+            size={20}
+            color={colors.textSecondary}
+          />
+        </TouchableOpacity>
+
+        {/* Liste déroulante des villes */}
+        {citySelectorVisible && (
+          <View style={[styles.cityList, { backgroundColor: colors.card }]}>
+            {CITIES.map((city) => (
+              <TouchableOpacity
+                key={city.id}
+                style={[
+                  styles.cityItem,
+                  selectedCity === city.id && {
+                    backgroundColor: colors.primary + "10",
+                  },
+                ]}
+                onPress={() => {
+                  setSelectedCity(city.id);
+                  setCitySelectorVisible(false);
+                }}
+              >
+                <Ionicons
+                  name="business"
+                  size={20}
+                  color={
+                    selectedCity === city.id
+                      ? colors.primary
+                      : colors.textSecondary
+                  }
+                />
+                <View style={styles.cityItemInfo}>
+                  <Text
+                    style={[
+                      styles.cityItemName,
+                      {
+                        color:
+                          selectedCity === city.id
+                            ? colors.primary
+                            : colors.text,
+                      },
+                    ]}
+                  >
+                    {city.name}
+                  </Text>
+                  <Text
+                    style={[
+                      styles.cityItemAddress,
+                      { color: colors.textSecondary },
+                    ]}
+                  >
+                    {city.address}
+                  </Text>
+                </View>
+                {selectedCity === city.id && (
+                  <Ionicons
+                    name="checkmark-circle"
+                    size={24}
+                    color={colors.primary}
+                  />
+                )}
+              </TouchableOpacity>
+            ))}
+          </View>
+        )}
+      </View>
+    </Animated.View>
+  );
+
   return (
     <View style={[styles.container, { backgroundColor: colors.background }]}>
       <StatusBar
@@ -303,6 +467,10 @@ export default function RegisterScreen() {
               {renderInput("phone", "Téléphone", "call-outline", {
                 keyboardType: "phone-pad",
               })}
+
+              {/* ⚡ SÉLECTEUR DE VILLE */}
+              {renderCitySelector()}
+
               {renderInput("password", "Mot de passe", "lock-closed-outline")}
               {renderInput(
                 "confirmPassword",
@@ -363,6 +531,9 @@ export default function RegisterScreen() {
   );
 }
 
+// ============================================
+// STYLES (AJOUT DES NOUVEAUX STYLES)
+// ============================================
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -461,6 +632,52 @@ const styles = StyleSheet.create({
     marginTop: 4,
     marginLeft: 4,
   },
+
+  // ⚡ NOUVEAUX STYLES POUR LE SÉLECTEUR DE VILLE
+  citySelector: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    height: 56,
+    borderWidth: 1,
+    borderRadius: 16,
+    paddingHorizontal: 16,
+  },
+  citySelectorContent: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 10,
+  },
+  citySelectorText: {
+    fontSize: 15,
+  },
+  cityList: {
+    marginTop: 8,
+    borderRadius: 16,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "rgba(0,0,0,0.1)",
+  },
+  cityItem: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 16,
+    gap: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: "rgba(0,0,0,0.05)",
+  },
+  cityItemInfo: {
+    flex: 1,
+  },
+  cityItemName: {
+    fontSize: 16,
+    fontWeight: "500",
+    marginBottom: 2,
+  },
+  cityItemAddress: {
+    fontSize: 12,
+  },
+
   registerButton: {
     borderRadius: 30,
     overflow: "hidden",

@@ -1,4 +1,6 @@
-import React from "react";
+// helpers/components/profile/ProfileZoneModal.tsx
+
+import React, { useRef, useEffect } from "react";
 import {
   View,
   Text,
@@ -7,37 +9,52 @@ import {
   Modal,
   ScrollView,
   TextInput,
+  Animated,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
-import Animated from "react-native-reanimated";
+
 import { RADIUS_OPTIONS } from "./constants";
 
-// Définir le composant avec un export par défaut
-const ProfileZoneModal = ({
+interface ProfileZoneModalProps {
+  visible: boolean;
+  radius: string;
+  address: string;
+  colors: any;
+  colorScheme: string | null;
+  onClose: () => void;
+  onRadiusChange: (value: string) => void;
+  onAddressChange: (value: string) => void;
+  onSave: () => void;
+}
+
+export default function ProfileZoneModal({
   visible,
   radius,
   address,
   colors,
   colorScheme,
-  scaleAnim,
   onClose,
   onRadiusChange,
   onAddressChange,
   onSave,
-}: {
-  visible: boolean;
-  radius: string;
-  address: string;
-  colors: any;
-  colorScheme: string | null | undefined;
-  scaleAnim: Animated.SharedValue<number>;
-  onClose: () => void;
-  onRadiusChange: (value: string) => void;
-  onAddressChange: (value: string) => void;
-  onSave: () => void;
-}) => {
+}: ProfileZoneModalProps) {
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
+
+  useEffect(() => {
+    if (visible) {
+      Animated.spring(scaleAnim, {
+        toValue: 1,
+        friction: 8,
+        tension: 40,
+        useNativeDriver: true,
+      }).start();
+    } else {
+      scaleAnim.setValue(0.9);
+    }
+  }, [visible]);
+
   return (
     <Modal
       visible={visible}
@@ -51,6 +68,7 @@ const ProfileZoneModal = ({
           onPress={onClose}
           activeOpacity={1}
         />
+
         <Animated.View
           style={[
             styles.modalContent,
@@ -60,51 +78,76 @@ const ProfileZoneModal = ({
             },
           ]}
         >
+          {/* Header */}
           <View style={styles.modalHeader}>
-            <Text style={[styles.modalTitle, { color: colors.text }]}>
-              Zone d'intervention
-            </Text>
-            <TouchableOpacity onPress={onClose} style={styles.modalClose}>
+            <View style={styles.modalHeaderLeft}>
+              <LinearGradient
+                colors={[colors.primary + "20", colors.secondary + "10"]}
+                style={styles.modalHeaderIcon}
+              >
+                <Ionicons name="location" size={22} color={colors.primary} />
+              </LinearGradient>
+              <Text style={[styles.modalTitle, { color: colors.text }]}>
+                Zone d'intervention
+              </Text>
+            </View>
+            <TouchableOpacity
+              onPress={onClose}
+              style={styles.modalClose}
+              activeOpacity={0.7}
+            >
               <Ionicons name="close" size={24} color={colors.textSecondary} />
             </TouchableOpacity>
           </View>
 
+          {/* Description */}
+          <Text
+            style={[styles.modalDescription, { color: colors.textSecondary }]}
+          >
+            Définissez votre zone d'intervention
+          </Text>
+
+          {/* Corps du formulaire */}
           <View style={styles.modalBody}>
+            {/* Rayon */}
             <Text style={[styles.modalLabel, { color: colors.textSecondary }]}>
-              Rayon d'action
+              Rayon d'action (km)
             </Text>
             <ScrollView
               horizontal
               showsHorizontalScrollIndicator={false}
               style={styles.radiusScroll}
+              contentContainerStyle={styles.radiusScrollContent}
             >
-              {RADIUS_OPTIONS.map((r) => (
-                <TouchableOpacity
-                  key={r}
-                  style={[
-                    styles.radiusButton,
-                    { backgroundColor: colors.background },
-                    parseInt(radius) === r && {
-                      backgroundColor: colors.primary,
-                    },
-                  ]}
-                  onPress={() => onRadiusChange(r.toString())}
-                >
-                  <Text
+              {RADIUS_OPTIONS.map((r) => {
+                const isSelected = parseInt(radius) === r;
+                return (
+                  <TouchableOpacity
+                    key={r}
                     style={[
-                      styles.radiusText,
-                      { color: colors.text },
-                      parseInt(radius) === r && {
-                        color: "#fff",
-                      },
+                      styles.radiusButton,
+                      isSelected && { backgroundColor: colors.primary },
                     ]}
+                    onPress={() => onRadiusChange(r.toString())}
+                    activeOpacity={0.7}
                   >
-                    {r} km
-                  </Text>
-                </TouchableOpacity>
-              ))}
+                    <Text
+                      style={[
+                        styles.radiusText,
+                        {
+                          color: isSelected ? "#fff" : colors.text,
+                          fontWeight: isSelected ? "600" : "500",
+                        },
+                      ]}
+                    >
+                      {r} km
+                    </Text>
+                  </TouchableOpacity>
+                );
+              })}
             </ScrollView>
 
+            {/* Adresse */}
             <Text
               style={[
                 styles.modalLabel,
@@ -126,24 +169,37 @@ const ProfileZoneModal = ({
               placeholderTextColor={colors.placeholder}
               value={address}
               onChangeText={onAddressChange}
+              multiline
+              numberOfLines={2}
+              textAlignVertical="top"
             />
+            <Text style={[styles.inputHint, { color: colors.textSecondary }]}>
+              <Ionicons name="information-circle-outline" size={12} /> Cette
+              adresse sera utilisée comme point de départ pour vos interventions
+            </Text>
           </View>
 
-          <TouchableOpacity style={styles.modalButton} onPress={onSave}>
+          {/* Bouton de sauvegarde */}
+          <TouchableOpacity
+            style={styles.saveButton}
+            onPress={onSave}
+            activeOpacity={0.8}
+          >
             <LinearGradient
               colors={[colors.primary, colors.secondary]}
-              style={styles.modalButtonGradient}
+              style={styles.saveButtonGradient}
               start={{ x: 0, y: 0 }}
               end={{ x: 1, y: 0 }}
             >
-              <Text style={styles.modalButtonText}>Enregistrer</Text>
+              <Ionicons name="save-outline" size={20} color="#fff" />
+              <Text style={styles.saveButtonText}>Enregistrer</Text>
             </LinearGradient>
           </TouchableOpacity>
         </Animated.View>
       </BlurView>
     </Modal>
   );
-};
+}
 
 const styles = StyleSheet.create({
   modalOverlay: {
@@ -153,6 +209,7 @@ const styles = StyleSheet.create({
   },
   modalContent: {
     width: "90%",
+    maxHeight: "85%",
     borderRadius: 28,
     padding: 20,
     shadowColor: "#000",
@@ -165,56 +222,87 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    marginBottom: 20,
+    marginBottom: 12,
+  },
+  modalHeaderLeft: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 12,
+  },
+  modalHeaderIcon: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: "center",
+    alignItems: "center",
   },
   modalTitle: {
     fontSize: 20,
     fontWeight: "600",
   },
   modalClose: {
-    padding: 4,
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: "center",
+    alignItems: "center",
+  },
+  modalDescription: {
+    fontSize: 14,
+    marginBottom: 20,
+    paddingHorizontal: 4,
   },
   modalBody: {
-    gap: 10,
+    gap: 12,
   },
   modalLabel: {
     fontSize: 13,
     marginBottom: 4,
+    fontWeight: "500",
   },
   modalInput: {
     padding: 14,
     borderRadius: 16,
     borderWidth: 1,
     fontSize: 14,
+    minHeight: 60,
+  },
+  inputHint: {
+    fontSize: 11,
+    marginTop: 4,
+    marginLeft: 4,
   },
   radiusScroll: {
     flexDirection: "row",
   },
+  radiusScrollContent: {
+    paddingRight: 20,
+  },
   radiusButton: {
-    paddingHorizontal: 16,
+    paddingHorizontal: 18,
     paddingVertical: 10,
     borderRadius: 25,
-    marginRight: 8,
+    marginRight: 10,
+    backgroundColor: "rgba(0,0,0,0.05)",
   },
   radiusText: {
-    fontSize: 13,
-    fontWeight: "500",
+    fontSize: 14,
   },
-  modalButton: {
+  saveButton: {
     marginTop: 20,
     borderRadius: 30,
     overflow: "hidden",
   },
-  modalButtonGradient: {
-    padding: 16,
+  saveButtonGradient: {
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
+    padding: 16,
+    gap: 8,
   },
-  modalButtonText: {
+  saveButtonText: {
     color: "#fff",
-    fontSize: 15,
+    fontSize: 16,
     fontWeight: "600",
   },
 });
-
-// Export par défaut
-export default ProfileZoneModal;
